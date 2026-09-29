@@ -43,7 +43,7 @@ describe('manual sync', () => {
         library: { ...data, notes: [{ ...note, title: 'remote' }] },
         status: {
           configured: true,
-          url: 'https://stash.slowtyper.cloud',
+          url: 'https://stash.example.com',
           lastSuccess: 3,
           pending: 0,
           warnings: [],
@@ -72,7 +72,7 @@ describe('manual sync', () => {
       library: { ...data, notes: [{ ...note, title: 'remote', revision: 2, content: undefined }] },
       status: {
         configured: true,
-        url: 'https://stash.slowtyper.cloud',
+        url: 'https://stash.example.com',
         lastSuccess: 3,
         pending: 0,
         warnings: [],

@@ -35,6 +35,6 @@ networks:
     internal: true
   proxy:
     external: true
-    name: vaultwarden_vaultwarden
+    name: ${STASH_PROXY_NETWORK:?required}
 volumes:
   postgres:

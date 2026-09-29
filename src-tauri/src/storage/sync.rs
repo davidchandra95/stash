@@ -145,7 +145,7 @@ impl Store {
             || !parsed.username().is_empty()
             || parsed.password().is_some()
         {
-            return Err("Use an HTTPS origin, for example https://stash.slowtyper.cloud.".into());
+            return Err("Use an HTTPS origin, for example https://stash.example.com.".into());
         }
         let url = parsed.as_str().trim_end_matches('/');
         if token.trim().len() != 64 {

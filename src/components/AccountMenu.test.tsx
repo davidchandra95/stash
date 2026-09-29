@@ -83,7 +83,7 @@ afterEach(async () => {
 it('uses one avatar and name button and opens the compact action menu', async () => {
   await mount()
   const trigger = host!.querySelector<HTMLButtonElement>('.account-trigger')!
-  expect(trigger.textContent).toBe('David')
+  expect(trigger.textContent).toBe('Account')
   expect(host!.querySelectorAll('button')).toHaveLength(1)
 
   await open()

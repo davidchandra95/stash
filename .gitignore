@@ -6,3 +6,5 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/plugins/*/android/build/
 *.tsbuildinfo
+server/deploy/.env
+documents/SYNC.private.md

@@ -4,5 +4,6 @@ Requires=docker.service
 After=docker.service
 [Service]
 Type=oneshot
-ExecStart=/srv/stash/backup.sh
+EnvironmentFile=/etc/stash/stash.env
+ExecStart=/bin/sh ${STASH_INSTALL_DIR}/backup.sh
 UMask=0077

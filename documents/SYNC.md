@@ -1,74 +1,115 @@
-# Manual server sync
+# Optional self-hosted sync
 
-Stash keeps working offline in SQLite. The Sync button is the only trigger for network synchronization. PostgreSQL holds the shared library at `https://stash.slowtyper.cloud`; the Mac never connects directly to PostgreSQL.
+Stash is local-first. A new library stores notes in SQLite and does not contact a sync server. Sync stays inactive until a user explicitly saves both an HTTPS server URL and a device token under Settings → Sync. Saving the connection verifies the server identity but does not synchronize notes. Synchronization starts only when the user presses Sync.
+
+The desktop app connects only to the HTTPS API. It never connects directly to PostgreSQL. The supplied server is a starting point for running one private library. Operators may replace the deployment layout, reverse proxy, and infrastructure as long as the API protocol remains compatible.
 
 ## What syncs
 
-Ordinary notes (including embedded data-URL images), notebooks and their hierarchy, body-derived tag indexes, memberships, pin/Quick Access state, and Trash state sync. Folder-linked notes, local assets and paths, appearance, shortcuts, workspace tabs, and editor undo history stay local. Changing an ordinary note into a folder-linked note removes its shared record, while preserving the local file. A local-only notebook shell is retained when necessary to preserve a linked note's membership after a remote notebook deletion.
+Ordinary notes, embedded data-URL images, notebooks and their hierarchy, body-derived tag indexes, notebook memberships, pin and Quick Access state, and Trash state sync. Folder-linked notes, local assets and paths, appearance, shortcuts, workspace tabs, and editor undo history stay on each device.
 
-There is one private library. Each device has its own revocable bearer token. The server stores only its SHA-256 hash. The Mac stores its token in Keychain, scoped to its local library identity. The URL and remote library identity are stored in SQLite. HTTPS certificate verification is required; redirects are not followed. This is transport encryption, not end-to-end encrypted server storage.
+Each device has its own revocable bearer token. The server stores only the token's SHA-256 hash. macOS stores the token in Keychain, and Android stores it with Android Keystore. The server URL and remote library identity are stored in the local SQLite library. HTTPS certificate verification is required and redirects are not followed. This provides transport encryption, not end-to-end encrypted server storage.
 
-Connection settings are under Settings → Sync. On macOS, open the David account menu in the sidebar and choose Sync; first use opens that settings category. Saving a connection does not start a sync. Android keeps Sync in its navigation drawer and shows the last-sync time in the device’s local time using a 24-hour format. After connection, one click saves pending edits, uploads queued operations, downloads remote changes, and applies them locally. Editing is paused during that operation. On macOS, a failure appears in the workspace alert with a retry action. Local notes remain available and the durable sync cycle is ready for another click. If edits were made after a failed cycle, recovery preserves them and reports that another sync is needed.
+After a connection is configured, one Sync action saves pending local edits, uploads queued operations, downloads remote changes, and applies them locally. Editing pauses during that operation. Failures leave local notes available and preserve the durable queue for a later retry.
 
-## Protocol and recovery
+## Server requirements
 
-The Go service provides `GET /healthz`, authenticated `GET /v1/info`, `POST /v1/push`, and `GET /v1/pull?after=N&target=M`.
+The reference deployment requires:
 
-Push accepts one operation: `operationId`, `kind` (`note` or `notebook`), `id`, `baseRevision`, `deleted`, and `data`. Records retain the native camelCase note/notebook shape. Notes require document format 1. Local note revisions and server revisions are independent. Each operation has a stable immutable payload and ID. A response includes the original operation ID, conflict information and the current canonical record. Reusing an operation ID with different content fails.
+- A Linux host with Docker Engine and Docker Compose.
+- An existing external Docker network connected to an HTTPS reverse proxy.
+- A DNS name and valid HTTPS certificate for the API.
+- A private environment file with a strong PostgreSQL password and deployment-specific values.
+- Off-host backup storage if recovery from total server loss is required.
 
-A library-row lock serializes PostgreSQL transactions. Entity changes, immutable change-log entries, operation receipts and the library cursor commit together, so a cursor never skips an uncommitted write. Pull pages contain at most 100 records, with a roughly 64 MiB data budget; a fixed target bounds each cycle. Requests are limited to 64 MiB. Oversized records fail visibly and remain queued. Tombstones and operation receipts are retained without automatic cleanup.
+The database uses an internal Docker network and publishes no host port. Only the API joins the external proxy network. Configure the reverse proxy to send the chosen HTTPS origin, such as `https://stash.example.com`, to `stash-sync:8080` on that network.
 
-SQLite schema 7 adds a migration ledger for the body-owned tag upgrade. The existing tag field stays in the sync payload as a generated index, so the server API does not change. Schema 6 added transactional dirty tracking, per-record server revisions, a durable outbox, a staged inbox and cycle checkpoints. Existing version 5 and 6 libraries receive a consistent pre-upgrade backup. Changes are captured in immutable operations when a cycle begins. Page downloads and their checkpoint commit together. Once all pages arrive, records and the final cursor apply in one transaction. Changes made after a failed cycle are not overwritten by its download; their old server revision forces proper conflict handling on the following sync.
+## Configure and start the server
 
-Concurrent note changes keep the accepted server record and create one visible conflict copy of the incoming record. Copies are placed outside Trash so recovered content is discoverable. A repeated request cannot create extra copies. Concurrent notebook metadata changes retain the server version and show a warning. Notebook deletion removes shared memberships, reparents surviving children, and retains note content. Deleted notebook IDs cannot be silently resurrected.
-
-Sync checks the remote library identity before uploading. A different server library or incompatible protocol fails closed. Changing to another library requires a separate local profile. Restoring an older PostgreSQL backup is an operator recovery action: do not reset client cursors or overwrite the live database casually. Export/preserve unsynced client data and reconcile it before resuming.
-
-## Server operations
-
-The server runs from `/srv/stash` with a dedicated PostgreSQL volume and private database network. Only the API joins the existing Caddy network. Neither service publishes a host port. Existing Caddy terminates HTTPS and proxies `stash.slowtyper.cloud` to `stash-sync:8080`.
-
-Build the Go binary for the server and the Docker image:
+Build the Go binary and image from the `server` directory. Replace `<image-tag>` with an operator-selected immutable version:
 
 ```sh
 cd server
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o stash ./cmd/stash
-docker build -t stash-sync:VERSION .
+docker build -t stash-sync:<image-tag> .
 ```
 
-Keep `.env` owner-readable only, containing `POSTGRES_PASSWORD` and `STASH_VERSION`. `deploy/compose.yaml` is the deployment definition. Preserve the previous image tag and take a backup before upgrades. Roll back the API image only if compatible with the current schema. Never downgrade either database in place.
-
-Create a device on the server:
+Copy `deploy/.env.example` to a private file outside the repository, then replace every placeholder. The systemd unit expects `/etc/stash/stash.env`:
 
 ```sh
-cd /srv/stash
-docker compose exec -T api /stash create-device DEVICE_NAME
+sudo install -d -m 700 /etc/stash
+sudo install -m 600 deploy/.env.example /etc/stash/stash.env
+sudoedit /etc/stash/stash.env
 ```
 
-This outputs a device ID and token once. Enter the token in Stash's connection settings. Do not put it in logs, screenshots, source control or command-line arguments. Revoke a device with:
+Configuration values are required:
+
+- `POSTGRES_PASSWORD`: a new strong database password.
+- `STASH_VERSION`: the image tag built above.
+- `STASH_PROXY_NETWORK`: the existing external Docker network used by the reverse proxy.
+- `STASH_INSTALL_DIR`: the absolute directory containing `compose.yaml` and `backup.sh`.
+
+Start the services with the private environment file. Replace `<deploy-directory>` with the same path used for `STASH_INSTALL_DIR`:
 
 ```sh
-docker compose exec -T api /stash revoke-device DEVICE_ID
+docker compose --env-file /etc/stash/stash.env -f <deploy-directory>/compose.yaml up -d
 ```
 
-For trusted scripted Mac provisioning, close Stash and pass JSON containing `url` and `token` on stdin to the packaged executable with `--configure-sync`. It verifies the endpoint identity and stores the token in Keychain, without syncing. This command uses the normal Mac library and refuses while it is open. Open the app and click Sync afterward.
+Keep the previous API image available before an upgrade and take a database backup first. Roll back the API image only when it is compatible with the current schema. Never downgrade PostgreSQL in place.
 
-`stash-backup.timer` runs a daily custom-format `pg_dump`, retaining seven days. Failed dumps are not promoted to completed backups. Check `systemctl status stash-backup.service` and `journalctl -u stash-backup.service`. Backups are local to the server and do not protect against total server loss. Verify restores in a separate database using `pg_restore --exit-on-error`; never test a restore over the live library.
+## Connect devices
+
+Create a separate device token for each client:
+
+```sh
+docker compose --env-file /etc/stash/stash.env -f <deploy-directory>/compose.yaml \
+  exec -T api /stash create-device DEVICE_NAME
+```
+
+The command prints the device ID and token once. Enter the HTTPS origin and token in the app's Sync settings. Do not put the token in logs, screenshots, source control, or command-line arguments.
+
+Revoke a device when it should no longer have access:
+
+```sh
+docker compose --env-file /etc/stash/stash.env -f <deploy-directory>/compose.yaml \
+  exec -T api /stash revoke-device DEVICE_ID
+```
+
+For trusted scripted macOS provisioning, close Stash and pass JSON containing `url` and `token` on standard input to the packaged executable with `--configure-sync`. It verifies the endpoint identity and stores the token in Keychain without starting a sync. Open the app and press Sync afterward.
+
+## Backups and recovery
+
+`backup.sh` resolves its deployment directory from the script location, creates a custom-format PostgreSQL dump, verifies that the dump can be listed, and retains seven days of completed local backups. A failed dump is not promoted to a completed backup.
+
+Install `stash-backup.service` and `stash-backup.timer` under `/etc/systemd/system`, then enable the timer:
+
+```sh
+sudo install -m 644 deploy/stash-backup.service deploy/stash-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now stash-backup.timer
+```
+
+Check backup runs with `systemctl status stash-backup.service` and `journalctl -u stash-backup.service`. Local dumps do not protect against total server loss. Copy backups to separate storage and verify restores in a separate database using `pg_restore --exit-on-error`. Never test a restore over the live library.
+
+Sync checks the remote library identity before uploading. A different library or incompatible protocol fails closed. Switching a device to another library requires a separate local profile. Before restoring an older server backup, preserve unsynced client data and reconcile it instead of resetting client cursors or overwriting the live database without review.
+
+## Protocol
+
+The Go server provides `GET /healthz`, authenticated `GET /v1/info`, `POST /v1/push`, and `GET /v1/pull?after=N&target=M`.
+
+Push accepts one note or notebook operation with a stable operation ID, base revision, deletion state, and record data. Reusing an operation ID with different content fails. Entity changes, operation receipts, change-log entries, and the library cursor commit in one PostgreSQL transaction.
+
+Concurrent note changes keep the accepted server record and create one visible conflict copy of the incoming record. Concurrent notebook metadata changes retain the server version and produce a warning. Pull pages and checkpoints are durable, and downloaded records apply atomically only after the bounded cycle is complete.
 
 ## Verification
 
-- `npm test`: frontend tests, including save-before-sync, blocked overlapping edits/quit, reload after sync and failure recovery.
-- `cargo test --manifest-path src-tauri/Cargo.toml`: SQLite migration/backup, durable queue, interrupted cycles, local edit preservation, linked-folder exclusion, atomic apply and invalid cursor/document handling.
-- In `server/`, `TEST_DATABASE_URL=... go test -race ./...` against a dedicated disposable PostgreSQL database. These tests reset its public schema. They cover two devices, conflict-copy retry, concurrent writes, pagination, notebook deletion, invalid/revoked tokens and database failure. `go vet ./...` checks the backend.
-- The explicitly enabled Rust integration test `two_sqlite_clients_through_real_http_service` exercises two SQLite stores through the actual Go HTTP service, including restart and a committed upload with a lost response. Supply `STASH_SYNC_TEST_DEVICE_FILE` (device ID on line 1, token on line 2), optionally `STASH_SYNC_TEST_URL`, and run it with `-- --ignored` against an isolated test service. Do not point it at a personal library.
-- `make release` builds the packaged Mac app. Native UI verification checks Sync in the account menu, the first-use connection dialog, progress/disabled editing, the failure alert and persistence after restart.
+- Run `npm test` for frontend sync and recovery behavior.
+- Run `cargo test --manifest-path src-tauri/Cargo.toml` for SQLite migration, queue, conflict, and interrupted-cycle behavior.
+- In `server/`, run `TEST_DATABASE_URL=... go test -race ./...` against a dedicated disposable PostgreSQL database. These tests reset its public schema.
+- Run `go vet ./...` in `server/`.
+- Run `docker compose --env-file /etc/stash/stash.env -f <deploy-directory>/compose.yaml config` before starting or updating services.
+- Confirm public `GET /healthz` returns 200 and unauthenticated `GET /v1/info` returns 401.
+- Create two test devices against an isolated test library and verify upload, download, conflict handling, revocation, restart recovery, and a repeated no-op sync.
+- Build the packaged app and confirm the connection survives an app restart without making Sync automatic.
 
-Existing Vite bundle-size warnings and the jsdom `scrollBy` warning are unrelated to sync.
-
-## September 16, 2026 deployment verification
-
-The live API runs as `stash-sync:20260916-2` on `69.161.221.169`, with version `20260916-1` retained. Public HTTPS `/healthz` returned 200; unauthenticated `/v1/info` returned 401. PostgreSQL has no public host port. Vaultwarden and Memos returned 200 and Karakeep retained its 307 redirect after the Caddy change.
-
-The packaged release app was paired using Keychain and completed its first button-triggered sync: 15 ordinary notes and 3 notebooks on the server, 8 linked notes kept local. Restart retained the connection and last-sync time. A repeated sync left the server cursor at 18 with no duplicate records or pending uploads. The local schema-5 backup exists. A PostgreSQL dump containing the synced notes restored into a separate database with matching record counts. The daily backup timer is enabled.
-
-Validation passed: 182 frontend tests, 47 regular Rust tests, the separately enabled two-SQLite-client HTTP integration test, 5 PostgreSQL-backed Go tests with the race detector, `go vet`, frontend build and packaged release build. The existing Rust crash helper is invoked by its parent test; the explicit HTTP integration test is excluded from the default Rust test run because it needs a dedicated service.
+The ignored Rust integration test `two_sqlite_clients_through_real_http_service` exercises two SQLite stores through a real Go service. Supply `STASH_SYNC_TEST_DEVICE_FILE`, optionally set `STASH_SYNC_TEST_URL`, and run it only against an isolated test service. Never point it at a personal library.

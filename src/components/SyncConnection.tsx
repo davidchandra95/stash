@@ -4,7 +4,7 @@ import { library } from '../storage/useLibrary'
 import type { LibraryState } from '../storage/library'
 
 export default function SyncConnection({ state }: { state: LibraryState }) {
-  const [url, setUrl] = useState(state.syncStatus?.url || 'https://stash.slowtyper.cloud')
+  const [url, setUrl] = useState(state.syncStatus?.url ?? '')
   const [token, setToken] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -39,6 +39,7 @@ export default function SyncConnection({ state }: { state: LibraryState }) {
         className="text-field"
         type="url"
         value={url}
+        placeholder="https://stash.example.com"
         onChange={(e) => setUrl(e.target.value)}
         required
         disabled={disabled}

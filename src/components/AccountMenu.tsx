@@ -34,13 +34,13 @@ export default function AccountMenu({
       <Dropdown.Trigger
         ref={triggerRef}
         className="account-trigger"
-        aria-label="David account menu"
+        aria-label="Account menu"
         disabled={blocked}
       >
         <span className="account-avatar" aria-hidden="true">
           <UserRound />
         </span>
-        <span className="account-name">David</span>
+        <span className="account-name">Account</span>
       </Dropdown.Trigger>
       <Dropdown.Portal>
         <Dropdown.Content
