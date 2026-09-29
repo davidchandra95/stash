@@ -2,6 +2,23 @@
 
 A local-first macOS and Android notes app using Tauri 2, React, TypeScript, Tiptap and Rust/SQLite. Notes, notebooks, body hashtags and appearance settings are saved on the current device. Autosave includes revision checks, visible failures and a save-before-quit guard. Self-hosted sync is optional and inactive until a user explicitly saves a server URL and device token. On macOS, open the account menu and click **Sync** to configure it; offline editing remains available. See [self-hosted sync](documents/SYNC.md) for setup, recovery and operations. See [local storage](documents/LOCAL_STORAGE.md) for the save contract, recovery behavior and limits.
 
+## Features at a glance
+
+![Stash desktop workspace with notebooks, filters, note list, and rich-text editor](assets/screenshots/stash-desktop.jpg)
+
+<table>
+  <tr>
+    <td width="67%"><img src="assets/screenshots/stash-settings.jpg" alt="Stash appearance settings with app styles, themes, color modes, and motion controls"></td>
+    <td width="33%"><img src="assets/screenshots/stash-mobile.jpg" alt="Stash mobile editor showing rich content, nested sections, a table, checklists, and formatting controls"></td>
+  </tr>
+  <tr>
+    <td><strong>Make it yours.</strong> Choose an app style, theme, color mode, fonts, spacing, shortcuts, and motion settings.</td>
+    <td><strong>Write anywhere.</strong> The mobile editor supports the same rich notes, tables, tasks, sections, and formatting tools.</td>
+  </tr>
+</table>
+
+Screenshots use the browser preview's fictional, session-only sample library.
+
 ## Run
 
 For UI changes, follow the shared sizing, surface, accessibility, and mobile rules in [DESIGN.md](DESIGN.md).
