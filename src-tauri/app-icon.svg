@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1254 1254" fill="none">
+  <title>Stash folded paper logo</title>
+  <desc>A pale sage folded S on a dark olive rounded square with transparent outer margins.</desc>
+  <defs>
+    <linearGradient id="tile" x1="300" y1="120" x2="900" y2="1134" gradientUnits="userSpaceOnUse"><stop stop-color="#3e4736"/><stop offset="1" stop-color="#22291d"/></linearGradient>
+    <linearGradient id="top" x1="462" y1="290" x2="686" y2="546" gradientUnits="userSpaceOnUse"><stop stop-color="#eaf0da"/><stop offset="1" stop-color="#d6ddc3"/></linearGradient>
+    <linearGradient id="fold" x1="834" y1="347" x2="734" y2="437" gradientUnits="userSpaceOnUse"><stop stop-color="#b8c1a2"/><stop offset=".55" stop-color="#939e7e"/><stop offset="1" stop-color="#596747"/></linearGradient>
+    <linearGradient id="ribbon" x1="706" y1="593" x2="563" y2="834" gradientUnits="userSpaceOnUse"><stop stop-color="#e1e7ce"/><stop offset=".53" stop-color="#c4cbb0"/><stop offset="1" stop-color="#a6b090"/></linearGradient>
+    <radialGradient id="crease" cx="0" cy="0" r="1" gradientTransform="translate(502 490) rotate(104) scale(181 235)" gradientUnits="userSpaceOnUse"><stop stop-color="#64714e" stop-opacity=".55"/><stop offset="1" stop-color="#64714e" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bottom" x1="512" y1="757" x2="728" y2="1016" gradientUnits="userSpaceOnUse"><stop stop-color="#e5ebd3"/><stop offset="1" stop-color="#bcc5a8"/></linearGradient>
+    <path id="diagonal" d="M363 430C363 343 430 290 508 290L521 504L814 628C865 650 890 684 890 739V791C890 840 880 878 858 901C881 855 852 826 812 808L439 657C387 635 363 601 363 543Z"/>
+  </defs>
+  <rect x="120" y="120" width="1014" height="1014" rx="218" fill="url(#tile)"/>
+  <path d="M363 764Q363 758 370 758H699L813 805Q886 835 858 901C836 938 795 959 746 959H506C422 959 364 900 364 814Z" fill="url(#bottom)"/>
+  <path d="M363 764Q363 758 370 758H698" stroke="#f2f5e6" stroke-opacity=".7" stroke-width="2"/>
+  <use href="#diagonal" fill="url(#ribbon)"/>
+  <use href="#diagonal" fill="url(#crease)"/>
+  <path d="M508 290H737L890 452V498Q890 505 883 505H496C425 505 367 468 366 412C371 348 435 290 508 290Z" fill="url(#top)"/>
+  <path d="M737 290L890 452H752C743 452 737 447 737 438Z" fill="url(#fold)"/>
+  <path d="M508 290H737V438Q737 453 752 453H888" stroke="#f0f3e3" stroke-opacity=".5" stroke-width="2"/>
+</svg>

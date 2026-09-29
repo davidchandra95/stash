@@ -1,0 +1,40 @@
+name: stash
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stash
+      POSTGRES_USER: stash
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U stash -d stash']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    image: stash-sync:${STASH_VERSION:?required}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://stash:${POSTGRES_PASSWORD}@db:5432/stash?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      database:
+      proxy:
+        aliases: [stash-sync]
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+networks:
+  database:
+    internal: true
+  proxy:
+    external: true
+    name: vaultwarden_vaultwarden
+volumes:
+  postgres:

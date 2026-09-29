@@ -1,0 +1,14 @@
+{
+  "identifier": "mobile",
+  "description": "Mobile lifecycle and keyboard events; credentials are Rust-only",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "android",
+    "iOS"
+  ],
+  "permissions": [
+    "stash-platform:default"
+  ]
+}

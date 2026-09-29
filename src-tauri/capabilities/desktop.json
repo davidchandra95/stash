@@ -1,0 +1,16 @@
+{
+  "identifier": "desktop",
+  "description": "Desktop window controls",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize"
+  ]
+}

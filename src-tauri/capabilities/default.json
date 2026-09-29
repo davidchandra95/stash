@@ -1,0 +1,13 @@
+{
+  "identifier": "default",
+  "description": "Shared Stash library window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "dialog:allow-open",
+    "core:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
+  ]
+}

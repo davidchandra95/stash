@@ -1,0 +1,167 @@
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  type RefObject,
+} from 'react'
+import {
+  defaultContentsWidth,
+  maximumContentsWidth,
+  minimumContentsWidth,
+  minimumDocumentWidth,
+  normalizeContentsWidth,
+  visibleContentsWidth,
+} from './contentsWidth'
+
+type Session = {
+  pointerId: number
+  startX: number
+  startWidth: number
+  original: number
+  element: HTMLElement
+}
+
+export function useContentsResize({
+  workspaceRef,
+  savedWidth,
+  disabled,
+  onCommit,
+}: {
+  workspaceRef: RefObject<HTMLElement | null>
+  savedWidth: number | undefined
+  disabled: boolean
+  onCommit: (width: number) => void
+}) {
+  const [preferred, setPreferred] = useState(() => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth)
+  const preferredRef = useRef(preferred)
+  const [workspaceWidth, setWorkspaceWidth] = useState(0)
+  const [resizing, setResizing] = useState(false)
+  const session = useRef<Session | null>(null)
+  const latest = useRef({ disabled, onCommit })
+  latest.current = { disabled, onCommit }
+
+  const setWidth = (width: number) => {
+    preferredRef.current = width
+    setPreferred(width)
+  }
+
+  useLayoutEffect(() => {
+    if (!session.current) setWidth(normalizeContentsWidth(savedWidth) ?? defaultContentsWidth)
+  }, [savedWidth])
+
+  useLayoutEffect(() => {
+    const workspace = workspaceRef.current
+    if (!workspace) return
+    const measure = () => setWorkspaceWidth(Math.round(workspace.getBoundingClientRect().width))
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(workspace)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [workspaceRef])
+
+  const availableWidth = () =>
+    Math.round(workspaceRef.current?.getBoundingClientRect().width ?? 0) || workspaceWidth
+  const maximum = () =>
+    Math.max(
+      minimumContentsWidth,
+      Math.min(maximumContentsWidth, availableWidth() - minimumDocumentWidth),
+    )
+  const shown = visibleContentsWidth(preferred, workspaceWidth)
+
+  const finish = (cancelled: boolean) => {
+    const active = session.current
+    if (!active) return
+    session.current = null
+    if (active.element.hasPointerCapture?.(active.pointerId))
+      active.element.releasePointerCapture(active.pointerId)
+    setResizing(false)
+    if (cancelled) setWidth(active.original)
+    else latest.current.onCommit(preferredRef.current)
+  }
+
+  useEffect(() => {
+    const cancel = () => finish(true)
+    const keydown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && session.current) {
+        event.preventDefault()
+        cancel()
+      }
+    }
+    window.addEventListener('blur', cancel)
+    window.addEventListener('keydown', keydown)
+    return () => {
+      window.removeEventListener('blur', cancel)
+      window.removeEventListener('keydown', keydown)
+      cancel()
+    }
+  }, [])
+
+  const dividerProps = {
+    className: 'contents-resizer',
+    role: 'separator' as const,
+    'aria-orientation': 'vertical' as const,
+    'aria-label': 'Resize table of contents',
+    'aria-valuemin': minimumContentsWidth,
+    'aria-valuemax': maximum(),
+    'aria-valuenow': shown,
+    'aria-valuetext': `${shown} pixels`,
+    'aria-disabled': disabled || undefined,
+    tabIndex: disabled ? -1 : 0,
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (latest.current.disabled || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+      event.preventDefault()
+      const direction = event.key === 'ArrowLeft' ? 1 : -1
+      const width = Math.max(
+        minimumContentsWidth,
+        Math.min(maximum(), shown + direction * (event.shiftKey ? 32 : 8)),
+      )
+      setWidth(width)
+      latest.current.onCommit(width)
+    },
+    onPointerDown: (event: PointerEvent<HTMLElement>) => {
+      if (latest.current.disabled || event.button !== 0) return
+      event.preventDefault()
+      session.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth: shown,
+        original: preferredRef.current,
+        element: event.currentTarget,
+      }
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      setResizing(true)
+    },
+    onPointerMove: (event: PointerEvent<HTMLElement>) => {
+      const active = session.current
+      if (!active || active.pointerId !== event.pointerId) return
+      setWidth(
+        Math.max(
+          minimumContentsWidth,
+          Math.min(maximum(), Math.round(active.startWidth + active.startX - event.clientX)),
+        ),
+      )
+    },
+    onPointerUp: (event: PointerEvent<HTMLElement>) => {
+      if (session.current?.pointerId === event.pointerId) finish(false)
+    },
+    onPointerCancel: (event: PointerEvent<HTMLElement>) => {
+      if (session.current?.pointerId === event.pointerId) finish(true)
+    },
+    onLostPointerCapture: () => finish(true),
+  }
+
+  return {
+    cssVariables: { '--contents-width': `${shown}px` } as CSSProperties,
+    dividerProps,
+    resizing,
+    visibleWidth: shown,
+  }
+}

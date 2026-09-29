@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up Stash PostgreSQL
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/srv/stash/backup.sh
+UMask=0077
