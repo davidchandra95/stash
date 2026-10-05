@@ -1,5 +1,6 @@
 import {
   cloneElement,
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -105,6 +106,21 @@ export function MotionPresence({
   const active = useMotionEnabled()
   const [present, setPresent] = useState(open)
   const node = useRef<HTMLElement | null>(null)
+  const childRef = children.props.ref
+  const attach = useCallback(
+    (element: HTMLElement | null) => {
+      node.current = element
+      if (typeof childRef === 'function') {
+        const cleanup = childRef(element)
+        if (cleanup)
+          return () => {
+            node.current = null
+            cleanup()
+          }
+      } else if (childRef) childRef.current = element
+    },
+    [childRef],
+  )
   const last = useRef(children)
   if (open) last.current = children
   const first = useRef(true)
@@ -152,7 +168,7 @@ export function MotionPresence({
   )
   if (!open && (!present || !active)) return null
   return cloneElement(open ? children : last.current, {
-    ref: node,
+    ref: attach,
     inert: !open || children.props.inert,
     'aria-hidden': !open ? true : children.props['aria-hidden'],
     'data-motion-presence': open ? 'open' : 'closed',

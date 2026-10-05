@@ -5,8 +5,26 @@ mod native_menu;
 #[cfg(desktop)]
 mod provision;
 mod storage;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::Manager;
+
+#[derive(Default)]
+struct StartupWindowReady(AtomicBool);
+
+#[tauri::command]
+fn show_startup_window(
+    window: tauri::WebviewWindow,
+    ready: tauri::State<'_, StartupWindowReady>,
+) -> Result<(), String> {
+    // Later theme changes must not reopen a window the user has hidden.
+    if !ready.inner().0.load(Ordering::SeqCst) {
+        window.show().map_err(|error| error.to_string())?;
+        ready.inner().0.store(true, Ordering::SeqCst);
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 fn set_window_appearance(
@@ -67,9 +85,23 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_stash_platform::init())
         .setup(|app| {
+            app.manage(StartupWindowReady::default());
+            // Mobile keeps its normal startup visibility.
+            #[cfg(mobile)]
+            if let Some(window) = app.get_webview_window("main") {
+                window.show()?;
+            }
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+                    if !app
+                        .state::<StartupWindowReady>()
+                        .inner()
+                        .0
+                        .load(Ordering::SeqCst)
+                    {
+                        return;
+                    }
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
@@ -99,6 +131,7 @@ pub fn run() {
             open_external_url,
             installed_fonts,
             set_window_appearance,
+            show_startup_window,
             storage::bridge::sync_status,
             storage::bridge::configure_sync,
             storage::bridge::sync_library,

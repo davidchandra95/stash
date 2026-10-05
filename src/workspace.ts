@@ -1,4 +1,4 @@
-import type { Note, View } from './model'
+import type { Note, Notebook, View } from './model'
 import type { NoteListPreferences } from './noteOrder'
 import type { PaneWidths } from './paneLayout'
 
@@ -40,6 +40,7 @@ export function normalizePdfNotes(value: unknown): Record<string, PdfNotesPrefer
   )
 }
 export type WorkspacePreferences = {
+  sidebarView?: View
   pdfNotes?: Record<string, PdfNotesPreferences>
   recentNoteIds?: string[]
   noteLists?: Record<string, NoteListPreferences>
@@ -47,6 +48,27 @@ export type WorkspacePreferences = {
   contentsWidth?: number
   tabs: SavedTab[]
   activeTabId: string | null
+}
+export function restoreSidebarView(value: unknown, notebooks: Notebook[], notes: Note[]): View {
+  if (typeof value !== 'string') return 'all'
+  if (value.startsWith('book:'))
+    return notebooks.some((book) => book.id === value.slice(5)) ? (value as View) : 'all'
+  if (value.startsWith('tag:'))
+    return notes.some((note) => !note.trashed && note.tags.includes(value.slice(4)))
+      ? (value as View)
+      : 'all'
+  switch (value) {
+    case 'all':
+    case 'today':
+    case 'todo':
+    case 'uncategorized':
+    case 'pinned':
+    case 'quickAccess':
+    case 'trash':
+      return value
+    default:
+      return 'all'
+  }
 }
 export type NoteLocation = {
   kind?: 'note'

@@ -54,6 +54,39 @@ function transport(notes: SavedNote[] = []) {
 afterEach(() => {
   vi.useRealTimers()
 })
+it('saves and restores Aster with independent mode, layout and custom fonts', async () => {
+  const native = transport()
+  const store = new LibraryStore(native)
+  await store.open()
+  const appearance = {
+    ...defaultAppearance,
+    theme: 'aster' as const,
+    dark: false,
+    appStyle: 'cards' as const,
+    uiFont: 'avenir',
+    noteFont: 'palatino',
+  }
+  store.setAppearance(appearance)
+  await store.flush()
+  const saved = native.savePreferences.mock.calls.at(-1)![0]
+  expect(saved.appearance).toEqual(appearance)
+  native.open.mockResolvedValueOnce({
+    notes: [],
+    notebooks: [],
+    appearance,
+    preferencesRevision: 1,
+    path: 'test-library',
+  })
+  const reopened = new LibraryStore(native)
+  await reopened.open()
+  expect(reopened.getSnapshot().appearance).toEqual(appearance)
+  reopened.setAppearance({ ...reopened.getSnapshot().appearance, dark: true })
+  await reopened.flush()
+  expect(native.savePreferences.mock.calls.at(-1)![0].appearance).toEqual({
+    ...appearance,
+    dark: true,
+  })
+})
 describe('save queue', () => {
   it('schedules mobile edits immediately but waits for the write acknowledgement', async () => {
     vi.useFakeTimers()
@@ -699,6 +732,29 @@ it('persists pane widths across tab-only workspace updates and reopening', async
   })
   await reopened.open()
   expect(reopened.getSnapshot().workspace?.paneWidths).toEqual({ sidebar: 248, noteList: 336 })
+})
+
+it('persists sidebar selection across tab updates, preference saves, and reopening', async () => {
+  const t = transport()
+  const store = new LibraryStore(t)
+  await store.open()
+  await store.flush()
+  store.setSidebarView('book:empty')
+  store.setWorkspace({ tabs: [], activeTabId: null })
+  store.setNoteList('book:empty', { mode: 'title', order: [] })
+  await store.flush()
+  const saved = store.getSnapshot().workspace
+  expect(t.savePreferences.mock.calls.at(-1)![0]).toMatchObject({
+    workspace: { sidebarView: 'book:empty' },
+  })
+  const reopened = new LibraryStore({
+    ...t,
+    open: async () => ({ ...(await t.open()), workspace: saved }),
+  })
+  await reopened.open()
+  expect(reopened.getSnapshot().workspace?.sidebarView).toBe('book:empty')
+  reopened.setSidebarView('all')
+  expect(reopened.getSnapshot().workspace?.sidebarView).toBe('all')
 })
 
 it('reads unloaded search documents without activating notes, mounting editors, or changing edit times', async () => {

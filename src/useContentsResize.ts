@@ -32,6 +32,7 @@ export function useContentsResize({
   onCommit,
   side = 'right',
   reserveWidth,
+  adaptive = false,
 }: {
   workspaceRef: RefObject<HTMLElement | null>
   savedWidth: number | undefined
@@ -39,6 +40,8 @@ export function useContentsResize({
   onCommit: (width: number) => void
   side?: 'left' | 'right'
   reserveWidth?: (workspaceWidth: number) => number
+  /** Notes can overlay instead of reducing the surrounding workspace panes. */
+  adaptive?: boolean
 }) {
   const [preferred, setPreferred] = useState(
     () => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth,
@@ -81,7 +84,13 @@ export function useContentsResize({
       minimumContentsWidth,
       Math.min(maximumContentsWidth, documentSpace(availableWidth()) - minimumDocumentWidth),
     )
-  const shown = visibleContentsWidth(preferred, documentSpace(workspaceWidth))
+  const overlay =
+    adaptive &&
+    workspaceWidth > 0 &&
+    documentSpace(workspaceWidth) < preferred + minimumDocumentWidth
+  const shown = overlay
+    ? Math.min(preferred, documentSpace(workspaceWidth))
+    : visibleContentsWidth(preferred, documentSpace(workspaceWidth))
   const direction = side === 'left' ? 1 : -1
 
   const finish = (cancelled: boolean) => {
@@ -113,8 +122,8 @@ export function useContentsResize({
   }, [])
 
   useEffect(() => {
-    if (disabled) finish(true)
-  }, [disabled])
+    if (disabled || overlay) finish(true)
+  }, [disabled, overlay])
 
   const dividerProps = {
     className: 'contents-resizer',
@@ -182,5 +191,6 @@ export function useContentsResize({
     dividerProps,
     resizing,
     visibleWidth: shown,
+    overlay,
   }
 }

@@ -132,3 +132,42 @@ it('allows searching a read-only note and revokes stale replacement actions when
   await act(async () => old.click())
   expect(editor().getJSON()).toEqual(before)
 })
+
+it('focuses an empty overlay close control and dismisses even when a tooltip consumes Escape', async () => {
+  await mount()
+  const launcher = document.createElement('button')
+  host.prepend(launcher)
+  const dismiss = vi.fn()
+  await act(async () =>
+    root.render(
+      <NoteTools
+        note={note}
+        contentsOpen
+        contentsMode="overlay"
+        onContentsOpenChange={dismiss}
+        contentsLauncher={{ current: launcher }}
+        focusContentsOnOpen
+        findOpen={false}
+        onFindOpenChange={vi.fn()}
+        disabled={false}
+      />,
+    ),
+  )
+  const close = host.querySelector<HTMLButtonElement>('[aria-label="Close table of contents"]')!
+  expect(document.activeElement).toBe(close)
+  close.addEventListener('keydown', (event) => event.stopPropagation())
+  await act(async () =>
+    close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+  )
+  expect(dismiss).toHaveBeenCalledWith(false)
+  expect(document.activeElement).toBe(launcher)
+  dismiss.mockClear()
+  const menu = document.createElement('div')
+  menu.setAttribute('role', 'menu')
+  document.body.append(menu)
+  await act(async () => menu.dispatchEvent(new Event('pointerdown', { bubbles: true })))
+  expect(dismiss).not.toHaveBeenCalled()
+  menu.remove()
+  await act(async () => host.dispatchEvent(new Event('pointerdown', { bubbles: true })))
+  expect(dismiss).toHaveBeenCalledWith(false)
+})

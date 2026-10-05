@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useRef, type ReactNode } from 'react'
+import { act, createRef, useRef, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createPortal } from 'react-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -125,6 +125,29 @@ it('keeps closing content inert, reverses repeated toggles and settles immediate
   await render(false)
   await render(false, false)
   expect(host.querySelector('aside')).toBeNull()
+})
+
+it('preserves the child ref while present and clears it after the exit animation', async () => {
+  const ref = createRef<HTMLElement>()
+  const render = (open: boolean, mode = 'docked') =>
+    act(() =>
+      root.render(
+        <Policy enabled>
+          <MotionPresence open={open} initial={false}>
+            <aside ref={ref} data-mode={mode} />
+          </MotionPresence>
+        </Policy>,
+      ),
+    )
+  await render(true)
+  const element = host.querySelector('aside')
+  expect(ref.current).toBe(element)
+  await render(true, 'overlay')
+  expect(ref.current).toBe(element)
+  await render(false)
+  expect(ref.current).toBe(element)
+  await act(() => animations.at(-1)!.finish())
+  expect(ref.current).toBeNull()
 })
 it('cancels imperative motion and cleans up exactly once when Reduce Motion changes', async () => {
   await act(() => root.render(<Policy enabled />))

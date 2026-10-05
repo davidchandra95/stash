@@ -7,6 +7,7 @@ import { hoverTooltip, tooltipLabel, tooltipShortcut } from './components/toolti
 import { library } from './storage/useLibrary'
 import { clearSessions, getEditor } from './editor/session'
 import type { Note, Notebook } from './model'
+import type { WorkspacePreferences } from './workspace'
 import { searchDocument } from './search'
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 Element.prototype.scrollIntoView = vi.fn()
@@ -36,10 +37,17 @@ async function mount(
   testNotes = notes,
   testNotebooks: Notebook[] = [],
   stateOverrides?: Partial<ReturnType<typeof library.getSnapshot>>,
+  savedWorkspace?: WorkspacePreferences,
 ) {
   library.setNotebooks(testNotebooks)
   library.setNotes(testNotes)
-  library.setWorkspace({ tabs: [{ id: 'initial', noteId: 'alpha' }], activeTabId: 'initial' })
+  library.setWorkspace(
+    savedWorkspace ?? {
+      tabs: [{ id: 'initial', noteId: 'alpha' }],
+      activeTabId: 'initial',
+      sidebarView: 'all',
+    },
+  )
   if (stateOverrides)
     vi.spyOn(library, 'getSnapshot').mockReturnValue({
       ...library.getSnapshot(),
@@ -76,6 +84,60 @@ async function type(label: string, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+it.each(['book:work', 'book:empty', 'tag:project', 'pinned', 'trash'] as const)(
+  'restores the selected sidebar view %s independently of open tabs',
+  async (view) => {
+    const testNotes = notes.map((note) => ({ ...note, text: `${note.text} #project` }))
+    const books: Notebook[] = [
+      { id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' },
+      { id: 'empty', name: 'Empty', color: '#888888', icon: 'briefcase' },
+    ]
+    const labels = {
+      'book:work': 'Work',
+      'book:empty': 'Empty',
+      'tag:project': '#project',
+      pinned: 'Pinned notes',
+      trash: 'Trash',
+    }
+    await mount(testNotes, books, undefined, {
+      tabs: [{ id: 'initial', noteId: 'alpha' }],
+      activeTabId: 'initial',
+      sidebarView: view,
+    })
+    expect(selectedSection()).toBe(labels[view])
+    expect(title()).toBe('Alpha')
+    expect(library.getSnapshot().workspace?.sidebarView).toBe(view)
+  },
+)
+it('saves an empty notebook selection and restores it with no open tabs', async () => {
+  const books: Notebook[] = [{ id: 'empty', name: 'Empty', color: '#888888', icon: 'briefcase' }]
+  await mount(notes, books)
+  await act(async () => navItem('Empty').click())
+  expect(library.getSnapshot().workspace?.sidebarView).toBe('book:empty')
+  await act(async () => button('Close Alpha').click())
+  const saved = library.getSnapshot().workspace!
+  expect(saved.tabs).toEqual([])
+  expect(saved.sidebarView).toBe('book:empty')
+  await act(async () => root.unmount())
+  host.remove()
+  await mount(notes, books, undefined, saved)
+  expect(selectedSection()).toBe('Empty')
+  expect(host.querySelectorAll('[role="tab"]')).toHaveLength(0)
+})
+it('waits for library loading before restoring or saving the sidebar view', async () => {
+  await mount(notes, [], { ready: false })
+  const snapshot = library.getSnapshot()
+  const save = vi.spyOn(library, 'setSidebarView')
+  expect(save).not.toHaveBeenCalled()
+  vi.mocked(library.getSnapshot).mockReturnValue({
+    ...snapshot,
+    ready: true,
+    workspace: { tabs: [], activeTabId: null, sidebarView: 'pinned' },
+  })
+  await act(async () => root.render(<App />))
+  expect(selectedSection()).toBe('Pinned notes')
+  expect(save).toHaveBeenCalledWith('pinned')
+})
 it('keeps note actions in the note header and preserves toggle shortcuts and states', async () => {
   await mount()
   const strip = host.querySelector('[role="tablist"]')!
@@ -424,6 +486,7 @@ it('keeps edited tabs, editor state, and filters while previewing and closing no
     tabs: [],
     activeTabId: null,
     recentNoteIds: ['alpha', 'beta', 'gamma'],
+    sidebarView: 'all',
   })
 })
 it('replaces one preview, keeps metadata changes replaceable, and promotes double-clicked rows', async () => {

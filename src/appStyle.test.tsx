@@ -86,6 +86,19 @@ it('switches style across workspace and portals without replacing the editor, dr
       expect(scroll.scrollTop).toBe(121)
       expect(host.querySelector('[role="tablist"]')!.textContent).toBe(tabs)
     }
+    for (const dark of [false, true]) {
+      await act(() =>
+        library.setAppearance({ ...library.getSnapshot().appearance, theme: 'aster', dark }),
+      )
+      expect(app.dataset.palette).toBe('aster')
+      expect(app.dataset.theme).toBe(dark ? 'dark' : 'light')
+      expect(document.querySelector<HTMLElement>('[role="dialog"]')!.dataset.palette).toBe('aster')
+      expect(host.querySelector('.tiptap')).toBe(editorDOM)
+      expect(editor.getJSON()).toEqual(content)
+      expect(editor.state.selection.toJSON()).toEqual(selection)
+      expect(scroll.scrollTop).toBe(121)
+      expect(host.querySelector('[role="tablist"]')!.textContent).toBe(tabs)
+    }
   } finally {
     await act(() => root.unmount())
     host.remove()

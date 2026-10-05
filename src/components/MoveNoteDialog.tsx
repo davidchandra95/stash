@@ -122,7 +122,7 @@ export default function MoveNoteDialog({
                     </button>
                   </div>
                 )}
-                <div className="add-notebooks-search">
+                <div className="add-notebooks-search text-field-shell">
                   <Search size={15} aria-hidden="true" />
                   <input
                     className="text-field"

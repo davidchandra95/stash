@@ -45,8 +45,6 @@ export function usePaneResize({
   savedWidths,
   sidebarVisible,
   noteListVisible,
-  contentsOpen,
-  contentsWidth,
   disabled,
   onCommit,
 }: {
@@ -54,8 +52,6 @@ export function usePaneResize({
   savedWidths: PaneWidths | undefined
   sidebarVisible: boolean
   noteListVisible: boolean
-  contentsOpen: boolean
-  contentsWidth?: number
   disabled: boolean
   onCommit: (widths: PaneWidths) => void
 }) {
@@ -69,16 +65,12 @@ export function usePaneResize({
   const latest = useRef({
     sidebarVisible,
     noteListVisible,
-    contentsOpen,
-    contentsWidth,
     disabled,
     onCommit,
   })
   latest.current = {
     sidebarVisible,
     noteListVisible,
-    contentsOpen,
-    contentsWidth,
     disabled,
     onCommit,
   }
@@ -128,8 +120,6 @@ export function usePaneResize({
     appWidth: measurements.app || width(appRef.current),
     sidebarVisible: latest.current.sidebarVisible,
     noteListVisible: latest.current.noteListVisible,
-    contentsOpen: latest.current.contentsOpen,
-    contentsWidth: latest.current.contentsWidth,
     sidebarWidth: widths.sidebar,
     noteListWidth: widths.noteList,
   })

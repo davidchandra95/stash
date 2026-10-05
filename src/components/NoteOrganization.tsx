@@ -50,7 +50,7 @@ export default function NoteOrganization({
         <div className="move-notebooks-body">
           <fieldset disabled={disabled}>
             <p className="muted move-notebooks-description">{note.title || 'Untitled note'}</p>
-            <div className="add-notebooks-search">
+            <div className="add-notebooks-search text-field-shell">
               <Search size={15} aria-hidden="true" />
               <input
                 autoFocus

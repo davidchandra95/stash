@@ -47,6 +47,36 @@ async function search(value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+it('selects Aster independently of color mode and fonts, including portaled previews', async () => {
+  await category('Typography')
+  await openFontPicker('Note title font')
+  await act(() => document.querySelector<HTMLElement>('[data-font-value="palatino"]')!.click())
+  await category('Appearance')
+  await act(() => {
+    const select = control('Theme')
+    select.value = 'aster'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+  expect(host.contains(dialog)).toBe(false)
+  expect(dialog.dataset.palette).toBe('aster')
+  for (const mode of ['light', 'dark']) {
+    await act(() =>
+      document.querySelector<HTMLButtonElement>(`.${mode}-preview`)!.closest('button')!.click(),
+    )
+    expect(dialog.dataset.theme).toBe(mode)
+    expect(control('Theme').value).toBe('aster')
+    expect(document.querySelector('.light-preview')?.getAttribute('data-palette')).toBe('aster')
+    expect(document.querySelector('.dark-preview')?.getAttribute('data-palette')).toBe('aster')
+  }
+  await category('Typography')
+  expect(control('Note title font').textContent).toContain('Palatino')
+  expect(control('Note font').textContent).toContain('Georgia')
+  expect(document.querySelector('.zen-fonts')).toBeNull()
+  await act(() => control('Close settings').click())
+  await act(() => host.querySelector('button')!.click())
+  expect(control('Theme').value).toBe('aster')
+})
 it('shows one category and preserves changed controls across category switches and reopening', async () => {
   expect(control('Search settings').classList.contains('text-field')).toBe(true)
   expect(control('Search settings').parentElement?.classList.contains('text-field-shell')).toBe(

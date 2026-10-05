@@ -559,6 +559,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
     prefs.expected_revision = 1;
     prefs.operation_id = "tabs".into();
     prefs.workspace = Some(WorkspacePreferences {
+        sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -596,6 +597,7 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        sidebar_view: Some("book:empty".into()),
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -615,6 +617,7 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
     let store = Store::open(dir.path()).unwrap();
     let workspace = store.library().unwrap().workspace.unwrap();
     assert!(workspace.tabs.is_empty());
+    assert_eq!(workspace.sidebar_view.as_deref(), Some("book:empty"));
     assert!(workspace.active_tab_id.is_none());
 }
 
@@ -624,6 +627,7 @@ fn workspace_rejects_multiple_preview_tabs() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -1083,6 +1087,7 @@ fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
     let before = store.note("a", true).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec!["a".into(), "b".into()],
         pane_widths: None,
@@ -1105,4 +1110,17 @@ fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
     prefs.workspace.as_mut().unwrap().recent_note_ids = (0..51).map(|i| i.to_string()).collect();
     assert!(store.save_preferences(&prefs).is_err());
     assert_eq!(store.library().unwrap().workspace.unwrap().recent_note_ids, vec!["a", "b"]);
+}
+
+#[test]
+fn sidebar_view_defaults_for_legacy_workspace_preferences() {
+    let legacy: WorkspacePreferences = serde_json::from_value(
+        json!({"tabs": [], "activeTabId": null}),
+    ).unwrap();
+    assert!(legacy.sidebar_view.is_none());
+    let saved: WorkspacePreferences = serde_json::from_value(
+        json!({"tabs": [], "activeTabId": null, "sidebarView": "tag:project"}),
+    ).unwrap();
+    assert_eq!(saved.sidebar_view.as_deref(), Some("tag:project"));
+    assert_eq!(serde_json::to_value(saved).unwrap()["sidebarView"], "tag:project");
 }

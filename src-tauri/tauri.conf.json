@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "visible": false,
         "dragDropEnabled": false,
         "title": "Stash",
         "titleBarStyle": "Overlay",

@@ -11,12 +11,20 @@ import {
   previewNote,
   pruneWorkspace,
   restoreWorkspace,
+  restoreSidebarView,
   workspacePreferences,
   type NoteLocation,
 } from './workspace'
 import type { Note } from './model'
 const notes = ['a', 'b', 'c', 'd'].map((id) => ({ id, trashed: false })) as Note[]
 const location = (noteId: string): NoteLocation => ({ noteId, view: 'all', query: '', scroll: 0 })
+it('falls back to All notes for missing, invalid, or unavailable saved sidebar views', () => {
+  for (const saved of [undefined, null, 42, {}, 'unknown', 'book:missing', 'tag:missing'])
+    expect(restoreSidebarView(saved, [], [])).toBe('all')
+  expect(
+    restoreSidebarView('tag:project', [], [{ ...notes[0], tags: ['project'], trashed: true }]),
+  ).toBe('all')
+})
 it('reuses a tab, branches history, restores contexts, and keeps separate tab histories', () => {
   let state = restoreWorkspace(null, notes)
   const first = state.activeTabId!

@@ -1,4 +1,5 @@
 import AppTooltip from './components/AppTooltip'
+import { useDesktopWindowAppearance } from './useDesktopWindowAppearance'
 import { PanelRightOpen, PanelRightClose } from 'lucide-react'
 import { PdfToolbarButton } from './pdf/PdfTooltip'
 import PdfWorkspace from './pdf/PdfWorkspace'
@@ -102,6 +103,7 @@ import {
   Minimize2,
 } from './icons'
 import { useWorkspace } from './useWorkspace'
+import { restoreSidebarView } from './workspace'
 import { usePaneResize } from './usePaneResize'
 import { useContentsResize } from './useContentsResize'
 import NoteTools from './components/NoteTools'
@@ -210,21 +212,19 @@ export default function App() {
   const chipsRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<HTMLDivElement>(null)
   const editorWorkspaceRef = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    if (!library.ready || !appRef.current) return
-    // The outer page and native chrome share the workspace's active palette.
-    const background = getComputedStyle(appRef.current).getPropertyValue('--surface-app').trim()
-    document.documentElement.style.setProperty('--desktop-window-background', background)
-    if (isTauri()) {
-      void invoke('set_window_appearance', { dark: appearance.dark, background }).catch((error) => {
-        console.error('Could not update the window appearance', error)
-      })
-    }
-    return () => {
-      document.documentElement.style.removeProperty('--desktop-window-background')
-    }
-  }, [library.ready, appearance.dark, appearance.theme])
-  const [view, setView] = useState<View>('all')
+  useDesktopWindowAppearance(
+    appRef,
+    library.ready || !!library.startupError,
+    library.ready ? appearance.dark : true,
+    library.ready ? appearance.theme : 'startup-error',
+  )
+  const [sidebarView, setView] = useState<View | null>(null)
+  const view =
+    sidebarView ??
+    (library.ready ? restoreSidebarView(library.workspace?.sidebarView, notebooks, notes) : 'all')
+  useEffect(() => {
+    if (library.ready) libraryStore.setSidebarView(view)
+  }, [library.ready, view])
   const [query, setQuery] = useState('')
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [settingsCategory, setSettingsCategory] = useState<'appearance' | 'sync'>('appearance')
@@ -341,6 +341,12 @@ export default function App() {
     }
   }, [noteContext])
   const [contentsOpen, setContentsOpen] = useState(false)
+  const contentsLauncher = useRef<HTMLButtonElement>(null)
+  const contentsKeyboardOpen = useRef(false)
+  const toggleContents = (keyboard = false) => {
+    contentsKeyboardOpen.current = keyboard
+    setContentsOpen((value) => !value)
+  }
   const [findOpen, setFindOpen] = useState(false)
   const [matchNavigation, setMatchNavigation] = useState<MatchNavigation | null>(null)
   const contentsResize = useContentsResize({
@@ -348,6 +354,7 @@ export default function App() {
     savedWidth: library.workspace?.contentsWidth,
     disabled: library.quitting || library.syncing || library.converting,
     onCommit: libraryStore.setContentsWidth,
+    adaptive: true,
   })
   const pdfs = usePdfs(library.ready)
   const [pdfImportError, setPdfImportError] = useState('')
@@ -383,8 +390,6 @@ export default function App() {
     savedWidths: library.workspace?.paneWidths,
     sidebarVisible: sidebar && !focus,
     noteListVisible,
-    contentsOpen,
-    contentsWidth: contentsResize.visibleWidth,
     disabled: library.quitting || library.syncing || library.converting,
     onCommit: libraryStore.setPaneWidths,
   })
@@ -998,9 +1003,7 @@ export default function App() {
       sidebar: toggleSidebar,
       focus: active || activePdf ? () => setFocus((value) => !value) : undefined,
       contents:
-        active && (!activePdf || focusedPane === 'note')
-          ? () => setContentsOpen((value) => !value)
-          : undefined,
+        active && (!activePdf || focusedPane === 'note') ? () => toggleContents(true) : undefined,
       editor: active
         ? () => document.querySelector<HTMLElement>('.note-scroll .tiptap')?.focus()
         : undefined,
@@ -1125,7 +1128,7 @@ export default function App() {
   } as CSSProperties
   if (!library.ready)
     return (
-      <div className="storage-startup" data-theme="dark">
+      <div ref={appRef} className="storage-startup" data-theme="dark">
         <h2>{library.startupError ? 'Could not open your library' : 'Opening your library…'}</h2>
         {library.startupError && (
           <>
@@ -1790,11 +1793,14 @@ export default function App() {
                   disabled={!active || library.quitting || library.syncing || library.converting}
                 >
                   <button
+                    ref={contentsLauncher}
                     className="icon-button"
                     aria-label="Table of contents"
                     aria-pressed={contentsOpen}
+                    aria-expanded={contentsOpen}
+                    aria-controls="note-contents"
                     disabled={!active || library.quitting || library.syncing || library.converting}
-                    onClick={() => setContentsOpen((value) => !value)}
+                    onClick={(event) => toggleContents(event.detail === 0)}
                   >
                     <List size={18} />
                   </button>
@@ -1825,7 +1831,7 @@ export default function App() {
             <div id="note-find-slot" />
             <div
               ref={editorWorkspaceRef}
-              className={`editor-workspace ${contentsOpen && active ? 'with-contents' : ''}`}
+              className={`editor-workspace ${contentsOpen && active ? 'with-contents' : ''} ${contentsResize.overlay ? 'contents-overlay' : ''}`}
             >
               <div className="editor-document">
                 {active ? (
@@ -2133,6 +2139,10 @@ export default function App() {
                 <NoteTools
                   note={active}
                   contentsOpen={contentsOpen}
+                  contentsMode={contentsResize.overlay ? 'overlay' : 'docked'}
+                  onContentsOpenChange={setContentsOpen}
+                  contentsLauncher={contentsLauncher}
+                  focusContentsOnOpen={contentsKeyboardOpen.current}
                   findOpen={findOpen}
                   searchNavigation={matchNavigation}
                   searchNotes={notes}
