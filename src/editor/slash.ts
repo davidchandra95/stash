@@ -6,6 +6,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { runCommand } from './commands'
 import { slashCatalog, searchSlash, type SlashEntry } from './slashCatalog'
 import { menuIcon } from './menuIcon'
+import { requestDatePicker, datePickerKey } from './datePicker'
 export const slashKey = new PluginKey('writingSlash')
 export const Slash = Extension.create({
   name: 'writingSlash',
@@ -19,9 +20,11 @@ export const Slash = Extension.create({
       rootSelected = 0,
       active = true
     let menu: HTMLDivElement | null = null
+    let dateAttempt: { from: number; to: number; query: string } | null = null
     const match = () => {
       const { $from, empty } = editor.state.selection
       if (
+        !editor.isEditable ||
         referenceMatch(editor) ||
         !empty ||
         !$from.parent.isTextblock ||
@@ -75,6 +78,12 @@ export const Slash = Extension.create({
         return
       }
       if (entry.command && runCommand(editor, entry.command, m)) {
+        if (entry.command === 'date') {
+          dateAttempt = { from: m.from, to: m.to, query: m.query }
+          category = null
+          if (menu) hideMenu(menu)
+          return
+        }
         dismissed = m.from
         category = null
         render()
@@ -85,9 +94,23 @@ export const Slash = Extension.create({
       selected = rootSelected
       render()
     }
+    const updateSelection = (scroll = false) => {
+      if (!menu) return
+      menu
+        .querySelectorAll('.slash-option')
+        .forEach((row, index) => row.setAttribute('aria-selected', String(index === selected)))
+      if (!scroll) return
+      const current = menu.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (current) {
+        if (current.offsetTop < menu.scrollTop) menu.scrollTop = current.offsetTop
+        else if (current.offsetTop + current.offsetHeight > menu.scrollTop + menu.clientHeight)
+          menu.scrollTop = current.offsetTop + current.offsetHeight - menu.clientHeight
+      }
+    }
     const render = () => {
       if (!menu) return
       const m = match()
+      if (!m || m.query !== dateAttempt?.query) dateAttempt = null
       if (!m || !active) {
         hideMenu(menu)
         return
@@ -96,6 +119,18 @@ export const Slash = Extension.create({
         selected = 0
         category = null
         lastQuery = m.query
+      }
+      if (dateAttempt && dateAttempt.from === m.from && dateAttempt.to === m.to) {
+        hideMenu(menu)
+        return
+      }
+      if (m.query === 'date' && editor.isEditable) {
+        hideMenu(menu)
+        if (!dateAttempt || dateAttempt.from !== m.from || dateAttempt.to !== m.to) {
+          dateAttempt = { from: m.from, to: m.to, query: m.query }
+          requestDatePicker(editor, m, 'automatic')
+        }
+        return
       }
       const options = entries()
       menu.replaceChildren()
@@ -109,7 +144,7 @@ export const Slash = Extension.create({
         editor.view.dom.closest('[data-palette]')?.getAttribute('data-palette') ?? 'classic'
       menu.classList.toggle(
         'slash-menu-dates',
-        category === 'dates' || options.some((entry) => entry.command?.startsWith('date-')),
+        category === 'today' || options.some((entry) => entry.command?.startsWith('today-')),
       )
       if (category && !m.query) {
         const button = document.createElement('button')
@@ -156,25 +191,31 @@ export const Slash = Extension.create({
         }
         button.onmousedown = (e) => e.preventDefault()
         button.onclick = () => choose(index)
-        button.onmouseenter = () => {
+        // Selection follows actual pointer movement, not rows appearing under it.
+        button.onmousemove = () => {
           selected = index
-          menu
-            ?.querySelectorAll('.slash-option')
-            .forEach((row, i) => row.setAttribute('aria-selected', String(i === index)))
+          updateSelection()
         }
         menu!.append(button)
       })
       position()
-      const current = menu.querySelector<HTMLElement>('[aria-selected="true"]')
-      if (current) {
-        if (current.offsetTop < menu.scrollTop) menu.scrollTop = current.offsetTop
-        else if (current.offsetTop + current.offsetHeight > menu.scrollTop + menu.clientHeight)
-          menu.scrollTop = current.offsetTop + current.offsetHeight - menu.clientHeight
-      }
+      updateSelection(true)
     }
     return [
       new Plugin({
         key: slashKey,
+        state: {
+          init: () => null,
+          apply: (transaction) => {
+            if (dateAttempt)
+              dateAttempt = {
+                ...dateAttempt,
+                from: transaction.mapping.map(dateAttempt.from, 1),
+                to: transaction.mapping.map(dateAttempt.to, 1),
+              }
+            return null
+          },
+        },
         props: {
           handleDOMEvents: {
             blur: () => {
@@ -189,8 +230,10 @@ export const Slash = Extension.create({
           },
           handleKeyDown: (_view, event) => {
             if (event.isComposing || editor.view.composing) return false
+            if (datePickerKey(editor, event)) return true
             const m = match()
             if (!m) return false
+            if (dateAttempt) return false
             if (event.key === 'Escape') {
               dismissed = m.from
               category = null
@@ -206,7 +249,8 @@ export const Slash = Extension.create({
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               selected =
                 (selected + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
-              render()
+              // Keep rows in place so a stationary pointer cannot reset the selection.
+              updateSelection(true)
               return true
             }
             if (

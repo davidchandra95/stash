@@ -2,20 +2,19 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import MobileApp from './mobile/MobileApp'
+import { AppTooltipProvider } from './components/AppTooltip'
 import { initializePlatform, platform } from './platform'
-import { initializeSymbols } from './icons'
 import './styles.css'
 import './mobile/mobile.css'
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 void initializePlatform()
   .then(() =>
-    initializeSymbols().catch((error) => {
-      console.error('Could not load macOS symbols', error)
-    }),
-  )
-  .then(() =>
-    root.render(<React.StrictMode>{platform.mobile ? <MobileApp /> : <App />}</React.StrictMode>),
+    root.render(
+      <React.StrictMode>
+        <AppTooltipProvider>{platform.mobile ? <MobileApp /> : <App />}</AppTooltipProvider>
+      </React.StrictMode>,
+    ),
   )
   .catch(() =>
     root.render(

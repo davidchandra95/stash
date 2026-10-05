@@ -21,7 +21,7 @@ import {
   Menu,
   MoreHorizontal,
   MoreVertical,
-  Plus,
+  BookPlus,
   Search,
   Settings2,
   X,
@@ -676,6 +676,7 @@ export default function MobileApp() {
                     <NoteEditor
                       note={active}
                       readOnly={blocked || active.trashed}
+                      appearance={appearance}
                       cursorSettings={appearance}
                       noteLinks={noteLinks}
                       onOpenTag={(tag) => navigate(`tag:${tag}`, true)}
@@ -691,6 +692,7 @@ export default function MobileApp() {
                   findOpen={findOpen}
                   onFindOpenChange={setFindOpen}
                   disabled={blocked}
+                  readOnly={!!active.trashed}
                 />
                 {contentsOpen && (
                   <button
@@ -798,7 +800,7 @@ export default function MobileApp() {
                         setBookDialog({})
                       }}
                     >
-                      <Plus size={21} />
+                      <BookPlus size={21} />
                     </button>
                   </div>
                   <nav aria-label="Notebooks">

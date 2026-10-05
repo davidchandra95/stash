@@ -1,4 +1,5 @@
 const paths: Record<string, string> = {
+  drawing: 'm16 3 5 5-12 12-6 1 1-6zM14 5l5 5',
   heading: 'M5 4v16M19 4v16M5 12h14',
   paragraph: 'M13 20V4H9a4 4 0 0 0 0 8h4M17 4v16',
   bold: 'M6 4h7a4 4 0 0 1 0 8H6zm0 8h8a4 4 0 0 1 0 8H6z',

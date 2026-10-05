@@ -1,3 +1,4 @@
+import AppTooltip from './AppTooltip'
 import { fontFamily } from '../fonts'
 import {
   defaultHeadingStyles,
@@ -148,17 +149,18 @@ export default function HeadingStyles({
                 <span>Color</span>
                 <div className="heading-color-swatches">
                   {headingColorOptions.map((option) => (
-                    <button
-                      type="button"
-                      className="heading-color-swatch"
-                      data-default={option.value === null || undefined}
-                      aria-label={`Heading ${label.slice(1)} color: ${option.label}`}
-                      aria-pressed={style.color === option.value}
-                      key={option.label}
-                      style={option.value ? { backgroundColor: option.value } : undefined}
-                      title={option.label}
-                      onClick={() => update(level, { color: option.value })}
-                    />
+                    <AppTooltip label={option.label} key={option.label}>
+                      <button
+                        type="button"
+                        className="heading-color-swatch"
+                        data-default={option.value === null || undefined}
+                        aria-label={`Heading ${label.slice(1)} color: ${option.label}`}
+                        aria-pressed={style.color === option.value}
+                        style={option.value ? { backgroundColor: option.value } : undefined}
+
+                        onClick={() => update(level, { color: option.value })}
+                      />
+                    </AppTooltip>
                   ))}
                 </div>
                 <label className="heading-custom-color">

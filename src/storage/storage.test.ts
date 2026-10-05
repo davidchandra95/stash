@@ -287,12 +287,12 @@ it('restores workspace preferences without loading bodies and saves pending tabs
     }),
   })
   await store.open()
-  expect(store.getSnapshot().workspace).toEqual(saved)
+  expect(store.getSnapshot().workspace).toEqual({ ...saved, recentNoteIds: [] })
   expect(t.load).not.toHaveBeenCalled()
   store.setWorkspace({ tabs: [], activeTabId: null })
   await store.requestQuit()
   expect(t.savePreferences).toHaveBeenCalledWith(
-    expect.objectContaining({ workspace: { tabs: [], activeTabId: null } }),
+    expect.objectContaining({ workspace: { tabs: [], activeTabId: null, recentNoteIds: [] } }),
   )
   expect(t.quit).toHaveBeenCalledOnce()
 })
@@ -699,4 +699,43 @@ it('persists pane widths across tab-only workspace updates and reopening', async
   })
   await reopened.open()
   expect(reopened.getSnapshot().workspace?.paneWidths).toEqual({ sidebar: 248, noteList: 336 })
+})
+
+it('reads unloaded search documents without activating notes, mounting editors, or changing edit times', async () => {
+  const original = note('a', 'fix twice fix')
+  const t = transport([{ ...original, revision: 1, documentVersion: 1 }])
+  const store = new LibraryStore(t)
+  await store.open()
+  const before = store.getSnapshot()
+  const result = await store.readSearchNote('a')
+  expect(result.content).toEqual(original.content)
+  expect(result.updated).toBe(original.updated)
+  expect(store.getSnapshot()).toBe(before)
+  expect(store.getSnapshot().loaded.has('a')).toBe(false)
+  expect(t.saveNote).not.toHaveBeenCalled()
+  await store.load('a')
+  const loaded = store.getSnapshot().notes[0]
+  t.load.mockClear()
+  expect(await store.readSearchNote('a')).toBe(loaded)
+  expect(t.load).not.toHaveBeenCalled()
+})
+it('preserves recent notes through workspace updates and reopening, pruning unavailable notes', async () => {
+  const t = transport(['a', 'b'].map((id) => ({ ...note(id), revision: 1, documentVersion: 1 })))
+  const store = new LibraryStore(t)
+  await store.open()
+  store.setRecentNotes(['a', 'b', 'a', 'missing'])
+  store.setWorkspace({ tabs: [], activeTabId: null })
+  expect(store.getSnapshot().workspace?.recentNoteIds).toEqual(['a', 'b'])
+  await store.flush()
+  const saved = store.getSnapshot().workspace
+  const reopened = new LibraryStore({
+    ...t,
+    open: async () => ({ ...(await t.open()), workspace: saved }),
+  })
+  await reopened.open()
+  expect(reopened.getSnapshot().workspace?.recentNoteIds).toEqual(['a', 'b'])
+  reopened.setNotes((notes) => notes.map((note) => ({ ...note, trashed: note.id === 'a' })))
+  reopened.setRecentNotes(['a', 'b'])
+  expect(reopened.getSnapshot().workspace?.recentNoteIds).toEqual(['b'])
+  expect(reopened.getSnapshot().notes.map((note) => note.updated)).toEqual([1, 1])
 })

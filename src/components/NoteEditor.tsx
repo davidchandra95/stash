@@ -1,3 +1,5 @@
+import AppTooltip from './AppTooltip'
+import { isPdfLink } from '../pdf/citations'
 import { platform, openExternalUrl } from '../platform'
 import { useContext } from 'react'
 import { ShortcutContext, useShortcutLabel } from '../useShortcuts'
@@ -9,6 +11,9 @@ import { library } from '../storage/useLibrary'
 import { setNoteLinkContext, type NoteLinkContext } from '../editor/noteReferences'
 import { setBodyTagContext } from '../editor/bodyTags'
 import WritingTools from './WritingTools'
+import DatePicker from './DatePicker'
+import DrawingDialog from '../drawing/Dialog'
+import DesktopWritingToolbar from './DesktopWritingToolbar'
 import { EditorContent, useEditorState, type JSONContent } from '@tiptap/react'
 import { useLayoutEffect } from 'react'
 import { getEditor } from '../editor/session'
@@ -31,7 +36,7 @@ import {
   Redo2,
   WrapText,
 } from '../icons'
-import type { CursorSettings, Note } from '../model'
+import type { Appearance, CursorSettings, Note } from '../model'
 
 export default function NoteEditor({
   note,
@@ -40,9 +45,11 @@ export default function NoteEditor({
   onOpenTag,
   cursorSettings,
   readOnly = false,
+  appearance,
 }: {
   note: Note
   readOnly?: boolean
+  appearance?: Appearance
   noteLinks: NoteLinkContext
   onOpenTag: (tag: string) => void
   cursorSettings: CursorSettings
@@ -57,6 +64,28 @@ export default function NoteEditor({
   useLayoutEffect(() => {
     editor.setEditable(!readOnly, false)
   }, [editor, readOnly])
+  useLayoutEffect(() => {
+    const dom = editor.view.dom
+    const handle = (event: MouseEvent) => {
+      const href = (event.target as HTMLElement).closest('a[href]')?.getAttribute('href')
+      if (!href || !isPdfLink(href)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (event.type === 'click')
+        dom.dispatchEvent(
+          new CustomEvent(platform.mobile ? 'writing-error' : 'pdf-citation', {
+            bubbles: true,
+            detail: platform.mobile ? 'This PDF is unavailable on this device.' : href,
+          }),
+        )
+    }
+    dom.addEventListener('mousedown', handle, true)
+    dom.addEventListener('click', handle, true)
+    return () => {
+      dom.removeEventListener('mousedown', handle, true)
+      dom.removeEventListener('click', handle, true)
+    }
+  }, [editor])
   useLayoutEffect(() => {
     if (!note.source) return
     markdownContexts.set(editor, {
@@ -179,7 +208,7 @@ export default function NoteEditor({
   }, [editor])
   useEditorState({ editor, selector: ({ editor: current }) => current?.state })
   if (!editor) return null
-  const toolTitle = (label: string) => {
+  const toolShortcut = (label: string) => {
     const id =
       (
         {
@@ -191,7 +220,7 @@ export default function NoteEditor({
         } as Record<string, string>
       )[label] ?? label.toLowerCase()
     const binding = shortcutLabel(id)
-    return binding === 'Unassigned' ? label : `${label} (${binding})`
+    return binding
   }
   const tool = (
     label: string,
@@ -200,25 +229,44 @@ export default function NoteEditor({
     active = false,
     disabled = false,
   ) => (
-    <button
-      type="button"
-      key={label}
-      className={`tool ${active ? 'active' : ''}`}
-      title={toolTitle(label)}
-      aria-label={label}
-      aria-pressed={active}
+    <AppTooltip
+      instant
+      label={label}
+      shortcut={toolShortcut(label)}
       disabled={
         disabled || readOnly || (!!note.source && ['Underline', 'Highlight'].includes(label))
       }
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={action}
+      key={label}
     >
-      {icon}
-    </button>
+      <button
+        type="button"
+        className={`tool ${active ? 'active' : ''}`}
+
+        aria-label={label}
+        aria-pressed={active}
+        disabled={
+          disabled || readOnly || (!!note.source && ['Underline', 'Highlight'].includes(label))
+        }
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={action}
+      >
+        {icon}
+      </button>
+    </AppTooltip>
   )
   return (
     <>
       <EditorContent editor={editor} className="editor-body" />
+      <DatePicker editor={editor} readOnly={readOnly} appearance={appearance} />
+      {!note.source && (
+        <DrawingDialog
+          key={note.id}
+          noteId={note.id}
+          editor={editor}
+          readOnly={readOnly}
+          appearance={appearance}
+        />
+      )}
       <fieldset className="writing-dock editor-controls" disabled={readOnly}>
         {editor.isActive('table') && (
           <div
@@ -269,132 +317,140 @@ export default function NoteEditor({
             })}
           </div>
         )}
-        <div className="toolbar" role="toolbar" aria-label="Text formatting">
-          <select
-            aria-label="Text style"
-            value={editor.isActive('heading') ? `h${editor.getAttributes('heading').level}` : 'p'}
-            onChange={(e) => {
-              const value = e.target.value
-              runCommand(editor, value === 'p' ? 'paragraph' : value)
-            }}
-          >
-            <option value="p">Text</option>
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <option value={`h${n}`} key={n}>
-                Heading {n}
-              </option>
-            ))}
-          </select>
-          <i />
-          {tool(
-            'Bold',
-            <Bold />,
-            () => {
-              runCommand(editor, 'bold')
-            },
-            editor.isActive('bold'),
-          )}
-          {tool(
-            'Italic',
-            <Italic />,
-            () => {
-              runCommand(editor, 'italic')
-            },
-            editor.isActive('italic'),
-          )}
-          {tool(
-            'Underline',
-            <Underline />,
-            () => {
-              runCommand(editor, 'underline')
-            },
-            editor.isActive('underline'),
-          )}
-          {tool(
-            'Strikethrough',
-            <Strikethrough />,
-            () => {
-              runCommand(editor, 'strike')
-            },
-            editor.isActive('strike'),
-          )}
-          {tool(
-            'Highlight',
-            <Highlighter />,
-            () => {
-              runCommand(editor, 'highlight')
-            },
-            editor.isActive('highlight'),
-          )}
-          <i />
-          {tool(
-            'Bullet list',
-            <List />,
-            () => {
-              runCommand(editor, 'bullet')
-            },
-            editor.isActive('mixedListItem', { kind: 'bullet' }),
-          )}
-          {tool(
-            'Numbered list',
-            <ListOrdered />,
-            () => {
-              runCommand(editor, 'number')
-            },
-            editor.isActive('mixedListItem', { kind: 'number' }),
-          )}
-          {tool(
-            'Checklist',
-            <ListTodo />,
-            () => {
-              runCommand(editor, 'task')
-            },
-            editor.isActive('mixedListItem', { kind: 'task' }),
-          )}
-          <i />
-          {tool(
-            'Quote',
-            <Quote />,
-            () => {
-              runCommand(editor, 'quote')
-            },
-            editor.isActive('blockquote'),
-          )}
-          {tool(
-            'Code block',
-            <Code2 />,
-            () => {
-              runCommand(editor, 'code')
-            },
-            editor.isActive('codeBlock'),
-          )}
-          {tool('Insert table', <Table2 />, () => {
-            runCommand(editor, 'table')
-          })}
-          {tool('Divider', <Minus />, () => {
-            runCommand(editor, 'divider')
-          })}
-          {note.source ? <MarkdownTools editor={editor} /> : <WritingTools editor={editor} />}
-          <i />
-          {tool(
-            'Undo',
-            <Undo2 />,
-            () => {
-              runCommand(editor, 'undo')
-            },
-            false,
-            !editor.can().undo(),
-          )}
-          {tool(
-            'Redo',
-            <Redo2 />,
-            () => {
-              runCommand(editor, 'redo')
-            },
-            false,
-            !editor.can().redo(),
-          )}
-        </div>
+        {!platform.mobile && !note.source ? (
+          <DesktopWritingToolbar editor={editor} readOnly={readOnly} appearance={appearance} />
+        ) : (
+          <div className="toolbar" role="toolbar" aria-label="Text formatting">
+            <select
+              aria-label="Text style"
+              value={editor.isActive('heading') ? `h${editor.getAttributes('heading').level}` : 'p'}
+              onChange={(e) => {
+                const value = e.target.value
+                runCommand(editor, value === 'p' ? 'paragraph' : value)
+              }}
+            >
+              <option value="p">Text</option>
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option value={`h${n}`} key={n}>
+                  Heading {n}
+                </option>
+              ))}
+            </select>
+            <i />
+            {tool(
+              'Bold',
+              <Bold />,
+              () => {
+                runCommand(editor, 'bold')
+              },
+              editor.isActive('bold'),
+            )}
+            {tool(
+              'Italic',
+              <Italic />,
+              () => {
+                runCommand(editor, 'italic')
+              },
+              editor.isActive('italic'),
+            )}
+            {tool(
+              'Underline',
+              <Underline />,
+              () => {
+                runCommand(editor, 'underline')
+              },
+              editor.isActive('underline'),
+            )}
+            {tool(
+              'Strikethrough',
+              <Strikethrough />,
+              () => {
+                runCommand(editor, 'strike')
+              },
+              editor.isActive('strike'),
+            )}
+            {tool(
+              'Highlight',
+              <Highlighter />,
+              () => {
+                runCommand(editor, 'highlight')
+              },
+              editor.isActive('highlight'),
+            )}
+            <i />
+            {tool(
+              'Bullet list',
+              <List />,
+              () => {
+                runCommand(editor, 'bullet')
+              },
+              editor.isActive('mixedListItem', { kind: 'bullet' }),
+            )}
+            {tool(
+              'Numbered list',
+              <ListOrdered />,
+              () => {
+                runCommand(editor, 'number')
+              },
+              editor.isActive('mixedListItem', { kind: 'number' }),
+            )}
+            {tool(
+              'Checklist',
+              <ListTodo />,
+              () => {
+                runCommand(editor, 'task')
+              },
+              editor.isActive('mixedListItem', { kind: 'task' }),
+            )}
+            <i />
+            {tool(
+              'Quote',
+              <Quote />,
+              () => {
+                runCommand(editor, 'quote')
+              },
+              editor.isActive('blockquote'),
+            )}
+            {tool(
+              'Code block',
+              <Code2 />,
+              () => {
+                runCommand(editor, 'code')
+              },
+              editor.isActive('codeBlock'),
+            )}
+            {tool('Insert table', <Table2 />, () => {
+              runCommand(editor, 'table')
+            })}
+            {tool('Divider', <Minus />, () => {
+              runCommand(editor, 'divider')
+            })}
+            {note.source ? (
+              <MarkdownTools editor={editor} readOnly={readOnly} />
+            ) : (
+              <WritingTools editor={editor} readOnly={readOnly} />
+            )}
+            <i />
+            {tool(
+              'Undo',
+              <Undo2 />,
+              () => {
+                runCommand(editor, 'undo')
+              },
+              false,
+              !editor.can().undo(),
+            )}
+            {tool(
+              'Redo',
+              <Redo2 />,
+              () => {
+                runCommand(editor, 'redo')
+              },
+              false,
+              !editor.can().redo(),
+            )}
+          </div>
+        )}
       </fieldset>
     </>
   )

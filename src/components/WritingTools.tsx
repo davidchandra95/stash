@@ -1,3 +1,4 @@
+import AppTooltip from './AppTooltip'
 import {
   Link,
   ImagePlus,
@@ -13,14 +14,31 @@ import {
 } from '../icons'
 import { platform } from '../platform'
 import { MotionPresence, motion } from '../motion'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
-import type { SelectionBookmark, Transaction } from '@tiptap/pm/state'
+import { TextSelection, type SelectionBookmark, type Transaction } from '@tiptap/pm/state'
 import { commands, runCommand } from '../editor/commands'
+import {
+  applyLink,
+  captureLinkTarget,
+  mapLinkTarget,
+  removeLink,
+  type LinkTarget,
+} from '../editor/links'
 import { readImage } from '../editor/images'
 const colors = ['#a83432', '#ad5b13', '#7b6513', '#387342', '#216f9c', '#7655ae']
 const backgrounds = ['#dc726033', '#e8a84140', '#e3d84a45', '#64ae7040', '#5b9cd440', '#a885cc40']
-export default function WritingTools({ editor }: { editor: Editor }) {
+export default function WritingTools({
+  editor,
+  readOnly = false,
+}: {
+  editor: Editor
+  readOnly?: boolean
+}) {
+  const blocked = useRef(readOnly)
+  blocked.current = readOnly
+  const linkTarget = useRef<LinkTarget | null>(null)
+  const [linkTitle, setLinkTitle] = useState('')
   const [open, setOpen] = useState(false),
     [url, setUrl] = useState(''),
     [error, setError] = useState(''),
@@ -40,9 +58,12 @@ export default function WritingTools({ editor }: { editor: Editor }) {
   const saved = useRef<SelectionBookmark | null>(null),
     slash = useRef<{ from: number; to: number } | null>(null)
   const capture = () => {
+    if (blocked.current || !editor.isEditable) return
     saved.current = editor.state.selection.getBookmark()
     slash.current = null
-    setUrl(editor.getAttributes('link').href || '')
+    linkTarget.current = captureLinkTarget(editor)
+    setUrl(linkTarget.current.href)
+    setLinkTitle(linkTarget.current.title)
     setError('')
     setOpen(true)
   }
@@ -50,33 +71,57 @@ export default function WritingTools({ editor }: { editor: Editor }) {
     const dom = editor.view.dom
     const request = (event: Event) => {
       const detail = (event as CustomEvent).detail
+      if (blocked.current || !editor.isEditable) return
       capture()
       slash.current = detail.range ?? null
+      if (detail.id === 'link' && detail.range) {
+        linkTarget.current = captureLinkTarget(
+          editor,
+          TextSelection.create(editor.state.doc, detail.range.to),
+        )
+        setUrl(linkTarget.current.href)
+        setLinkTitle(linkTarget.current.title)
+      }
     }
     const fail = (event: Event) => {
+      if (blocked.current || !editor.isEditable) return
       setError((event as CustomEvent).detail)
       setOpen(true)
     }
     const map = ({ transaction }: { transaction: Transaction }) => {
       saved.current = saved.current?.map(transaction.mapping) ?? null
+      linkTarget.current = mapLinkTarget(linkTarget.current, transaction)
       if (slash.current)
         slash.current = {
           from: transaction.mapping.map(slash.current.from),
           to: transaction.mapping.map(slash.current.to),
         }
     }
-    const dismiss = () => setOpen(false)
+    const dismiss = () => {
+      setOpen(false)
+      saved.current = null
+      slash.current = null
+      linkTarget.current = null
+    }
+    dom.addEventListener('writing-deactivate', dismiss)
     dom.addEventListener('writing-dismiss', dismiss)
     dom.addEventListener('writing-panel', request)
     dom.addEventListener('writing-error', fail)
     editor.on('transaction', map)
     return () => {
+      dom.removeEventListener('writing-deactivate', dismiss)
       dom.removeEventListener('writing-dismiss', dismiss)
       dom.removeEventListener('writing-panel', request)
       dom.removeEventListener('writing-error', fail)
       editor.off('transaction', map)
     }
   }, [editor])
+  useLayoutEffect(() => {
+    setOpen(false)
+    saved.current = null
+    slash.current = null
+    linkTarget.current = null
+  }, [editor, readOnly])
   const chain = () => {
     let c = editor.chain().command(({ tr }) => {
       if (saved.current) tr.setSelection(saved.current.resolve(tr.doc))
@@ -88,13 +133,16 @@ export default function WritingTools({ editor }: { editor: Editor }) {
   const close = () => {
     setOpen(false)
     slash.current = null
-    editor.commands.focus()
+    saved.current = null
+    linkTarget.current = null
+    if (!blocked.current && !editor.isDestroyed) editor.commands.focus()
   }
   const apply = (action: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => {
-    action(chain()).run()
-    close()
+    if (blocked.current || !editor.isEditable || editor.isDestroyed || !saved.current) return
+    if (action(chain()).run()) close()
   }
   const executeSaved = (id: string) => {
+    if (blocked.current || !editor.isEditable) return
     editor.commands.command(({ tr }) => {
       if (saved.current) tr.setSelection(saved.current.resolve(tr.doc))
       return true
@@ -107,17 +155,19 @@ export default function WritingTools({ editor }: { editor: Editor }) {
       <label>{label}</label>
       <div className="swatches">
         {values.map((color) => (
-          <button
-            key={color}
-            title={`${label} ${color}`}
-            aria-label={`${label} ${color}`}
-            style={{ background: color }}
-            onClick={() => action(color)}
-          />
+          <AppTooltip label={`${label} ${color}`} key={color}>
+            <button
+              aria-label={`${label} ${color}`}
+              style={{ background: color }}
+              onClick={() => action(color)}
+            />
+          </AppTooltip>
         ))}
-        <button title={`Reset ${label}`} aria-label={`Reset ${label}`} onClick={() => action(null)}>
-          ×
-        </button>
+        <AppTooltip instant label={`Reset ${label}`}>
+          <button aria-label={`Reset ${label}`} onClick={() => action(null)}>
+            ×
+          </button>
+        </AppTooltip>
       </div>
     </section>
   )
@@ -133,16 +183,18 @@ export default function WritingTools({ editor }: { editor: Editor }) {
             { id: 'superscript', label: 'Superscript', Icon: Superscript },
             { id: 'checkbox', label: 'Insert checkbox', Icon: SquareCheck },
           ].map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              className="tool"
-              aria-label={label}
-              title={label}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => runCommand(editor, id)}
-            >
-              <Icon />
-            </button>
+            <AppTooltip instant label={label} disabled={readOnly} key={id}>
+              <button
+                className="tool"
+                aria-label={label}
+
+                onMouseDown={(e) => e.preventDefault()}
+                disabled={readOnly}
+                onClick={() => !blocked.current && editor.isEditable && runCommand(editor, id)}
+              >
+                <Icon />
+              </button>
+            </AppTooltip>
           ))}
           {[
             { label: 'Insert link', section: 'Link address', Icon: Link },
@@ -151,32 +203,34 @@ export default function WritingTools({ editor }: { editor: Editor }) {
             { label: 'Text alignment', section: 'Alignment', Icon: AlignLeft },
             { label: 'Sections', section: 'Sections', Icon: PanelsTopLeft },
           ].map(({ label, section, Icon }) => (
-            <button
-              key={label}
-              className="tool"
-              aria-label={label}
-              title={label}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setSection(section)
-                capture()
-              }}
-            >
-              <Icon />
-            </button>
+            <AppTooltip instant label={label} key={label}>
+              <button
+                className="tool"
+                aria-label={label}
+
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setSection(section)
+                  capture()
+                }}
+              >
+                <Icon />
+              </button>
+            </AppTooltip>
           ))}
         </>
       ) : (
-        <button
-          className="tool"
-          title="More formatting and insert"
-          aria-label="More formatting and insert"
-          aria-expanded={open}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => (open ? close() : capture())}
-        >
-          •••
-        </button>
+        <AppTooltip instant label="More formatting and insert">
+          <button
+            className="tool"
+            aria-label="More formatting and insert"
+            aria-expanded={open}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => (open ? close() : capture())}
+          >
+            •••
+          </button>
+        </AppTooltip>
       )}
       <MotionPresence open={open} duration={motion.menu}>
         <div
@@ -237,6 +291,18 @@ export default function WritingTools({ editor }: { editor: Editor }) {
             ))}
           </section>
           <section>
+            <label htmlFor="writing-link-title">Link title</label>
+            <input
+              id="writing-link-title"
+              className="text-field"
+              value={linkTitle}
+              disabled={readOnly || !linkTarget.current?.titleEditable}
+              onChange={(event) => setLinkTitle(event.target.value)}
+              placeholder="Use the address when empty"
+            />
+            {linkTarget.current && !linkTarget.current.titleEditable && (
+              <p className="writing-field-hint">Select text within one block to edit its title.</p>
+            )}
             <label htmlFor="writing-link">Link address</label>
             <input
               id="writing-link"
@@ -251,21 +317,16 @@ export default function WritingTools({ editor }: { editor: Editor }) {
                   setError('Use an https://, http://, or mailto: address.')
                   return
                 }
-                const empty = !!slash.current || saved.current?.resolve(editor.state.doc).empty
-                apply((c) =>
-                  empty && !editor.isActive('link')
-                    ? c.insertContent({
-                        type: 'text',
-                        text: url.trim(),
-                        marks: [{ type: 'link', attrs: { href: url.trim() } }],
-                      })
-                    : c.extendMarkRange('link').setLink({ href: url.trim() }),
-                )
+                if (linkTarget.current)
+                  apply((c) => applyLink(c, linkTarget.current!, linkTitle, url.trim()))
               }}
             >
               Apply link
             </button>
-            <button onClick={() => apply((c) => c.extendMarkRange('link').unsetLink())}>
+            <button
+              disabled={readOnly || !linkTarget.current?.href}
+              onClick={() => linkTarget.current && apply((c) => removeLink(c, linkTarget.current!))}
+            >
               Remove link
             </button>
           </section>

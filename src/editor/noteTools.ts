@@ -21,38 +21,10 @@ export function outline(doc: Node): HeadingEntry[] {
   })
   return roots
 }
-export type TextMatch = { from: number; to: number }
-export function literalMatches(text: string, query: string): TextMatch[] {
-  if (!query) return []
-  // RegExp's Unicode case-insensitive matching preserves original UTF-16 offsets.
-  const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu')
-  return [...text.matchAll(pattern)].map((m) => ({ from: m.index!, to: m.index! + m[0].length }))
-}
-export function documentMatches(doc: Node, query: string): TextMatch[] {
-  const matches: TextMatch[] = []
-  if (!query) return matches
-  doc.descendants((node, pos) => {
-    if (!node.isTextblock) return
-    // An atom is a boundary, never a made-up searchable character or joined word.
-    let text = '',
-      start = pos + 1
-    const flush = () => {
-      matches.push(
-        ...literalMatches(text, query).map((m) => ({ from: start + m.from, to: start + m.to })),
-      )
-      text = ''
-    }
-    node.forEach((child, offset) => {
-      if (child.isText) {
-        if (!text) start = pos + 1 + offset
-        text += child.text!
-      } else flush()
-    })
-    flush()
-    return false
-  })
-  return matches
-}
+export { literalMatches, documentMatches } from './searchText'
+import { documentMatches } from './searchText'
+import type { DocumentMatch } from './searchText'
+import { referenceTitle } from './noteReferences'
 type FindState = { query: string; active: number; decorations: DecorationSet }
 export const findKey = new PluginKey<FindState>('findInNote')
 export const FindInNote = Extension.create({
@@ -70,10 +42,16 @@ export const FindInNote = Extension.create({
               ...value,
               decorations: DecorationSet.create(
                 tr.doc,
-                documentMatches(tr.doc, value.query).map((match, i) =>
-                  Decoration.inline(match.from, match.to, {
-                    class: `note-find-match ${i === value.active ? 'current-match' : ''}`,
-                  }),
+                documentMatches(tr.doc, value.query, (id, fallback) =>
+                  referenceTitle(this.editor, id, fallback),
+                ).flatMap((match, i) =>
+                  match.segment.nodeType === 'rawMarkdown'
+                    ? []
+                    : [
+                        (match.atom ? Decoration.node : Decoration.inline)(match.from, match.to, {
+                          class: `note-find-match ${i === value.active ? 'current-match' : ''}`,
+                        }),
+                      ],
                 ),
               ),
             }
@@ -182,5 +160,23 @@ export function scrollToPosition(editor: Editor, pos: number) {
     scroll.scrollTop += coords.top - rect.top - scroll.clientHeight / 2
     if (coords.left < rect.left || coords.right > rect.right)
       scroll.scrollLeft += coords.left - rect.left - scroll.clientWidth / 2
+  }
+}
+
+export function scrollToMatch(editor: Editor, match: DocumentMatch) {
+  scrollToPosition(editor, match.from)
+  if (match.segment.nodeType !== 'rawMarkdown') return
+  const node = editor.view.nodeDOM(match.from)
+  const mark =
+    node instanceof Element
+      ? node.querySelector<HTMLElement>(`[data-search-offset="${match.offset}"]`)
+      : null
+  const scroll = editor.view.dom.closest<HTMLElement>('.note-scroll')
+  if (mark && scroll) {
+    mark.scrollIntoView({ block: 'center', behavior: 'instant' })
+    scroll.scrollTop +=
+      mark.getBoundingClientRect().top -
+      scroll.getBoundingClientRect().top -
+      scroll.clientHeight / 2
   }
 }

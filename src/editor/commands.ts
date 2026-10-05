@@ -2,6 +2,7 @@ import { bindingFor, shortcutCommands } from '../shortcuts'
 import { isMarkdownEditor, markdownCommandAllowed } from './markdownContext'
 import { CommandManager } from '@tiptap/core'
 import { slashExtraCommands } from './slashOptions'
+import { requestDatePicker } from './datePicker'
 import type { Editor, ChainedCommands } from '@tiptap/core'
 export interface WritingCommand {
   id: string
@@ -14,6 +15,12 @@ export interface WritingCommand {
   run: (chain: ChainedCommands) => ChainedCommands
 }
 const writingCommands: WritingCommand[] = [
+  {
+    id: 'drawing',
+    label: 'Drawing',
+    keywords: 'excalidraw diagram sketch',
+    run: (c) => c.insertDrawing(),
+  },
   ...slashExtraCommands,
   { id: 'undo', label: 'Undo', slash: false, shortcut: 'Mod-z', run: (c) => c.undo() },
   { id: 'redo', label: 'Redo', slash: false, shortcut: 'Mod-Shift-z', run: (c) => c.redo() },
@@ -45,9 +52,9 @@ const writingCommands: WritingCommand[] = [
     label: `Heading ${level}`,
     run: (c: ChainedCommands) => c.setHeading({ level }),
   })),
-  { id: 'bullet', label: 'Bullet list', run: (c) => c.setListKind('bullet') },
-  { id: 'number', label: 'Numbered list', run: (c) => c.setListKind('number') },
-  { id: 'task', label: 'Checklist', run: (c) => c.setListKind('task') },
+  { id: 'bullet', label: 'Bullet list', run: (c) => c.toggleListKind('bullet') },
+  { id: 'number', label: 'Numbered list', run: (c) => c.toggleListKind('number') },
+  { id: 'task', label: 'Checklist', run: (c) => c.toggleListKind('task') },
   { id: 'quote', label: 'Quote', run: (c) => c.toggleBlockquote() },
   {
     id: 'table',
@@ -101,8 +108,9 @@ const writingCommands: WritingCommand[] = [
   })),
   {
     id: 'date',
-    label: 'Insert date',
-    run: (c) => c.insertContent(new Date().toLocaleDateString()),
+    label: 'Choose a date',
+    panel: true,
+    run: (c) => c,
   },
   {
     id: 'time',
@@ -120,6 +128,7 @@ export function runCommand(editor: Editor, id: string, range?: { from: number; t
   if (isMarkdownEditor(editor) && !markdownCommandAllowed(id)) return false
   const command = commands.find((c) => c.id === id)
   if (!command) return false
+  if (id === 'date') return requestDatePicker(editor, range ?? editor.state.selection, 'manual')
   if (command.panel) {
     editor.view.dom.dispatchEvent(new CustomEvent('writing-panel', { detail: { id, range } }))
     return true

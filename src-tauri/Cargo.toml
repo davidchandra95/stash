@@ -2,6 +2,7 @@
 name = "upnote2"
 version = "0.1.0"
 description = "Stash local-first notes"
+license = "MIT"
 edition = "2021"
 
 [lib]
@@ -38,7 +39,7 @@ objc2-foundation = "0.3"
 security-framework = "3"
 core-text = "20.1"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSMenu", "NSMenuItem", "NSImage", "NSBitmapImageRep", "NSImageRep", "NSFontDescriptor", "NSView", "NSEvent"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSMenu", "NSMenuItem", "NSCell", "NSGraphics", "NSImage", "NSBitmapImageRep", "NSImageRep", "NSFontDescriptor", "NSView", "NSEvent"] }
 
 [dev-dependencies]
 tempfile = "3"

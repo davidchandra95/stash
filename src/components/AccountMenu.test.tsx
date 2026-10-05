@@ -57,7 +57,8 @@ async function mount(state = makeState()) {
         trashSelected={false}
         dark={true}
         palette="default"
-        settingsTitle="Settings (⌘,)"
+        settingsTitle="Settings"
+        settingsShortcut="⌘,"
         {...handlers}
       />,
     ),

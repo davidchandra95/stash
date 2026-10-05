@@ -12,7 +12,7 @@ export const markdownContexts = new WeakMap<Editor, MarkdownContext>()
 export const isMarkdownEditor = (editor: Editor) =>
   editor.extensionManager.extensions.some((e) => e.name === 'markdownSource')
 export function markdownCommandAllowed(id: string) {
-  return !/^(underline|highlight.*|ink-.*|cell-.*|format|subscript|superscript|align-.*|checkbox|collapsible|wrap|unwrap|toggle-section|expand-all|collapse-all|merge-cells|split-cell|header-column|header-cell|header-row)$/.test(
+  return !/^(drawing|underline|highlight.*|ink-.*|cell-.*|format|subscript|superscript|align-.*|checkbox|collapsible|wrap|unwrap|toggle-section|expand-all|collapse-all|merge-cells|split-cell|header-column|header-cell|header-row)$/.test(
     id,
   )
 }

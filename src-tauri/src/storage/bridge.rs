@@ -326,3 +326,29 @@ pub async fn open_external_file(href: String) -> Result<()> {
     .await
     .map_err(db_err)?
 }
+
+#[tauri::command]
+pub async fn list_pdfs(service: tauri::State<'_, Arc<Service>>) -> Result<Vec<pdf::PdfDocument>> {
+    work(service.inner().clone(), |s| s.list_pdfs()).await
+}
+#[tauri::command]
+pub async fn import_pdf(path: String, service: tauri::State<'_, Arc<Service>>) -> Result<pdf::PdfDocument> {
+    work(service.inner().clone(), move |s| s.import_pdf(Path::new(&path))).await
+}
+#[tauri::command]
+pub async fn read_pdf_range(id: String, begin: u64, end: u64, service: tauri::State<'_, Arc<Service>>) -> Result<tauri::ipc::Response> {
+    work(service.inner().clone(), move |s| s.read_pdf_range(&id, begin, end)).await.map(tauri::ipc::Response::new)
+}
+#[tauri::command]
+pub async fn save_pdf_reading(id: String, reading: pdf::ReadingState, service: tauri::State<'_, Arc<Service>>) -> Result<()> {
+    work(service.inner().clone(), move |s| s.save_pdf_reading(&id, &reading)).await
+}
+
+#[tauri::command]
+pub async fn list_pdf_companions(service: tauri::State<'_, Arc<Service>>) -> Result<std::collections::BTreeMap<String, String>> {
+    work(service.inner().clone(), |s| s.list_pdf_companions()).await
+}
+#[tauri::command]
+pub async fn ensure_pdf_companion(document_id: String, service: tauri::State<'_, Arc<Service>>) -> Result<Note> {
+    work(service.inner().clone(), move |s| s.ensure_pdf_companion(&document_id)).await
+}

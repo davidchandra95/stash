@@ -2,6 +2,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
 import { writingExtensions } from './extensions'
+import { markdownExtensions, parseMarkdown } from './markdown'
 import {
   clearReveals,
   documentMatches,
@@ -84,4 +85,24 @@ it('finding a note that ends in a heading does not append an empty paragraph', (
   const before = e.getJSON()
   setFind(e, 'heading', 0)
   expect(e.getJSON()).toEqual(before)
+})
+
+it('highlights each occurrence in preserved visible Markdown source without changing its saved document', () => {
+  const e = new Editor({
+    extensions: markdownExtensions,
+    content: parseMarkdown('<div>fix fix</div>'),
+  })
+  editors.push(e)
+  const before = e.getJSON()
+  expect(documentMatches(e.state.doc, 'fix')).toHaveLength(2)
+  setFind(e, 'fix', 1)
+  const marks = e.view.dom.querySelectorAll('.markdown-source-block mark')
+  expect(marks).toHaveLength(2)
+  expect(marks[1].classList.contains('current-match')).toBe(true)
+  expect(marks[0].classList.contains('current-match')).toBe(false)
+  expect(e.getJSON()).toEqual(before)
+  expect(e.can().undo()).toBe(false)
+  setFind(e, '', -1)
+  expect(e.view.dom.querySelector('.markdown-source-block')?.textContent).toBe('<div>fix fix</div>')
+  expect(e.view.dom.querySelectorAll('.markdown-source-block mark')).toHaveLength(0)
 })

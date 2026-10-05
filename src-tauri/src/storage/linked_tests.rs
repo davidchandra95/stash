@@ -377,7 +377,7 @@ fn version_seven_moves_linked_legacy_tags_into_markdown_and_retries_when_the_fil
         .unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
+        .execute_batch("DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
         .unwrap();
     fs::remove_file(folder.path().join("a.md")).unwrap();
     drop(store);

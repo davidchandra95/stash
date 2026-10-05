@@ -22,9 +22,13 @@ import { BodyTags } from './bodyTags'
 import { Slash } from './slash'
 import { Clipboard } from './clipboard'
 import { CursorLayer } from './cursor'
+import { SelectionHighlight } from './selectionHighlight'
+import { Drawing } from '../drawing/node'
 export const writingExtensions = [
+  Drawing,
   KeyboardShortcuts,
   CursorLayer,
+  SelectionHighlight,
   FindInNote,
   NavigationReveal,
   StarterKit.configure({

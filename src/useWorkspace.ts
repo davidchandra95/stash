@@ -1,3 +1,4 @@
+import { noteScrollPositions } from './editor/session'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Note, View } from './model'
 import {
@@ -9,6 +10,7 @@ import {
   keepTabOpen,
   moveHistory,
   openNote,
+  openPdf,
   previewNote,
   pruneWorkspace,
   restoreWorkspace,
@@ -20,6 +22,7 @@ import {
 
 export function useWorkspace({
   notes,
+  documents = [],
   ready,
   saved,
   save,
@@ -29,6 +32,7 @@ export function useWorkspace({
   disabled,
 }: {
   notes: Note[]
+  documents?: { id: string }[]
   ready: boolean
   saved: WorkspacePreferences | null
   save: (value: WorkspacePreferences) => void
@@ -38,7 +42,7 @@ export function useWorkspace({
   disabled: boolean
 }) {
   const [state, setState] = useState<Workspace>(() =>
-    ready ? restoreWorkspace(saved, notes) : { tabs: [], activeTabId: null },
+    ready ? restoreWorkspace(saved, notes, documents) : { tabs: [], activeTabId: null },
   )
   const [activation, setActivation] = useState(0)
   const latest = useRef(state)
@@ -61,12 +65,12 @@ export function useWorkspace({
     if (!ready) return
     if (!initialized.current) {
       initialized.current = true
-      commit(restoreWorkspace(saved, notes))
+      commit(restoreWorkspace(saved, notes, documents))
     } else {
-      const next = pruneWorkspace(latest.current, notes)
+      const next = pruneWorkspace(latest.current, notes, documents)
       if (next !== latest.current) commit(next)
     }
-  }, [ready, notes])
+  }, [ready, notes, documents])
   useEffect(() => {
     if (ready && initialized.current) save(workspacePreferences(latest.current))
   }, [ready])
@@ -120,7 +124,7 @@ export function useWorkspace({
   }
   const move = (direction: number) => {
     if (!disabled) setActivation((n) => n + 1)
-    if (!disabled) commit(moveHistory(capture(), direction, notes), true)
+    if (!disabled) commit(moveHistory(capture(), direction, notes, documents), true)
   }
   const tab = activeTab(state)
   const noteId = tab ? currentLocation(tab).noteId : undefined
@@ -128,16 +132,16 @@ export function useWorkspace({
   useLayoutEffect(() => {
     const location = pendingScroll.current
     const scroll = document.querySelector<HTMLElement>('.note-scroll')
-    if (!noteId && pendingFocus.current) {
+    if (!noteId && !tab && pendingFocus.current) {
       document.querySelector<HTMLElement>('[aria-label="New note"]')?.focus()
       pendingFocus.current = false
       pendingScroll.current = null
     }
-    if (location && scroll?.dataset.noteId === location.noteId) {
+    if (location && location.kind !== 'pdf' && scroll?.dataset.noteId === location.noteId) {
       if (pendingFocus.current)
         scroll.querySelector<HTMLElement>('.tiptap')?.focus({ preventScroll: true })
       pendingFocus.current = false
-      scroll.scrollTop = location.scroll
+      scroll.scrollTop = noteScrollPositions.get(location.noteId) ?? location.scroll
       pendingScroll.current = null
     }
   })
@@ -145,6 +149,12 @@ export function useWorkspace({
     ...state,
     activation,
     noteId,
+    documentId: tab && currentLocation(tab).documentId,
+    openPdf: (documentId: string) => {
+      if (disabled) return
+      setActivation((n) => n + 1)
+      commit(openPdf(capture(), documentId))
+    },
     open,
     preview,
     keepOpen,
@@ -152,7 +162,7 @@ export function useWorkspace({
     select,
     close,
     move,
-    canBack: historyIndex(tab, -1, notes) !== undefined,
-    canForward: historyIndex(tab, 1, notes) !== undefined,
+    canBack: historyIndex(tab, -1, notes, documents) !== undefined,
+    canForward: historyIndex(tab, 1, notes, documents) !== undefined,
   }
 }

@@ -30,12 +30,19 @@ function pointer(target: HTMLElement, type: string, clientX: number, pointerId =
   target.dispatchEvent(event)
 }
 
-function Fixture() {
+function Fixture({
+  noteListVisible = true,
+  savedWidths,
+}: {
+  noteListVisible?: boolean
+  savedWidths?: PaneWidths
+}) {
   const appRef = useRef<HTMLDivElement>(null)
   const panes = usePaneResize({
     appRef,
-    savedWidths: undefined,
+    savedWidths,
     sidebarVisible: true,
+    noteListVisible,
     contentsOpen: false,
     disabled: false,
     onCommit: commits,
@@ -49,7 +56,7 @@ function Fixture() {
       <aside className="sidebar" />
       <section className="note-list" />
       <div {...panes.dividerProps('sidebar')} />
-      <div {...panes.dividerProps('noteList')} />
+      {noteListVisible && <div {...panes.dividerProps('noteList')} />}
     </div>
   )
 }
@@ -205,3 +212,39 @@ it('does not persist a cancelled Notes pane drag', async () => {
     mounted.querySelector<HTMLElement>('.app')!.style.getPropertyValue('--list-override'),
   ).toBe('')
 })
+
+it.each(['pointer', 'keyboard'])(
+  'resizes navigation with Notes hidden by %s without replacing its saved width',
+  async (method) => {
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.classList.contains('app')) return rect(900)
+      if (this.classList.contains('sidebar')) return rect(208)
+      return rect(0)
+    }
+    await mount()
+    await act(() =>
+      root!.render(
+        <Fixture noteListVisible={false} savedWidths={{ sidebar: 208, noteList: 600 }} />,
+      ),
+    )
+    const sidebar = host!.querySelector<HTMLElement>('.pane-resizer--sidebar')!
+    expect(sidebar.getAttribute('aria-valuemax')).toBe('540')
+    expect(host!.querySelector('.pane-resizer--noteList')).toBeNull()
+    await act(() => {
+      if (method === 'pointer') {
+        pointer(sidebar, 'pointerdown', 208)
+        pointer(sidebar, 'pointermove', 216)
+        pointer(sidebar, 'pointerup', 216)
+      } else
+        sidebar.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(commits).toHaveBeenLastCalledWith({ sidebar: 216, noteList: 600 })
+    await act(() =>
+      root!.render(<Fixture noteListVisible savedWidths={commits.mock.calls.at(-1)![0]} />),
+    )
+    expect(host!.querySelector('.pane-resizer--noteList')).not.toBeNull()
+    expect(
+      host!.querySelector<HTMLElement>('.app')!.style.getPropertyValue('--list-override'),
+    ).toBe('396px')
+  },
+)

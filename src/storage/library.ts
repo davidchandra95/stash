@@ -1,3 +1,6 @@
+import { pdfCitationHref } from '../pdf/citations'
+import { copyDrawingIds, replaceDrawingPreview, type DrawingData } from '../drawing/model'
+import type { PdfDocument } from '../pdf/model'
 import type { NoteListPreferences } from '../noteOrder'
 import { convertMarkdownNote } from '../editor/notebookConversion'
 import { normalizeOverrides } from '../shortcuts'
@@ -10,7 +13,7 @@ import {
 } from '../editor/markdown'
 import { resetSession } from '../editor/session'
 import type { FileSource, LinkedRoot } from '../model'
-import type { WorkspacePreferences } from '../workspace'
+import { normalizePdfNotes, normalizeRecentNotes, type WorkspacePreferences } from '../workspace'
 import type { JSONContent } from '@tiptap/core'
 import { getSchema } from '@tiptap/core'
 import { writingExtensions } from '../editor/extensions'
@@ -39,6 +42,8 @@ function normalizeWorkspacePreferences(
   const { paneWidths: _, contentsWidth: __, ...legacyWorkspace } = workspace
   return {
     ...legacyWorkspace,
+    ...(workspace.pdfNotes ? { pdfNotes: normalizePdfNotes(workspace.pdfNotes) } : {}),
+    recentNoteIds: normalizeRecentNotes(workspace.recentNoteIds),
     ...(paneWidths ? { paneWidths } : {}),
     ...(contentsWidth ? { contentsWidth } : {}),
   }
@@ -399,6 +404,39 @@ export class LibraryStore {
     this.loading.set(id, request)
     return request
   }
+  // Search reads do not mount editors or activate notes. Unsaved/loaded content
+  // stays authoritative, and external Markdown is parsed using the editor schema.
+  readSearchNote = async (id: string): Promise<Note> => {
+    const current = this.state.notes.find((note) => note.id === id)
+    if (!current || current.trashed) throw Error('This note is no longer available.')
+    if (current.source?.unavailable) throw Error(current.source.unavailable)
+    if (
+      !this.transport ||
+      this.state.loaded.has(id) ||
+      this.pendingNotes.has(id) ||
+      this.state.conflicts[id]
+    )
+      return current
+    const saved = await this.transport.load(id)
+    if (saved.documentVersion !== 1) throw Error('Unsupported document format.')
+    const content =
+      saved.source?.markdown !== undefined ? parseMarkdown(saved.source.markdown) : saved.content
+    if (!content) throw Error('This note could not be read.')
+    getSchema(saved.source ? markdownExtensions : writingExtensions)
+      .nodeFromJSON(content)
+      .check()
+    const latest = this.state.notes.find((note) => note.id === id)
+    if (!latest || latest.trashed) throw Error('This note is no longer available.')
+    if (this.state.loaded.has(id) || this.pendingNotes.has(id) || this.state.conflicts[id])
+      return latest
+    if (
+      latest.text !== current.text ||
+      latest.updated !== current.updated ||
+      latest.source?.fingerprint !== current.source?.fingerprint
+    )
+      throw Error('This note changed while searching. Search again.')
+    return { ...latest, content }
+  }
   activate = async (id: string) => {
     if (this.state.converting) return
     await this.queue.flush().catch(() => {})
@@ -710,6 +748,85 @@ export class LibraryStore {
     this.publish({ conflicts, notes, loaded })
   }
 
+  private companionWork = new Map<string, Promise<string>>()
+  private previewCompanions: Record<string, string> = {}
+  listPdfCompanions = async (): Promise<Record<string, string>> =>
+    this.transport ? this.command('list_pdf_companions', {}) : { ...this.previewCompanions }
+  ensurePdfCompanion = (document: PdfDocument): Promise<string> => {
+    const pending = this.companionWork.get(document.id)
+    if (pending) return pending
+    const work = this.createPdfCompanion(document).finally(() =>
+      this.companionWork.delete(document.id),
+    )
+    this.companionWork.set(document.id, work)
+    return work
+  }
+  private async createPdfCompanion(document: PdfDocument): Promise<string> {
+    if (this.state.syncing || this.state.converting || this.state.quitting)
+      throw Error('Wait for the current operation to finish before taking notes.')
+    await this.flush()
+    if (this.state.syncing || this.state.converting || this.state.quitting)
+      throw Error('Wait for the current operation to finish before taking notes.')
+    if (!this.transport) {
+      const existing = this.previewCompanions[document.id]
+      if (existing && this.state.notes.some((n) => n.id === existing)) return existing
+      const id = crypto.randomUUID()
+      const note: Note = {
+        id,
+        title: `${document.name.replace(/\.pdf$/i, '')} - Notes`,
+        notebookIds: [],
+        tags: [],
+        quickAccess: false,
+        pinned: false,
+        trashed: false,
+        updated: Date.now(),
+        text: document.name,
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: document.name,
+                  marks: [
+                    {
+                      type: 'link',
+                      attrs: {
+                        href: pdfCitationHref({
+                          documentId: document.id,
+                          fingerprint: document.fingerprint,
+                          page: 1,
+                        }),
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            { type: 'paragraph' },
+          ],
+        },
+      }
+      this.setNotes((notes) => [note, ...notes])
+      this.previewCompanions[document.id] = id
+      return id
+    }
+    const saved = await this.command<SavedNote>('ensure_pdf_companion', { documentId: document.id })
+    // A delayed receipt must never replace newer local edits or another load.
+    if (!this.state.notes.some((n) => n.id === saved.id)) {
+      this.revisions.set(saved.id, saved.revision)
+      const content = saved.source ? parseMarkdown(saved.source.markdown ?? '') : saved.content!
+      this.publish({
+        notes: [{ ...saved, content }, ...this.state.notes],
+        loaded: new Set([...this.state.loaded, saved.id]),
+      })
+    }
+    await this.load(saved.id)
+    return saved.id
+  }
+
   duplicate = async (id: string): Promise<string | undefined> => {
     if (this.state.syncing || this.state.converting || this.state.quitting) return undefined
     await this.load(id)
@@ -721,6 +838,7 @@ export class LibraryStore {
     this.setNotes((old) => [
       {
         ...structuredClone(source),
+        content: copyDrawingIds(structuredClone(source.content)),
         id: copyId,
         title: `${source.title || 'Untitled note'} copy`,
         source: undefined,
@@ -734,6 +852,18 @@ export class LibraryStore {
   }
   setNotes = (change: Note[] | ((old: Note[]) => Note[])) => {
     if (this.state.syncing || this.state.converting || this.state.quitting) return
+    this.applyNotes(change)
+  }
+  // Flush participants may finish a derived preview after user editing is frozen.
+  // This path cannot change scene content or apply to a different scene revision.
+  saveDrawingPreview = (noteId: string, drawingId: string, data: DrawingData) => {
+    const note = this.state.notes.find((note) => note.id === noteId)
+    if (!note || note.source || !this.state.loaded.has(noteId)) return
+    const content = replaceDrawingPreview(note.content, drawingId, data)
+    if (content === note.content) return
+    this.applyNotes(this.state.notes.map((current) => current === note ? { ...note, content } : current))
+  }
+  private applyNotes = (change: Note[] | ((old: Note[]) => Note[])) => {
     const old = this.state.notes,
       next = (typeof change === 'function' ? change(old) : change).map((note) => {
         if (note.source) return note
@@ -899,7 +1029,23 @@ export class LibraryStore {
       contentsWidth,
     })
   }
+  setRecentNotes = (ids: string[]) => {
+    const recentNoteIds = normalizeRecentNotes(ids, this.state.notes)
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      recentNoteIds,
+    })
+  }
   setWorkspace = (workspace: WorkspacePreferences) => {
+    if (this.state.workspace?.pdfNotes && !workspace.pdfNotes)
+      workspace = { ...workspace, pdfNotes: this.state.workspace.pdfNotes }
+
+    if (workspace.recentNoteIds === undefined)
+      workspace = { ...workspace, recentNoteIds: this.state.workspace?.recentNoteIds ?? [] }
+    workspace = {
+      ...workspace,
+      recentNoteIds: normalizeRecentNotes(workspace.recentNoteIds, this.state.notes),
+    }
     if (this.state.workspace?.noteLists && !workspace.noteLists)
       workspace = { ...workspace, noteLists: this.state.workspace.noteLists }
     if (this.state.workspace?.paneWidths && !workspace.paneWidths)
@@ -945,7 +1091,15 @@ export class LibraryStore {
     )
     void this.flush().catch(() => {})
   }
+  private flushParticipants = new Set<() => Promise<void>>()
+  registerFlush = (flush: () => Promise<void>) => {
+    this.flushParticipants.add(flush)
+    return () => {
+      this.flushParticipants.delete(flush)
+    }
+  }
   flush = async () => {
+    await Promise.all([...this.flushParticipants].map((flush) => flush()))
     await this.queue.flush()
     if (Object.keys(this.state.conflicts).length)
       throw Error('Resolve the conflicting notes before quitting.')

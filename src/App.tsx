@@ -1,3 +1,25 @@
+import AppTooltip from './components/AppTooltip'
+import { PanelRightOpen, PanelRightClose } from 'lucide-react'
+import { PdfToolbarButton } from './pdf/PdfTooltip'
+import PdfWorkspace from './pdf/PdfWorkspace'
+import { currentLocation, defaultPdfNotes, type PdfNotesPreferences } from './workspace'
+import { appendCapture } from './pdf/capture'
+import {
+  citationContent,
+  parsePdfCitation,
+  resolvePdfCitation,
+  type PdfSelection,
+} from './pdf/citations'
+import type { PdfNavigation } from './pdf/model'
+import { focusDocument } from './useShortcuts'
+import { pdfStore, usePdfs } from './pdf/store'
+import './pdf/pdf.css'
+const PdfReader = lazy(() => import('./pdf/PdfViewer'))
+function RetainedPdfReader(props: React.ComponentProps<typeof PdfReader>) {
+  const [visited, setVisited] = useState(false)
+  if (props.active && !visited) setVisited(true)
+  return visited || props.active ? <PdfReader {...props} /> : null
+}
 import {
   sortNotes,
   sortLabels,
@@ -14,9 +36,12 @@ import { useNoteActions } from './useNoteActions'
 import { ShortcutContext, useShortcutActions } from './useShortcuts'
 import { bindingFor, shortcutLabel } from './shortcuts'
 import { validateMarkdown } from './editor/markdown'
-import { getEditor } from './editor/session'
+import { getEditor, noteScrollPositions } from './editor/session'
 import { MotionPresence, motion, useMotionPreference, useAnimatedItems } from './motion'
+import { useSmoothScrolling } from './useSmoothScrolling'
 import {
+  lazy,
+  Suspense,
   useEffect,
   useId,
   useLayoutEffect,
@@ -44,6 +69,7 @@ import { NotebookIconGlyph } from './notebookIcons'
 import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import {
   BookOpen,
+  BookPlus,
   Notebook,
   Files,
   CalendarDays,
@@ -61,12 +87,14 @@ import {
   ArrowUp,
   ArrowDown,
   Search,
+  List,
   Plus,
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
   X,
   Feather,
+  FileText,
   ArrowDownWideNarrow,
   FolderInput,
   Check,
@@ -84,6 +112,8 @@ import Appearance from './components/Appearance'
 import AccountMenu from './components/AccountMenu'
 import SyncConnection from './components/SyncConnection'
 import TitleBar from './components/TitleBar'
+import NoteTabs from './components/NoteTabs'
+import type { MatchNavigation } from './search'
 import { matchesView, type Note, type View } from './model'
 
 import { useLibrary, library as libraryStore } from './storage/useLibrary'
@@ -161,6 +191,7 @@ export default function App() {
   }, [library.syncing || library.converting])
   const { notes, setNotes, notebooks, setNotebooks, appearance, setAppearance } = library
   const motionActive = useMotionPreference(appearance.animationsEnabled)
+  useSmoothScrolling(motionActive)
   useLayoutEffect(() => {
     // Document scope includes Radix portals as well as the workspace.
     document.documentElement.dataset.appStyle = appearance.appStyle
@@ -179,13 +210,19 @@ export default function App() {
   const chipsRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<HTMLDivElement>(null)
   const editorWorkspaceRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!isTauri() || !library.ready || !appRef.current) return
-    // Read the active palette from CSS so native chrome shares the same color source.
+  useLayoutEffect(() => {
+    if (!library.ready || !appRef.current) return
+    // The outer page and native chrome share the workspace's active palette.
     const background = getComputedStyle(appRef.current).getPropertyValue('--surface-app').trim()
-    void invoke('set_window_appearance', { dark: appearance.dark, background }).catch((error) => {
-      console.error('Could not update the window appearance', error)
-    })
+    document.documentElement.style.setProperty('--desktop-window-background', background)
+    if (isTauri()) {
+      void invoke('set_window_appearance', { dark: appearance.dark, background }).catch((error) => {
+        console.error('Could not update the window appearance', error)
+      })
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--desktop-window-background')
+    }
   }, [library.ready, appearance.dark, appearance.theme])
   const [view, setView] = useState<View>('all')
   const [query, setQuery] = useState('')
@@ -205,6 +242,7 @@ export default function App() {
   const [folderBusy, setFolderBusy] = useState(false)
   const [focus, storeFocus] = useState(false)
   const [sidebar, storeSidebar] = useState(true)
+  const [noteList, storeNoteList] = useState(true)
   const setFocus = (next: boolean | ((old: boolean) => boolean)) => {
     appRef.current?.style.setProperty('--layout-motion', `${motion.focus}ms`)
     storeFocus(next)
@@ -212,6 +250,10 @@ export default function App() {
   const setSidebar = (next: boolean | ((old: boolean) => boolean)) => {
     appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
     storeSidebar(next)
+  }
+  const setNoteList = (next: boolean | ((old: boolean) => boolean)) => {
+    appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
+    storeNoteList(next)
   }
   const [noteMenuOpen, setNoteMenuOpen] = useState(false)
   const [organization, storeOrganization] = useState<{
@@ -300,30 +342,34 @@ export default function App() {
   }, [noteContext])
   const [contentsOpen, setContentsOpen] = useState(false)
   const [findOpen, setFindOpen] = useState(false)
+  const [matchNavigation, setMatchNavigation] = useState<MatchNavigation | null>(null)
   const contentsResize = useContentsResize({
     workspaceRef: editorWorkspaceRef,
     savedWidth: library.workspace?.contentsWidth,
     disabled: library.quitting || library.syncing || library.converting,
     onCommit: libraryStore.setContentsWidth,
   })
-  const paneResize = usePaneResize({
-    appRef,
-    savedWidths: library.workspace?.paneWidths,
-    sidebarVisible: sidebar && !focus,
-    contentsOpen,
-    contentsWidth: contentsResize.visibleWidth,
-    disabled: library.quitting || library.syncing || library.converting,
-    onCommit: libraryStore.setPaneWidths,
-  })
+  const pdfs = usePdfs(library.ready)
+  const [pdfImportError, setPdfImportError] = useState('')
+  const [pdfImporting, setPdfImporting] = useState(false)
+  const pdfInput = useRef<HTMLInputElement>(null)
+  useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
   const workspace = useWorkspace({
     notes,
-    ready: library.ready,
+    documents: pdfs.documents,
+    ready: library.ready && pdfs.ready,
     saved: library.workspace,
     save: library.setWorkspace,
     view,
     query,
     disabled: library.quitting || library.syncing || library.converting,
     onActivate: (location, restoreScope) => {
+      setMatchNavigation(null)
+      if (location.kind === 'pdf') return
+      libraryStore.setRecentNotes([
+        location.noteId,
+        ...(libraryStore.getSnapshot().workspace?.recentNoteIds ?? []),
+      ])
       setLinkMessage('')
       if (restoreScope) {
         setView(location.view)
@@ -331,7 +377,208 @@ export default function App() {
       }
     },
   })
+  const noteListVisible = noteList && !focus && !workspace.documentId
+  const paneResize = usePaneResize({
+    appRef,
+    savedWidths: library.workspace?.paneWidths,
+    sidebarVisible: sidebar && !focus,
+    noteListVisible,
+    contentsOpen,
+    contentsWidth: contentsResize.visibleWidth,
+    disabled: library.quitting || library.syncing || library.converting,
+    onCommit: libraryStore.setPaneWidths,
+  })
 
+  useEffect(() => {
+    if (!library.ready) return
+    const ids = libraryStore.getSnapshot().workspace?.recentNoteIds ?? []
+    libraryStore.setRecentNotes(workspace.noteId ? [workspace.noteId, ...ids] : ids)
+  }, [library.ready, workspace.noteId, notes])
+
+  const [companions, setCompanions] = useState<Record<string, string>>({})
+  const [pdfNotesError, setPdfNotesError] = useState('')
+  const [captureBusy, setCaptureBusy] = useState(false)
+  const [pdfNavigation, setPdfNavigation] = useState<
+    (PdfNavigation & { documentId: string }) | undefined
+  >()
+  const [focusedPane, setFocusedPane] = useState<'pdf' | 'note'>('note')
+  useEffect(() => {
+    let current = true
+    if (library.ready && pdfs.documents.length)
+      void libraryStore.listPdfCompanions().then(
+        (associations) => {
+          if (current) setCompanions(associations)
+        },
+        (error) => {
+          if (current) setPdfNotesError(String(error))
+        },
+      )
+    return () => {
+      current = false
+    }
+  }, [library.ready, library.syncGeneration, notes.length, pdfs.documents.length])
+  const activePdf = pdfs.documents.find((doc) => doc.id === workspace.documentId)
+  const companionId = activePdf ? companions[activePdf.id] : undefined
+  const companion = notes.find((n) => n.id === companionId)
+  const pdfPreferences =
+    (activePdf && library.workspace?.pdfNotes?.[activePdf.id]) || defaultPdfNotes()
+  const notesOpen = !!companion && pdfPreferences.open
+  const pdfNotesLabel = companion?.trashed
+    ? 'Restore note'
+    : companion
+      ? notesOpen
+        ? 'Hide notes'
+        : 'Show notes'
+      : 'Take notes'
+  const setPdfPreferences = (patch: Partial<PdfNotesPreferences>, documentId = activePdf?.id) => {
+    if (!documentId) return
+    const saved = libraryStore.getSnapshot().workspace ?? { tabs: [], activeTabId: null }
+    libraryStore.setWorkspace({
+      ...saved,
+      pdfNotes: {
+        ...saved.pdfNotes,
+        [documentId]: { ...defaultPdfNotes(), ...saved.pdfNotes?.[documentId], ...patch },
+      },
+    })
+  }
+  useEffect(() => {
+    const pane = activePdf ? 'pdf' : 'note'
+    focusDocument(pane)
+    setFocusedPane(pane)
+  }, [activePdf?.id])
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      try {
+        const citation = parsePdfCitation((event as CustomEvent<string>).detail)
+        if (!citation) throw Error('This PDF citation is malformed or uses an unsupported version.')
+        const { document, changed } = resolvePdfCitation(citation, pdfs.documents)
+        setPdfNotesError(
+          changed
+            ? 'This PDF differs from the quoted revision. The selected region cannot be shown.'
+            : '',
+        )
+        setPdfNavigation({
+          documentId: document.id,
+          page: citation.page,
+          requestId: crypto.randomUUID(),
+          regions: changed ? undefined : citation.regions,
+        })
+        if (document.id !== activePdf?.id) {
+          workspace.openPdf(document.id)
+          if (companions[document.id]) setPdfPreferences({ open: true }, document.id)
+        }
+        setPdfPreferences({ pane: 'pdf' }, document.id)
+      } catch (error) {
+        setPdfNotesError(String(error))
+      }
+    }
+    document.addEventListener('pdf-citation', navigate)
+    return () => document.removeEventListener('pdf-citation', navigate)
+  })
+  const ensureCompanion = async () => {
+    if (!activePdf) throw Error('Open a PDF first.')
+    const id = await libraryStore.ensurePdfCompanion(activePdf)
+    setCompanions((old) => ({ ...old, [activePdf.id]: id }))
+    setPdfPreferences({ open: true }, activePdf.id)
+    return id
+  }
+  const takeNotes = async () => {
+    setCaptureBusy(true)
+    setPdfNotesError('')
+    try {
+      if (companion?.trashed) {
+        libraryStore.setNotes((old) =>
+          old.map((n) =>
+            n.id === companion.id ? { ...n, trashed: false, updated: Date.now() } : n,
+          ),
+        )
+        setPdfPreferences({ open: true })
+      } else if (companion) setPdfPreferences({ open: !notesOpen })
+      else await ensureCompanion()
+    } catch (error) {
+      setPdfNotesError(String(error))
+    } finally {
+      setCaptureBusy(false)
+    }
+  }
+  const capturePdf = async (page: number, selection?: PdfSelection) => {
+    if (!activePdf || captureBusy) return false
+    setCaptureBusy(true)
+    setPdfNotesError('')
+    try {
+      const id = await ensureCompanion()
+      await libraryStore.load(id)
+      const state = libraryStore.getSnapshot()
+      const note = state.notes.find((n) => n.id === id)
+      if (state.syncing || state.converting || state.quitting)
+        throw Error('Wait for the current operation to finish before capturing.')
+      if (!note || !state.loaded.has(id))
+        throw Error(state.noteErrors[id] || 'Could not load the companion note. Try again.')
+      if (
+        note.trashed ||
+        note.source?.unavailable ||
+        note.source?.trashPath ||
+        state.conflicts[id] ||
+        busyNote === id
+      )
+        throw Error(
+          note.trashed
+            ? 'Restore the companion note before capturing.'
+            : 'Resolve this note’s file problem before capturing.',
+        )
+      const editor = getEditor(
+        id,
+        note.content,
+        (content, text) => {
+          libraryStore.setNotes((old) =>
+            old.map((n) =>
+              n.id === id ? { ...n, content, text, updated: Date.now(), hasTasks: undefined } : n,
+            ),
+          )
+        },
+        !!note.source,
+      )
+      const citation = {
+        documentId: activePdf.id,
+        fingerprint: activePdf.fingerprint,
+        page,
+        regions: selection?.regions,
+      }
+      const receipt = appendCapture(editor, citationContent(citation, selection?.text))
+      receipt.dispose()
+      return true
+    } catch (error) {
+      setPdfNotesError(String(error))
+      return false
+    } finally {
+      setCaptureBusy(false)
+    }
+  }
+  useEffect(() => {
+    void pdfStore.flush().catch(() => {})
+  }, [workspace.documentId, workspace.activeTabId])
+  const importPdf = async (source?: File) => {
+    setPdfImportError('')
+    setPdfImporting(true)
+    try {
+      const chosen =
+        source ??
+        (await pickFolder({
+          directory: false,
+          multiple: false,
+          title: 'Open PDF',
+          filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
+        }))
+      if (chosen) {
+        const doc = await pdfStore.import(chosen)
+        workspace.openPdf(doc.id)
+      }
+    } catch (error) {
+      setPdfImportError(String(error))
+    } finally {
+      setPdfImporting(false)
+    }
+  }
   const listPreferences = library.workspace?.noteLists?.[view]
   const sortMode = listPreferences?.mode ?? 'lastEdited'
   const ordered = sortNotes(
@@ -341,11 +588,24 @@ export default function App() {
   const filtered = ordered.filter((n) =>
     `${n.title} ${n.text}`.toLowerCase().includes(query.toLowerCase()),
   )
-  const selected = notes.find((n) => n.id === workspace.noteId)
+  const selected = notes.find(
+    (n) => n.id === (activePdf ? (notesOpen ? companionId : undefined) : workspace.noteId),
+  )
   const active = selected && library.loaded.has(selected.id) ? selected : undefined
   useEffect(() => {
     if (selected) void library.activate(selected.id)
   }, [selected?.id, workspace.activation, selected?.source?.fingerprint, library.converting])
+  const pairedDocumentId =
+    active && Object.entries(companions).find(([, id]) => id === active.id)?.[0]
+  useLayoutEffect(() => {
+    if (!pairedDocumentId || !active) return
+    const scroll = document.querySelector<HTMLElement>('.note-scroll')
+    if (scroll)
+      scroll.scrollTop =
+        noteScrollPositions.get(active.id) ??
+        library.workspace?.pdfNotes?.[pairedDocumentId]?.scroll ??
+        0
+  }, [pairedDocumentId, activePdf?.id, active?.id, notesOpen])
   const refreshFolder = async (id: string) => {
     setFolderBusy(true)
     setFolderError('')
@@ -403,6 +663,7 @@ export default function App() {
       query,
       sortMode,
       sidebar,
+      noteList,
       focus,
       organizationOpen,
       notebooks.map((b) => [b.id, b.rootId, b.parentId]),
@@ -709,9 +970,16 @@ export default function App() {
       setSidebar(true)
     } else setSidebar((value) => !value)
   }
-  const shortcutTitle = (label: string, id: string) => {
+  const toggleNoteList = () => {
+    if (workspace.documentId) return
+    if (focus) {
+      setFocus(false)
+      setNoteList(true)
+    } else setNoteList((value) => !value)
+  }
+  const shortcutFor = (id: string) => {
     const binding = bindingFor(id, appearance.shortcuts)
-    return binding ? `${label} (${shortcutLabel(binding, isTauri())})` : label
+    return binding ? shortcutLabel(binding, isTauri()) : undefined
   }
   const syncNow = () => {
     if (!library.syncStatus?.configured) {
@@ -728,8 +996,11 @@ export default function App() {
       'new-note': addNote,
       settings: () => setAppearanceOpen(true),
       sidebar: toggleSidebar,
-      focus: active ? () => setFocus((value) => !value) : undefined,
-      contents: active ? () => setContentsOpen((value) => !value) : undefined,
+      focus: active || activePdf ? () => setFocus((value) => !value) : undefined,
+      contents:
+        active && (!activePdf || focusedPane === 'note')
+          ? () => setContentsOpen((value) => !value)
+          : undefined,
       editor: active
         ? () => document.querySelector<HTMLElement>('.note-scroll .tiptap')?.focus()
         : undefined,
@@ -743,11 +1014,21 @@ export default function App() {
       'close-tab': () => {
         if (workspace.activeTabId) workspace.close(workspace.activeTabId)
       },
-      pin: () => runNoteAction('pin'),
-      duplicate: () => runNoteAction('duplicate'),
-      trash: () => runNoteAction('trash'),
-      move: () => runNoteAction('move'),
-      'copy-link': () => runNoteAction('copy-link'),
+      pin: () => {
+        if (!activePdf || focusedPane === 'note') runNoteAction('pin')
+      },
+      duplicate: () => {
+        if (!activePdf || focusedPane === 'note') runNoteAction('duplicate')
+      },
+      trash: () => {
+        if (!activePdf || focusedPane === 'note') runNoteAction('trash')
+      },
+      move: () => {
+        if (!activePdf || focusedPane === 'note') runNoteAction('move')
+      },
+      'copy-link': () => {
+        if (!activePdf || focusedPane === 'note') runNoteAction('copy-link')
+      },
     },
     !library.ready || library.quitting || library.syncing || library.converting,
     appearance.shortcuts ?? {},
@@ -816,7 +1097,10 @@ export default function App() {
         key={id}
         className={`nav-item ${view === id ? 'selected' : ''} ${notebook ? 'notebook-nav-item' : ''}`}
         aria-current={view === id ? 'page' : undefined}
-        onClick={() => navigate(id)}
+        onClick={() => {
+          setNoteList(true)
+          navigate(id)
+        }}
       >
         {icon}
         <span>{label}</span>
@@ -855,7 +1139,7 @@ export default function App() {
   return (
     <ShortcutContext.Provider value={appearance.shortcuts ?? {}}>
       <div
-        className={`app ${focus ? 'focus-mode' : ''} ${!sidebar ? 'no-sidebar' : ''} ${contentsOpen ? 'has-contents' : ''} ${paneResize.resizing || contentsResize.resizing ? 'is-resizing' : ''}`}
+        className={`app ${workspace.documentId ? 'pdf-active' : ''} ${focus ? 'focus-mode' : ''} ${!sidebar ? 'no-sidebar' : ''} ${!noteList ? 'no-note-list' : ''} ${contentsOpen ? 'has-contents' : ''} ${paneResize.resizing || contentsResize.resizing ? 'is-resizing' : ''}`}
         ref={appRef}
         data-theme={appearance.dark ? 'dark' : 'light'}
         data-palette={appearance.theme}
@@ -865,34 +1149,30 @@ export default function App() {
           notes={notes}
           notebooks={notebooks}
           appearance={appearance}
+          recentNoteIds={library.workspace?.recentNoteIds ?? []}
+          readSearchNote={libraryStore.readSearchNote}
+          onSelectMatch={(request, newTab) => {
+            if (!notes.some((note) => note.id === request.noteId && !note.trashed)) return
+            workspace.open(request.noteId, newTab)
+            setFocus(false)
+            setFindOpen(true)
+            setMatchNavigation(request)
+          }}
           sidebarVisible={sidebar && !focus}
+          noteListVisible={noteListVisible}
+          noteListAvailable={!workspace.documentId}
+          onToggleNoteList={toggleNoteList}
           disabled={library.quitting || library.syncing || library.converting}
           onToggleSidebar={toggleSidebar}
-          onNewNote={addNote}
           onSelect={(id, newTab) => {
             if (!notes.some((note) => note.id === id && !note.trashed)) return
             workspace.open(id, newTab)
             setFocus(false)
           }}
-          tabs={workspace.tabs.map((tab) => ({
-            id: tab.id,
-            noteId: tab.entries[tab.index].noteId,
-            preview: tab.preview,
-          }))}
-          activeTabId={workspace.activeTabId}
-          onSelectTab={workspace.select}
-          onCloseTab={workspace.close}
-          onKeepOpenTab={workspace.keepOpen}
           canBack={workspace.canBack}
           canForward={workspace.canForward}
           onBack={() => workspace.move(-1)}
           onForward={() => workspace.move(1)}
-          noteLoaded={!!active}
-          contentsOpen={contentsOpen}
-          onToggleContents={() => setContentsOpen((value) => !value)}
-          findOpen={findOpen}
-          onToggleFind={() => setFindOpen((value) => !value)}
-          noteMenu={active && noteMenu}
         />
         <MotionPresence
           open={!!(library.error || library.quitFailed || library.syncError)}
@@ -931,12 +1211,6 @@ export default function App() {
         <MotionPresence open={!focus && sidebar} duration={motion.sidebar} initial={false}>
           <aside className="sidebar" id="notebook-sidebar">
             <div className="sidebar-content">
-              <div className="brand">
-                <span className="brand-mark">
-                  <Feather size={17} />
-                </span>
-                <div>Stash</div>
-              </div>
               <nav aria-label="Notes navigation">
                 {nav('all', <Files />, 'All notes')}
                 {nav('today', <CalendarDays />, 'Today')}
@@ -950,18 +1224,19 @@ export default function App() {
               <SidebarSection
                 title="Notebooks"
                 action={
-                  <button
-                    className="new-notebook-button"
-                    aria-label="New notebook"
-                    title="New notebook"
-                    onClick={() => {
-                      setBookParent(undefined)
-                      setBookEditing(undefined)
-                      setBookOpen(true)
-                    }}
-                  >
-                    <Plus size={15} aria-hidden="true" />
-                  </button>
+                  <AppTooltip instant label="New notebook">
+                    <button
+                      className="new-notebook-button"
+                      aria-label="New notebook"
+                      onClick={() => {
+                        setBookParent(undefined)
+                        setBookEditing(undefined)
+                        setBookOpen(true)
+                      }}
+                    >
+                      <BookPlus size={15} aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
                 }
               >
                 <NotebookTree
@@ -1031,13 +1306,99 @@ export default function App() {
                   </div>
                 )}
               </SidebarSection>
+              <SidebarSection
+                title="PDFs"
+                action={
+                  <AppTooltip
+                    instant
+                    label="Open PDF"
+                    disabled={
+                      pdfImporting ||
+                      !pdfs.ready ||
+                      library.quitting ||
+                      library.syncing ||
+                      library.converting
+                    }
+                  >
+                    <button
+                      className="new-notebook-button"
+                      aria-label="Open PDF"
+                      disabled={
+                        pdfImporting ||
+                        !pdfs.ready ||
+                        library.quitting ||
+                        library.syncing ||
+                        library.converting
+                      }
+                      onClick={() => {
+                        if (isTauri()) void importPdf()
+                        else pdfInput.current?.click()
+                      }}
+                    >
+                      <BookPlus size={15} aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
+                }
+              >
+                <input
+                  hidden
+                  ref={pdfInput}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) void importPdf(file)
+                    event.target.value = ''
+                  }}
+                />
+                {pdfs.documents.map((doc) => (
+                  <AppTooltip
+                    label={doc.name}
+                    disabled={library.quitting || library.syncing || library.converting}
+                    key={doc.id}
+                  >
+                    <button
+                      className="pdf-sidebar-row"
+                      aria-current={workspace.documentId === doc.id ? 'true' : undefined}
+                      disabled={library.quitting || library.syncing || library.converting}
+                      onClick={() => workspace.openPdf(doc.id)}
+                    >
+                      <FileText size={16} />
+                      <span>{doc.name}</span>
+                      {doc.unavailable && <small>Missing</small>}
+                    </button>
+                  </AppTooltip>
+                ))}
+                {!pdfs.documents.length && (
+                  <p className="pdf-sidebar-status">Use Open PDF to add a document.</p>
+                )}
+                {library.preview && (
+                  <p className="pdf-sidebar-status">
+                    Browser preview · PDFs last for this session only.
+                  </p>
+                )}
+                {pdfImporting && (
+                  <p className="pdf-sidebar-status" role="status">
+                    Importing PDF…
+                  </p>
+                )}
+                {(pdfImportError || pdfs.error) && (
+                  <div className="pdf-sidebar-status" role="alert">
+                    {pdfImportError || pdfs.error}
+                    {pdfs.error && <button onClick={() => void pdfStore.open()}>Retry</button>}
+                  </div>
+                )}
+              </SidebarSection>
               <SidebarSection title="Tags">
                 <div className="tag-list">
                   {tags.map((tag) => (
                     <button
                       className={view === `tag:${tag}` ? 'selected' : ''}
                       key={tag}
-                      onClick={() => navigate(`tag:${tag}`)}
+                      onClick={() => {
+                        setNoteList(true)
+                        navigate(`tag:${tag}`)
+                      }}
                     >
                       <span>#</span>
                       {tag}
@@ -1053,9 +1414,13 @@ export default function App() {
                 trashSelected={view === 'trash'}
                 dark={appearance.dark}
                 palette={appearance.theme}
-                settingsTitle={shortcutTitle('Settings', 'settings')}
+                settingsTitle="Settings"
+                settingsShortcut={shortcutFor('settings')}
                 onSync={syncNow}
-                onTrash={() => navigate('trash')}
+                onTrash={() => {
+                  setNoteList(true)
+                  navigate('trash')
+                }}
                 onSettings={() => {
                   setSettingsCategory('appearance')
                   setAppearanceOpen(true)
@@ -1064,52 +1429,77 @@ export default function App() {
             </div>
           </aside>
         </MotionPresence>
-        <MotionPresence open={!focus} duration={motion.focus} initial={false}>
-          <section className="note-list" id="note-list" aria-label="Note list">
-            <header className="list-heading">
-              <div>
-                <h1>
-                  {headingNotebook && (
-                    <NotebookIconGlyph
-                      className="list-heading-icon"
-                      icon={headingNotebook.icon}
-                      color={headingNotebook.color}
-                      size={16}
-                      aria-hidden={true}
-                    />
-                  )}
-                  <span className="list-heading-title" title={title}>
-                    {title}
-                  </span>
-                  {filtered.length > 0 && (
-                    <small className="notebook-count">
-                      {filtered.length.toLocaleString('en-US')}
-                    </small>
-                  )}
-                </h1>
-              </div>
-            </header>
-            <div className="search-box text-field-shell">
-              <Search size={15} />
-              <input
-                className="text-field"
-                aria-label="Search notes"
-                placeholder="Search your notes…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {query && (
-                <button aria-label="Clear search" onClick={() => setQuery('')}>
-                  <X size={14} />
-                </button>
-              )}
+        <section
+          className="note-list"
+          id="note-list"
+          aria-label="Note list"
+          hidden={!!workspace.documentId}
+          inert={!noteListVisible}
+          aria-hidden={!noteListVisible || undefined}
+        >
+          <header className="list-heading">
+            <div>
+              <h1>
+                {headingNotebook && (
+                  <NotebookIconGlyph
+                    className="list-heading-icon"
+                    icon={headingNotebook.icon}
+                    color={headingNotebook.color}
+                    size={16}
+                    aria-hidden={true}
+                  />
+                )}
+                <AppTooltip label={title}>
+                  <span className="list-heading-title">{title}</span>
+                </AppTooltip>
+                {filtered.length > 0 && (
+                  <small className="notebook-count">
+                    {filtered.length.toLocaleString('en-US')}
+                  </small>
+                )}
+              </h1>
             </div>
-            <div className="list-sort">
-              <span>{query ? 'Search results' : 'Notes'}</span>
-              <Dropdown.Root>
+            <AppTooltip
+              label={'New note'}
+              shortcut={shortcutFor('new-note')}
+              disabled={library.quitting || library.syncing || library.converting}
+            >
+              <button
+                type="button"
+                className="quiet-button new-note-button"
+                aria-label="New note"
+                disabled={library.quitting || library.syncing || library.converting}
+                onClick={() => addNote()}
+              >
+                <Plus size={16} aria-hidden="true" />
+                <span>New note</span>
+              </button>
+            </AppTooltip>
+          </header>
+          <div className="search-box text-field-shell">
+            <Search size={15} />
+            <input
+              className="text-field"
+              aria-label="Search notes"
+              placeholder="Search your notes…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button aria-label="Clear search" onClick={() => setQuery('')}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="list-sort">
+            <span>{query ? 'Search results' : 'Notes'}</span>
+            <Dropdown.Root>
+              <AppTooltip
+                label="Change note sorting"
+                disabled={library.quitting || library.syncing || library.converting}
+              >
                 <Dropdown.Trigger asChild>
                   <button
-                    title="Change note sorting"
                     aria-label="Change note sorting"
                     disabled={library.quitting || library.syncing || library.converting}
                   >
@@ -1117,434 +1507,652 @@ export default function App() {
                     <ArrowDownWideNarrow size={13} />
                   </button>
                 </Dropdown.Trigger>
-                <Dropdown.Portal>
-                  <Dropdown.Content
-                    className="workspace-action-menu note-sort-menu"
-                    align="end"
-                    sideOffset={5}
-                    data-theme={appearance.dark ? 'dark' : 'light'}
-                    data-palette={appearance.theme}
-                    style={{ fontFamily: fontFamily(appearance.uiFont) }}
-                  >
-                    <Dropdown.RadioGroup
-                      value={sortMode}
-                      onValueChange={(value) => changeSort(value as NoteSortMode)}
-                    >
-                      {(Object.keys(sortLabels) as NoteSortMode[]).map((mode) => (
-                        <Dropdown.RadioItem key={mode} value={mode}>
-                          <span className="sort-check">
-                            <Dropdown.ItemIndicator>
-                              <Check size={14} />
-                            </Dropdown.ItemIndicator>
-                          </span>
-                          {sortLabels[mode]}
-                        </Dropdown.RadioItem>
-                      ))}
-                    </Dropdown.RadioGroup>
-                  </Dropdown.Content>
-                </Dropdown.Portal>
-              </Dropdown.Root>
-            </div>
-            <div
-              className="note-rows"
-              ref={rowsRef}
-              onClickCapture={(event) => {
-                if (drag.consumeClick()) {
-                  event.preventDefault()
-                  event.stopPropagation()
-                }
-              }}
-            >
-              {(drag.preview ?? filtered).map((n) => (
-                <NoteContextMenu
-                  key={n.id}
-                  actions={[...actionsFor(n), ...orderActions(n)]}
-                  dark={appearance.dark}
-                  palette={appearance.theme}
+              </AppTooltip>
+              <Dropdown.Portal>
+                <Dropdown.Content
+                  className="workspace-action-menu note-sort-menu"
+                  align="end"
+                  sideOffset={5}
+                  data-theme={appearance.dark ? 'dark' : 'light'}
+                  data-palette={appearance.theme}
                   style={{ fontFamily: fontFamily(appearance.uiFont) }}
-                  disabled={library.quitting || library.syncing || library.converting}
                 >
-                  <button
-                    className={`note-row ${n.id === selected?.id ? 'selected' : ''} ${drag.draggedId === n.id ? 'note-drag-placeholder' : ''}`}
-                    key={n.id}
-                    data-note-id={n.id}
-                    data-motion-key={n.id}
-                    onPointerDown={(event) => drag.onPointerDown(event, n.id)}
-                    onDragStart={(event) => event.preventDefault()}
-                    onClick={(event) => {
-                      if (drag.consumeClick()) {
-                        event.preventDefault()
-                        return
-                      }
-                      if (event.metaKey || event.ctrlKey) workspace.open(n.id, true)
-                      else workspace.preview(n.id)
-                    }}
-                    onDoubleClick={() => workspace.open(n.id, true)}
+                  <Dropdown.RadioGroup
+                    value={sortMode}
+                    onValueChange={(value) => changeSort(value as NoteSortMode)}
                   >
-                    <span className="note-row-title">
-                      {n.pinned && <Pin size={12} />}
-                      <span>{n.title || 'Untitled note'}</span>
-                    </span>
-                    <span className="note-row-meta">{noteListDateTime.format(n.updated)}</span>
-                  </button>
-                </NoteContextMenu>
-              ))}
-              {!filtered.length && (
-                <div className="list-empty">
-                  <Search size={25} />
-                  <p>{query ? 'No notes found' : 'Nothing here yet'}</p>
-                  <small>{query ? 'Try a different word.' : 'Your notes will appear here.'}</small>
-                </div>
-              )}
-            </div>
-            <div className="list-footer">
-              <BookOpen size={13} />
-              <span>{notes.filter((n) => !n.trashed).length} notes</span>
-            </div>
-          </section>
-        </MotionPresence>
+                    {(Object.keys(sortLabels) as NoteSortMode[]).map((mode) => (
+                      <Dropdown.RadioItem key={mode} value={mode}>
+                        <span className="sort-check">
+                          <Dropdown.ItemIndicator>
+                            <Check size={14} />
+                          </Dropdown.ItemIndicator>
+                        </span>
+                        {sortLabels[mode]}
+                      </Dropdown.RadioItem>
+                    ))}
+                  </Dropdown.RadioGroup>
+                </Dropdown.Content>
+              </Dropdown.Portal>
+            </Dropdown.Root>
+          </div>
+          <div
+            className="note-rows"
+            ref={rowsRef}
+            onClickCapture={(event) => {
+              if (drag.consumeClick()) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+            }}
+          >
+            {(drag.preview ?? filtered).map((n) => (
+              <NoteContextMenu
+                key={n.id}
+                actions={[...actionsFor(n), ...orderActions(n)]}
+                dark={appearance.dark}
+                palette={appearance.theme}
+                style={{ fontFamily: fontFamily(appearance.uiFont) }}
+                disabled={library.quitting || library.syncing || library.converting}
+              >
+                <button
+                  className={`note-row ${n.id === selected?.id ? 'selected' : ''} ${drag.draggedId === n.id ? 'note-drag-placeholder' : ''}`}
+                  key={n.id}
+                  data-note-id={n.id}
+                  data-motion-key={n.id}
+                  onPointerDown={(event) => drag.onPointerDown(event, n.id)}
+                  onDragStart={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    if (drag.consumeClick()) {
+                      event.preventDefault()
+                      return
+                    }
+                    if (event.metaKey || event.ctrlKey) workspace.open(n.id, true)
+                    else workspace.preview(n.id)
+                  }}
+                  onDoubleClick={() => workspace.open(n.id, true)}
+                >
+                  <span className="note-row-title">
+                    {n.pinned && <Pin size={12} />}
+                    <span>{n.title || 'Untitled note'}</span>
+                  </span>
+                  <span className="note-row-meta">{noteListDateTime.format(n.updated)}</span>
+                </button>
+              </NoteContextMenu>
+            ))}
+            {!filtered.length && (
+              <div className="list-empty">
+                <Search size={25} />
+                <p>{query ? 'No notes found' : 'Nothing here yet'}</p>
+                <small>{query ? 'Try a different word.' : 'Your notes will appear here.'}</small>
+              </div>
+            )}
+          </div>
+          <div className="list-footer">
+            <BookOpen size={13} />
+            <span>{notes.filter((n) => !n.trashed).length} notes</span>
+          </div>
+        </section>
         {sidebar && !focus && (
           <div {...paneResize.dividerProps('sidebar')} aria-controls="notebook-sidebar" />
         )}
-        {!focus && <div {...paneResize.dividerProps('noteList')} aria-controls="note-list" />}
+        {noteListVisible && (
+          <div {...paneResize.dividerProps('noteList')} aria-controls="note-list" />
+        )}
         <main className="writing-pane">
-          <MotionPresence open={!!linkMessage} collapse duration={motion.notice}>
-            <div className="note-link-message" role="alert">
-              {linkMessage}
-              <button onClick={() => setLinkMessage('')}>Dismiss</button>
+          <NoteTabs
+            documents={pdfs.documents}
+            notes={notes}
+            disabled={library.quitting || library.syncing || library.converting}
+            tabs={workspace.tabs.map((tab) => ({
+              id: tab.id,
+              noteId: tab.entries[tab.index].noteId,
+              documentId: tab.entries[tab.index].documentId,
+              preview: tab.preview,
+            }))}
+            activeTabId={workspace.activeTabId}
+            onSelectTab={workspace.select}
+            onCloseTab={workspace.close}
+            onKeepOpenTab={workspace.keepOpen}
+          />
+          {pdfs.savingError && (
+            <div role="alert" className="pdf-message">
+              {pdfs.savingError}{' '}
+              <button onClick={() => void pdfStore.flush().catch(() => {})}>Retry</button>
             </div>
-          </MotionPresence>
-          <div id="note-find-slot" />
-          <header className="editor-header">
-            <div className="breadcrumb">
-              {selected && (
-                <>
-                  <Notebook size={14} />
-                  <span>{notebookLabel(selected)}</span>
-                  <ChevronRight size={12} />
-                  <span className="breadcrumb-title">{selected.title || 'Untitled note'}</span>
-                </>
-              )}
+          )}
+          {pdfNotesError && (
+            <div role="alert" className="pdf-message">
+              {pdfNotesError} <button onClick={() => setPdfNotesError('')}>Dismiss</button>
             </div>
-            <div className="header-actions">
-              <button
-                className="icon-button"
-                aria-label={focus ? 'Exit focus mode' : 'Focus mode'}
-                title={shortcutTitle(focus ? 'Exit focus mode' : 'Focus mode', 'focus')}
-                onClick={() => setFocus((v) => !v)}
-              >
-                {focus ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-              </button>
-              {active && (
+          )}
+          <PdfWorkspace
+            pdfActive={!!activePdf}
+            open={notesOpen}
+            preferences={pdfPreferences}
+            onPreferences={setPdfPreferences}
+            onFocus={setFocusedPane}
+            pdf={
+              workspace.tabs.some((tab) => currentLocation(tab).kind === 'pdf') ? (
                 <>
-                  <button
-                    className={`icon-button ${active.pinned ? 'is-pinned' : ''}`}
-                    aria-label={active.pinned ? 'Unpin note' : 'Pin note'}
-                    title={shortcutTitle(active.pinned ? 'Unpin note' : 'Pin note', 'pin')}
-                    onClick={() => update(active.id, { pinned: !active.pinned })}
+                  <Suspense
+                    fallback={
+                      <p role="status" className="pdf-message">
+                        Loading PDF viewer…
+                      </p>
+                    }
                   >
-                    <Pin size={16} />
-                  </button>
+                    {workspace.tabs.flatMap((tab) => {
+                      const location = currentLocation(tab)
+                      const doc =
+                        location.kind === 'pdf'
+                          ? pdfs.documents.find((item) => item.id === location.documentId)
+                          : undefined
+                      if (!doc) return []
+                      const active = doc.id === activePdf?.id
+                      return (
+                        <div key={doc.id} className="pdf-session" hidden={!active}>
+                          <RetainedPdfReader
+                            active={active}
+                            source={pdfStore.source(doc)}
+                            reading={doc.reading}
+                            target={
+                              pdfNavigation?.documentId === doc.id ? pdfNavigation : undefined
+                            }
+                            onReading={(reading) => pdfStore.reading(doc.id, reading)}
+                            registerCapture={pdfStore.capture}
+                            contentsWidth={library.workspace?.contentsWidth}
+                            onContentsWidth={libraryStore.setContentsWidth}
+                            disabled={library.quitting || library.syncing || library.converting}
+                            captureDisabled={captureBusy}
+                            onCapture={active ? capturePdf : undefined}
+                            toolbarActions={
+                              active ? (
+                                <PdfToolbarButton
+                                  className="icon-button"
+                                  aria-label={focus ? 'Exit focus mode' : 'Focus mode'}
+                                  title={focus ? 'Exit focus mode' : 'Focus mode'}
+                                  shortcut={shortcutFor('focus')}
+                                  aria-pressed={focus}
+                                  onClick={() => setFocus((value) => !value)}
+                                >
+                                  {focus ? <Minimize2 /> : <Maximize2 />}
+                                </PdfToolbarButton>
+                              ) : undefined
+                            }
+                            notesAction={
+                              active ? (
+                                <PdfToolbarButton
+                                  className="icon-button"
+                                  aria-label={pdfNotesLabel}
+                                  title={pdfNotesLabel}
+                                  aria-expanded={notesOpen}
+                                  disabled={
+                                    captureBusy ||
+                                    library.quitting ||
+                                    library.syncing ||
+                                    library.converting
+                                  }
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => void takeNotes()}
+                                >
+                                  {companion?.trashed ? (
+                                    <RotateCcw />
+                                  ) : notesOpen ? (
+                                    <PanelRightClose />
+                                  ) : (
+                                    <PanelRightOpen />
+                                  )}
+                                </PdfToolbarButton>
+                              ) : undefined
+                            }
+                          />
+                        </div>
+                      )
+                    })}
+                  </Suspense>
                 </>
-              )}
-            </div>
-          </header>
-          <div ref={editorWorkspaceRef} className={`editor-workspace ${contentsOpen && active ? 'with-contents' : ''}`}>
-            <div className="editor-document">
-              {active ? (
-                <>
-                  <div className="note-scroll" key={active.id} data-note-id={active.id}>
-                    <MotionPresence open={active.trashed} collapse duration={motion.notice}>
-                      <div className="trash-banner">
-                        This note is in Trash.
-                        <button onClick={() => update(active.id, { trashed: false })}>
-                          Restore note
-                        </button>
-                      </div>
-                    </MotionPresence>
-                    <article className="note-article">
+              ) : undefined
+            }
+          >
+            <MotionPresence open={!!linkMessage} collapse duration={motion.notice}>
+              <div className="note-link-message" role="alert">
+                {linkMessage}
+                <button onClick={() => setLinkMessage('')}>Dismiss</button>
+              </div>
+            </MotionPresence>
+            <header className="editor-header">
+              <div className="breadcrumb">
+                {selected && (
+                  <>
+                    <Notebook size={14} />
+                    <AppTooltip label={notebookLabel(selected)}>
+                      <span className="breadcrumb-notebook">{notebookLabel(selected)}</span>
+                    </AppTooltip>
+                    <ChevronRight size={12} />
+                    <AppTooltip label={selected.title || 'Untitled note'}>
+                      <span className="breadcrumb-title">{selected.title || 'Untitled note'}</span>
+                    </AppTooltip>
+                  </>
+                )}
+              </div>
+              <div className="header-actions">
+                {!activePdf &&
+                  active &&
+                  Object.entries(companions).some(([, id]) => id === active.id) && (
+                    <button
+                      className="quiet-button"
+                      onClick={() => {
+                        const documentId = Object.entries(companions).find(
+                          ([, id]) => id === active.id,
+                        )![0]
+                        workspace.openPdf(documentId)
+                        setPdfPreferences({ open: true }, documentId)
+                      }}
+                    >
+                      Open PDF
+                    </button>
+                  )}
+                <AppTooltip
+                  instant
+                  label={focus ? 'Exit focus mode' : 'Focus mode'}
+                  shortcut={shortcutFor('focus')}
+                >
+                  <button
+                    className="icon-button"
+                    aria-label={focus ? 'Exit focus mode' : 'Focus mode'}
+                    onClick={() => setFocus((v) => !v)}
+                  >
+                    {focus ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+                  </button>
+                </AppTooltip>
+                {active && (
+                  <>
+                    <AppTooltip
+                      instant
+                      label={active.pinned ? 'Unpin note' : 'Pin note'}
+                      shortcut={shortcutFor('pin')}
+                    >
+                      <button
+                        className={`icon-button ${active.pinned ? 'is-pinned' : ''}`}
+                        aria-label={active.pinned ? 'Unpin note' : 'Pin note'}
+                        onClick={() => update(active.id, { pinned: !active.pinned })}
+                      >
+                        <Pin size={16} />
+                      </button>
+                    </AppTooltip>
+                  </>
+                )}
+                <AppTooltip
+                  instant
+                  label={'Table of contents'}
+                  shortcut={shortcutFor('contents')}
+                  disabled={!active || library.quitting || library.syncing || library.converting}
+                >
+                  <button
+                    className="icon-button"
+                    aria-label="Table of contents"
+                    aria-pressed={contentsOpen}
+                    disabled={!active || library.quitting || library.syncing || library.converting}
+                    onClick={() => setContentsOpen((value) => !value)}
+                  >
+                    <List size={18} />
+                  </button>
+                </AppTooltip>
+                <AppTooltip
+                  instant
+                  label={'Find in note'}
+                  shortcut={shortcutFor('find')}
+                  disabled={!active || library.quitting || library.syncing || library.converting}
+                >
+                  <button
+                    className="icon-button"
+                    aria-label="Find in note"
+                    aria-pressed={findOpen}
+                    disabled={!active || library.quitting || library.syncing || library.converting}
+                    onClick={() => setFindOpen((value) => !value)}
+                  >
+                    <Search size={17} />
+                  </button>
+                </AppTooltip>
+                {noteMenu || (
+                  <button className="icon-button" aria-label="Note actions" disabled>
+                    <MoreHorizontal size={21} />
+                  </button>
+                )}
+              </div>
+            </header>
+            <div id="note-find-slot" />
+            <div
+              ref={editorWorkspaceRef}
+              className={`editor-workspace ${contentsOpen && active ? 'with-contents' : ''}`}
+            >
+              <div className="editor-document">
+                {active ? (
+                  <>
+                    <div
+                      className="note-scroll"
+                      key={active.id}
+                      data-note-id={active.id}
+                      onScroll={(event) => {
+                        const scroll = event.currentTarget.scrollTop
+                        noteScrollPositions.set(active.id, scroll)
+                        if (pairedDocumentId) setPdfPreferences({ scroll }, pairedDocumentId)
+                      }}
+                    >
+                      <MotionPresence open={active.trashed} collapse duration={motion.notice}>
+                        <div className="trash-banner">
+                          This note is in Trash.
+                          <button onClick={() => update(active.id, { trashed: false })}>
+                            Restore note
+                          </button>
+                        </div>
+                      </MotionPresence>
+                      <article className="note-article">
+                        <div className="note-kicker">
+                          <span className="tiny-dot" />{' '}
+                          {new Date(active.updated).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </div>
+                        <div className="note-title-wrap">
+                          <div className="note-title-highlights" aria-hidden="true" />
+                          <input
+                            ref={titleInput}
+                            className="note-title"
+                            aria-label="Note title"
+                            placeholder="Untitled note"
+                            value={
+                              active.source && titleDraft?.id === active.id
+                                ? titleDraft.value
+                                : active.title
+                            }
+                            readOnly={
+                              !!active.source?.unavailable || !!library.conflicts[active.id]
+                            }
+                            onChange={(e) => {
+                              workspace.keepNoteOpen(active.id)
+                              if (active.source)
+                                setTitleDraft({ id: active.id, value: e.target.value })
+                              else update(active.id, { title: e.target.value })
+                            }}
+                            onBlur={() => {
+                              if (titleDraft?.id === active.id) {
+                                if (fileTitleError(titleDraft.value)) return
+                                update(active.id, { title: titleDraft.value })
+                                setTitleDraft(null)
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (
+                                !['Enter', 'ArrowDown'].includes(e.key) ||
+                                e.nativeEvent.isComposing ||
+                                library.syncing ||
+                                library.converting ||
+                                !!active.source?.unavailable ||
+                                !!library.conflicts[active.id] ||
+                                !!active.source?.trashPath ||
+                                busyNote === active.id ||
+                                (active.source &&
+                                  titleDraft?.id === active.id &&
+                                  !!fileTitleError(titleDraft.value))
+                              )
+                                return
+                              e.preventDefault()
+                              getEditor(active.id, active.content).commands.focus('start')
+                            }}
+                            onScroll={(event) => {
+                              const highlights =
+                                event.currentTarget.parentElement?.querySelector(
+                                  '.note-title-highlights',
+                                )
+                              if (highlights) highlights.scrollLeft = event.currentTarget.scrollLeft
+                            }}
+                          />
+                        </div>
+                        {active.source &&
+                          titleDraft?.id === active.id &&
+                          fileTitleError(titleDraft.value) && (
+                            <p className="folder-error" role="alert">
+                              {fileTitleError(titleDraft.value)}
+                            </p>
+                          )}
+                        <div className="note-meta" ref={chipsRef}>
+                          <div className="notebook-memberships">
+                            {notebooks
+                              .filter((book) => active.notebookIds.includes(book.id))
+                              .map((book) => (
+                                <button
+                                  key={book.id}
+                                  data-motion-key={`book:${book.id}`}
+                                  className="note-tag"
+                                  aria-label={
+                                    book.rootId
+                                      ? `File folder: ${notebookPath(book, notebooks)}`
+                                      : `Remove from ${notebookPath(book, notebooks)}`
+                                  }
+                                  disabled={!!book.rootId}
+                                  onClick={() =>
+                                    update(active.id, {
+                                      notebookIds: active.notebookIds.filter(
+                                        (id) => id !== book.id,
+                                      ),
+                                    })
+                                  }
+                                >
+                                  {notebookPath(book, notebooks)}
+                                  {book.rootId ? '' : ' ×'}
+                                </button>
+                              ))}
+                            <button
+                              className="note-organization-button"
+                              type="button"
+                              aria-haspopup="dialog"
+                              onClick={(event) =>
+                                openAddToNotebooks(active.id, event.currentTarget)
+                              }
+                            >
+                              <Plus size={12} aria-hidden="true" />
+                              Add to notebooks
+                            </button>
+                            <button
+                              className="note-organization-button"
+                              type="button"
+                              aria-haspopup="dialog"
+                              data-move-note-id={active.id}
+                              onClick={(event) =>
+                                setOrganization({ id: active.id, launcher: event.currentTarget })
+                              }
+                            >
+                              <FolderInput size={12} aria-hidden="true" />
+                              Move
+                            </button>
+                          </div>
+                        </div>
+                        {active.source && (
+                          <div className="file-note-banner">
+                            <AppTooltip label={active.source.relativePath}>
+                              <span>{active.source.relativePath}</span>
+                            </AppTooltip>
+                            <button
+                              className="quiet-button"
+                              onClick={() => void libraryStore.activate(active.id)}
+                            >
+                              Reload file
+                            </button>
+                          </div>
+                        )}
+                        {active.source?.unavailable && (
+                          <div role="alert" className="folder-error">
+                            {active.source.unavailable}
+                            <button
+                              className="quiet-button"
+                              onClick={() => void libraryStore.activate(active.id)}
+                            >
+                              Retry
+                            </button>
+                            <button
+                              className="quiet-button"
+                              onClick={() => void locateFolder(active.source!.rootId)}
+                            >
+                              Locate folder
+                            </button>
+                          </div>
+                        )}
+                        {library.conflicts[active.id] && (
+                          <div role="alert" className="file-conflict-summary">
+                            This note has conflicting file changes.
+                            <button
+                              className="quiet-button"
+                              onClick={() => setConflictId(active.id)}
+                            >
+                              Resolve changes
+                            </button>
+                          </div>
+                        )}
+                        <NoteEditor
+                          appearance={appearance}
+                          readOnly={
+                            library.quitting ||
+                            (!!activePdf && active.trashed) ||
+                            library.syncing ||
+                            library.converting ||
+                            !!active.source?.unavailable ||
+                            !!library.conflicts[active.id] ||
+                            !!active.source?.trashPath ||
+                            busyNote === active.id
+                          }
+                          key={`${active.id}:${library.syncGeneration}`}
+                          note={active}
+                          noteLinks={noteLinks}
+                          onOpenTag={(tag) => navigate(`tag:${tag}`)}
+                          cursorSettings={
+                            motionActive
+                              ? appearance
+                              : {
+                                  ...appearance,
+                                  cursorSmoothCaretAnimation: 'off',
+                                  cursorBlinking: 'solid',
+                                }
+                          }
+                          onChange={(content, text) => {
+                            workspace.keepNoteOpen(active.id)
+                            update(active.id, { content, text, hasTasks: undefined })
+                          }}
+                        />
+                      </article>
+                    </div>
+                    <footer className="editor-status">
+                      <span>
+                        {(active.text.trim()
+                          ? active.text.trim().split(/\s+/).length
+                          : 0
+                        ).toLocaleString('en-US')}{' '}
+                        words
+                        <span className="status-dot">·</span>
+                        {active.text.length.toLocaleString('en-US')} characters
+                      </span>
+                      <AppTooltip label={library.path} key={library.status}>
+                        <span role="status" className="save-status">
+                          <Check size={12} />{' '}
+                          {library.preview
+                            ? 'Browser preview · session only'
+                            : Object.keys(library.conflicts).length
+                              ? 'File changes need attention'
+                              : library.status === 'saved'
+                                ? 'Saved on this Mac'
+                                : library.status === 'error'
+                                  ? 'Couldn’t save'
+                                  : 'Saving…'}
+                        </span>
+                      </AppTooltip>
+                    </footer>
+                  </>
+                ) : selected ? (
+                  <div className="note-scroll note-opening-pane">
+                    <div className="note-article">
                       <div className="note-kicker">
                         <span className="tiny-dot" />{' '}
-                        {new Date(active.updated).toLocaleDateString('en-US', {
+                        {new Date(selected.updated).toLocaleDateString('en-US', {
                           month: 'long',
                           day: 'numeric',
                           year: 'numeric',
                         })}
                       </div>
-                      <div className="note-title-wrap">
-                        <div className="note-title-highlights" aria-hidden="true" />
-                        <input
-                          ref={titleInput}
-                          className="note-title"
-                          aria-label="Note title"
-                          placeholder="Untitled note"
-                          value={
-                            active.source && titleDraft?.id === active.id
-                              ? titleDraft.value
-                              : active.title
-                          }
-                          readOnly={!!active.source?.unavailable || !!library.conflicts[active.id]}
-                          onChange={(e) => {
-                            workspace.keepNoteOpen(active.id)
-                            if (active.source)
-                              setTitleDraft({ id: active.id, value: e.target.value })
-                            else update(active.id, { title: e.target.value })
-                          }}
-                          onBlur={() => {
-                            if (titleDraft?.id === active.id) {
-                              if (fileTitleError(titleDraft.value)) return
-                              update(active.id, { title: titleDraft.value })
-                              setTitleDraft(null)
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (
-                              !['Enter', 'ArrowDown'].includes(e.key) ||
-                              e.nativeEvent.isComposing ||
-                              library.syncing ||
-                              library.converting ||
-                              !!active.source?.unavailable ||
-                              !!library.conflicts[active.id] ||
-                              !!active.source?.trashPath ||
-                              busyNote === active.id ||
-                              (active.source &&
-                                titleDraft?.id === active.id &&
-                                !!fileTitleError(titleDraft.value))
-                            )
-                              return
-                            e.preventDefault()
-                            getEditor(active.id, active.content).commands.focus('start')
-                          }}
-                          onScroll={(event) => {
-                            const highlights =
-                              event.currentTarget.parentElement?.querySelector(
-                                '.note-title-highlights',
-                              )
-                            if (highlights) highlights.scrollLeft = event.currentTarget.scrollLeft
-                          }}
-                        />
+                    </div>
+                    {library.noteErrors[selected.id] ? (
+                      <div className="empty-editor">
+                        <h2>Could not open this note</h2>
+                        <p role="alert">{library.noteErrors[selected.id]}</p>
+                        <button onClick={() => void library.load(selected.id)}>Retry</button>
                       </div>
-                      {active.source &&
-                        titleDraft?.id === active.id &&
-                        fileTitleError(titleDraft.value) && (
-                          <p className="folder-error" role="alert">
-                            {fileTitleError(titleDraft.value)}
-                          </p>
-                        )}
-                      <div className="note-meta" ref={chipsRef}>
-                        <div className="notebook-memberships">
-                          {notebooks
-                            .filter((book) => active.notebookIds.includes(book.id))
-                            .map((book) => (
-                              <button
-                                key={book.id}
-                                data-motion-key={`book:${book.id}`}
-                                className="note-tag"
-                                aria-label={
-                                  book.rootId
-                                    ? `File folder: ${notebookPath(book, notebooks)}`
-                                    : `Remove from ${notebookPath(book, notebooks)}`
-                                }
-                                disabled={!!book.rootId}
-                                onClick={() =>
-                                  update(active.id, {
-                                    notebookIds: active.notebookIds.filter((id) => id !== book.id),
-                                  })
-                                }
-                              >
-                                {notebookPath(book, notebooks)}
-                                {book.rootId ? '' : ' ×'}
-                              </button>
-                            ))}
-                          <button
-                            className="note-organization-button"
-                            type="button"
-                            aria-haspopup="dialog"
-                            onClick={(event) => openAddToNotebooks(active.id, event.currentTarget)}
-                          >
-                            <Plus size={12} aria-hidden="true" />
-                            Add to notebooks
-                          </button>
-                          <button
-                            className="note-organization-button"
-                            type="button"
-                            aria-haspopup="dialog"
-                            data-move-note-id={active.id}
-                            onClick={(event) =>
-                              setOrganization({ id: active.id, launcher: event.currentTarget })
-                            }
-                          >
-                            <FolderInput size={12} aria-hidden="true" />
-                            Move
-                          </button>
+                    ) : (
+                      <div className="empty-editor note-opening" role="status" aria-live="polite">
+                        <div className="empty-symbol" aria-hidden="true">
+                          <Feather size={37} />
                         </div>
+                        <h2>Opening note…</h2>
                       </div>
-                      {active.source && (
-                        <div className="file-note-banner">
-                          <span title={active.source.relativePath}>
-                            {active.source.relativePath}
-                          </span>
-                          <button
-                            className="quiet-button"
-                            onClick={() => void libraryStore.activate(active.id)}
-                          >
-                            Reload file
-                          </button>
-                        </div>
-                      )}
-                      {active.source?.unavailable && (
-                        <div role="alert" className="folder-error">
-                          {active.source.unavailable}
-                          <button
-                            className="quiet-button"
-                            onClick={() => void libraryStore.activate(active.id)}
-                          >
-                            Retry
-                          </button>
-                          <button
-                            className="quiet-button"
-                            onClick={() => void locateFolder(active.source!.rootId)}
-                          >
-                            Locate folder
-                          </button>
-                        </div>
-                      )}
-                      {library.conflicts[active.id] && (
-                        <div role="alert" className="file-conflict-summary">
-                          This note has conflicting file changes.
-                          <button className="quiet-button" onClick={() => setConflictId(active.id)}>
-                            Resolve changes
-                          </button>
-                        </div>
-                      )}
-                      <NoteEditor
-                        readOnly={
-                          library.syncing ||
-                          library.converting ||
-                          !!active.source?.unavailable ||
-                          !!library.conflicts[active.id] ||
-                          !!active.source?.trashPath ||
-                          busyNote === active.id
-                        }
-                        key={`${active.id}:${library.syncGeneration}`}
-                        note={active}
-                        noteLinks={noteLinks}
-                        onOpenTag={(tag) => navigate(`tag:${tag}`)}
-                        cursorSettings={
-                          motionActive
-                            ? appearance
-                            : {
-                                ...appearance,
-                                cursorSmoothCaretAnimation: 'off',
-                                cursorBlinking: 'solid',
-                              }
-                        }
-                        onChange={(content, text) => {
-                          workspace.keepNoteOpen(active.id)
-                          update(active.id, { content, text, hasTasks: undefined })
-                        }}
-                      />
-                    </article>
+                    )}
                   </div>
-                  <footer className="editor-status">
-                    <span>
-                      {(active.text.trim()
-                        ? active.text.trim().split(/\s+/).length
-                        : 0
-                      ).toLocaleString('en-US')}{' '}
-                      words
-                      <span className="status-dot">·</span>
-                      {active.text.length.toLocaleString('en-US')} characters
-                    </span>
-                    <span
-                      role="status"
-                      title={library.path}
-                      key={library.status}
-                      className="save-status"
-                    >
-                      <Check size={12} />{' '}
+                ) : (
+                  <div className="empty-editor">
+                    <div className="empty-symbol">
+                      <Feather size={37} />
+                    </div>
+                    <h2>A little space for a new thought.</h2>
+                    <p>
+                      {query
+                        ? 'Choose a different search, or start something new.'
+                        : 'Choose a note from the list, or create your first one.'}
+                    </p>
+                    <button className="primary-button" onClick={() => addNote()}>
+                      <Plus size={16} />
+                      New note
+                    </button>
+                    {!notes.length && (
+                      <button className="quiet-button" onClick={library.addSamples}>
+                        Add sample notes
+                      </button>
+                    )}
+                    <p role="status">
                       {library.preview
                         ? 'Browser preview · session only'
-                        : Object.keys(library.conflicts).length
-                          ? 'File changes need attention'
-                          : library.status === 'saved'
-                            ? 'Saved on this Mac'
-                            : library.status === 'error'
-                              ? 'Couldn’t save'
-                              : 'Saving…'}
-                    </span>
-                  </footer>
-                </>
-              ) : selected ? (
-                <div className="note-scroll note-opening-pane">
-                  <div className="note-article">
-                    <div className="note-kicker">
-                      <span className="tiny-dot" />{' '}
-                      {new Date(selected.updated).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </div>
+                        : library.status === 'saved'
+                          ? 'Stored on this Mac'
+                          : library.status === 'error'
+                            ? 'Couldn’t save'
+                            : 'Saving…'}
+                    </p>
                   </div>
-                  {library.noteErrors[selected.id] ? (
-                    <div className="empty-editor">
-                      <h2>Could not open this note</h2>
-                      <p role="alert">{library.noteErrors[selected.id]}</p>
-                      <button onClick={() => void library.load(selected.id)}>Retry</button>
-                    </div>
-                  ) : (
-                    <div className="empty-editor note-opening" role="status" aria-live="polite">
-                      <div className="empty-symbol" aria-hidden="true">
-                        <Feather size={37} />
-                      </div>
-                      <h2>Opening note…</h2>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="empty-editor">
-                  <div className="empty-symbol">
-                    <Feather size={37} />
-                  </div>
-                  <h2>A little space for a new thought.</h2>
-                  <p>
-                    {query
-                      ? 'Choose a different search, or start something new.'
-                      : 'Choose a note from the list, or create your first one.'}
-                  </p>
-                  <button className="primary-button" onClick={() => addNote()}>
-                    <Plus size={16} />
-                    New note
-                  </button>
-                  {!notes.length && (
-                    <button className="quiet-button" onClick={library.addSamples}>
-                      Add sample notes
-                    </button>
-                  )}
-                  <p role="status">
-                    {library.preview
-                      ? 'Browser preview · session only'
-                      : library.status === 'saved'
-                        ? 'Stored on this Mac'
-                        : library.status === 'error'
-                          ? 'Couldn’t save'
-                          : 'Saving…'}
-                  </p>
-                </div>
+                )}
+              </div>
+              {active && (
+                <NoteTools
+                  note={active}
+                  contentsOpen={contentsOpen}
+                  findOpen={findOpen}
+                  searchNavigation={matchNavigation}
+                  searchNotes={notes}
+                  onSearchNavigationComplete={() => setMatchNavigation(null)}
+                  onFindOpenChange={setFindOpen}
+                  disabled={library.quitting || library.syncing || library.converting}
+                  readOnly={
+                    !!(
+                      active.trashed ||
+                      active.source?.unavailable ||
+                      library.conflicts[active.id] ||
+                      active.source?.trashPath ||
+                      busyNote === active.id
+                    )
+                  }
+                  contentsDividerProps={contentsResize.dividerProps}
+                />
               )}
             </div>
-            {active && (
-              <NoteTools
-                note={active}
-                contentsOpen={contentsOpen}
-                findOpen={findOpen}
-                onFindOpenChange={setFindOpen}
-                disabled={library.quitting || library.syncing || library.converting}
-                contentsDividerProps={contentsResize.dividerProps}
-              />
-            )}
-          </div>
+          </PdfWorkspace>
         </main>
         <MotionPresence open={!!noteContext} duration={motion.menu}>
           <div

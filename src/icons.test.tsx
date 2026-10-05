@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
-import { act } from 'react'
+import { act, createRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Plus, initializeSymbols, sfSymbolFor } from './icons'
+import { Plus } from './icons'
 import { platform } from './platform'
 
-const invoke = vi.hoisted(() => vi.fn(async () => ({ plus: 'data:image/png;base64,dGVzdA==' })))
+const invoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke, isTauri: () => true }))
-
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root | undefined
 let host: HTMLDivElement | undefined
 afterEach(async () => {
@@ -19,33 +19,41 @@ afterEach(async () => {
   invoke.mockClear()
 })
 
-async function showIcon() {
-  host = document.createElement('div')
-  document.body.append(host)
-  root = createRoot(host)
-  await act(async () => root!.render(<Plus size={16} aria-hidden="true" />))
-  return host.querySelector('svg')!
-}
-
-it('uses the native SF Symbol image on macOS while keeping the SVG size and tint', async () => {
-  platform.platform = 'macos'
-  await initializeSymbols()
-  const svg = await showIcon()
-  expect(sfSymbolFor(Plus)).toBe('plus')
-  expect(invoke).toHaveBeenCalledWith('render_symbols', {
-    names: expect.arrayContaining(['plus', 'folder', 'trash']),
-  })
-  expect(svg.getAttribute('width')).toBe('16')
-  expect(svg.getAttribute('aria-hidden')).toBe('true')
-  const mask = svg.querySelector('mask')!
-  expect(mask.getAttribute('mask-type')).toBe('alpha')
-  expect(mask.querySelector('image')?.getAttribute('href')).toContain('data:image/png;base64,')
-  expect(svg.querySelector('rect')?.getAttribute('mask')).toBe(`url(#${mask.id})`)
-})
-
-it('keeps the Lucide SVG in the browser', async () => {
-  const svg = await showIcon()
-  expect(svg.querySelector('path')).not.toBeNull()
-  expect(svg.querySelector('rect')).toBeNull()
-  expect(invoke).not.toHaveBeenCalled()
-})
+it.each(['macos', 'browser', 'android'] as const)(
+  'uses Lucide on %s and forwards size, refs, color and accessible props',
+  async (name) => {
+    platform.platform = name
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const ref = createRef<SVGSVGElement>()
+    await act(async () =>
+      root!.render(
+        <Plus
+          ref={ref}
+          size={16}
+          className="test-icon"
+          style={{ color: 'red' }}
+          aria-label="Add"
+          strokeWidth={1.5}
+        />,
+      ),
+    )
+    const svg = host.querySelector('svg')!
+    expect(ref.current).toBe(svg)
+    expect(svg.getAttribute('width')).toBe('16')
+    expect(svg.getAttribute('aria-label')).toBe('Add')
+    expect(svg.getAttribute('stroke')).toBe('currentColor')
+    expect(svg.getAttribute('stroke-width')).toBe('1.5')
+    expect(svg.style.color).toBe('red')
+    expect(svg.classList.contains('ui-icon')).toBe(true)
+    expect(svg.classList.contains('test-icon')).toBe(true)
+    expect(svg.querySelector('path')).not.toBeNull()
+    expect(svg.querySelector('mask, image')).toBeNull()
+    expect(invoke).not.toHaveBeenCalled()
+    await act(async () => root!.render(<Plus size={32} aria-hidden="true" />))
+    expect(host.querySelector('svg')!.classList.contains('ui-icon')).toBe(false)
+    expect(host.querySelector('svg')!.getAttribute('width')).toBe('32')
+    expect(host.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true')
+  },
+)

@@ -205,10 +205,16 @@ pub struct SaveNote {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceTab {
     pub id: String,
+    #[serde(default = "note_tab_kind")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview: Option<bool>,
 }
+fn note_tab_kind() -> String { "note".into() }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PaneWidths {
@@ -217,7 +223,19 @@ pub struct PaneWidths {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PdfNotesPreferences {
+    pub open: bool,
+    pub ratio: f64,
+    pub scroll: f64,
+    pub pane: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspacePreferences {
+    #[serde(default)]
+    pub pdf_notes: std::collections::BTreeMap<String, PdfNotesPreferences>,
+    #[serde(default)]
+    pub recent_note_ids: Vec<String>,
     #[serde(default)]
     pub pane_widths: Option<PaneWidths>,
     #[serde(default)]
@@ -302,13 +320,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 7 {
+        if version > 9 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 7 {
+        if version > 0 && version < 9 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -382,6 +400,16 @@ impl Store {
                 .map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
+        if version < 8 {
+            let tx = conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("pdf_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 9 {
+            let tx = conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("pdf_notes_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
         conn.execute_batch(
             "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",
         )
@@ -396,6 +424,7 @@ impl Store {
         if version < 7 {
             store.migrate_ordinary_tags()?;
         }
+        store.recover_pdf_imports()?;
         Ok(store)
     }
     fn stored_tags(&self, id: &str) -> Result<Vec<String>> {
@@ -616,13 +645,18 @@ impl Store {
         Ok(note)
     }
     pub fn save_note_record(&mut self, input: &SaveNote) -> Result<Saved> {
+        let tx = self.conn.transaction().map_err(db_err)?;
+        let saved = Self::write_note_record(&tx, input)?;
+        tx.commit().map_err(db_err)?;
+        Ok(saved)
+    }
+    fn write_note_record(tx: &Connection, input: &SaveNote) -> Result<Saved> {
         if input.id.is_empty() || input.operation_id.is_empty() {
             return Err("A note ID and operation ID are required.".into());
         }
         if let Some(content) = &input.content {
             validate_document(content)?;
         }
-        let tx = self.conn.transaction().map_err(db_err)?;
         let current: Option<(i64, String, i64, Option<i64>)> = tx
             .query_row(
                 "SELECT revision,last_op,updated,trashed_at FROM notes WHERE id=?",
@@ -677,11 +711,7 @@ impl Store {
             )
             .map_err(db_err)?;
         }
-        tx.commit().map_err(db_err)?;
-        Ok(Saved {
-            revision: revision + 1,
-            updated: timestamp,
-        })
+        Ok(Saved { revision: revision + 1, updated: timestamp })
     }
     pub fn save_preferences(&mut self, input: &SavePreferences) -> Result<Saved> {
         validate_appearance(&input.appearance)?;
@@ -724,6 +754,21 @@ impl Store {
         }
         tx.execute("INSERT INTO preferences(id,appearance,revision,last_op) VALUES(1,?1,?2,?3) ON CONFLICT(id) DO UPDATE SET appearance=excluded.appearance,revision=excluded.revision,last_op=excluded.last_op",params![input.appearance.to_string(),revision+1,input.operation_id]).map_err(db_err)?;
         if let Some(workspace) = &input.workspace {
+            if workspace.pdf_notes.iter().any(|(id, p)| id.is_empty() || id.len() > 128 ||
+                !p.ratio.is_finite() || !(0.1..=0.9).contains(&p.ratio) ||
+                !p.scroll.is_finite() || !(0.0..=1e8).contains(&p.scroll) ||
+                !matches!(p.pane.as_str(), "pdf" | "note")) {
+                return Err("Invalid PDF notes layout.".into());
+            }
+            let mut recent_ids = std::collections::HashSet::new();
+            if workspace.recent_note_ids.len() > 50
+                || workspace
+                    .recent_note_ids
+                    .iter()
+                    .any(|id| id.is_empty() || !recent_ids.insert(id))
+            {
+                return Err("Invalid recent note history.".into());
+            }
             if workspace.pane_widths.as_ref().is_some_and(|widths| {
                 widths.sidebar < 144
                     || widths.sidebar > 1200
@@ -736,7 +781,11 @@ impl Store {
             if workspace
                 .tabs
                 .iter()
-                .any(|tab| tab.id.is_empty() || tab.note_id.is_empty() || !ids.insert(&tab.id))
+                .any(|tab| tab.id.is_empty() || !ids.insert(&tab.id) || match tab.kind.as_str() {
+                    "note" => tab.note_id.is_empty() || tab.document_id.is_some(),
+                    "pdf" => !tab.note_id.is_empty() || tab.document_id.as_ref().is_none_or(|id| id.is_empty()) || tab.preview == Some(true),
+                    _ => true,
+                })
                 || workspace
                     .tabs
                     .iter()
@@ -944,12 +993,15 @@ fn validate_document(value: &Value) -> Result<()> {
     check(value, 0)
 }
 pub mod bridge;
+pub mod pdf;
 pub mod conversion;
 mod file_io;
 mod file_links;
 pub mod linked;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod drawing_tests;
 
 fn valid_heading_styles(value: &Value) -> bool {
     const LEVELS: [&str; 6] = ["h1", "h2", "h3", "h4", "h5", "h6"];

@@ -1,8 +1,9 @@
+import AppTooltip from './AppTooltip'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { useEffect, useRef, useState } from 'react'
 import NotebookPopover, { type PopoverAnchor } from './NotebookPopover'
 export type { PopoverAnchor } from './NotebookPopover'
-import { Plus, Search, X } from '../icons'
+import { BookPlus, Search, X } from '../icons'
 import type { Appearance, Note, Notebook } from '../model'
 import { NotebookIconGlyph } from '../notebookIcons'
 
@@ -54,16 +55,21 @@ export default function AddToNotebooksPopover({
     >
       <div className="add-notebooks-heading">
         <h2 id="add-notebooks-title">Add to notebooks</h2>
-        <button
-          className="add-notebooks-create-trigger"
-          type="button"
-          aria-label="New notebook"
-          title="New notebook"
-          disabled={disabled}
-          onClick={() => setCreating((open) => !open)}
-        >
-          {creating ? <X size={14} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-        </button>
+        <AppTooltip instant label="New notebook" disabled={disabled}>
+          <button
+            className="add-notebooks-create-trigger"
+            type="button"
+            aria-label="New notebook"
+            disabled={disabled}
+            onClick={() => setCreating((open) => !open)}
+          >
+            {creating ? (
+              <X size={14} aria-hidden="true" />
+            ) : (
+              <BookPlus size={15} aria-hidden="true" />
+            )}
+          </button>
+        </AppTooltip>
       </div>
       {creating && (
         <form

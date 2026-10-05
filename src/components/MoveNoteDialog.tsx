@@ -1,5 +1,6 @@
+import AppTooltip from './AppTooltip'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Search, X } from '../icons'
+import { BookPlus, Search, X } from '../icons'
 import NotebookPopover, { type NotebookPopoverPosition } from './NotebookPopover'
 import type { Appearance, Note, Notebook, View } from '../model'
 import { moveSource, moveUnavailable, type MoveIntent } from '../notebookMove'
@@ -72,7 +73,7 @@ export default function MoveNoteDialog({
             disabled={disabled}
             onClick={() => setCreating(!creating)}
           >
-            {creating ? <X size={14} /> : <Plus size={15} />}
+            {creating ? <X size={14} /> : <BookPlus size={15} />}
           </button>
         )}
       </div>
@@ -149,29 +150,31 @@ export default function MoveNoteDialog({
                       notebookPath(b, notebooks).toLowerCase().includes(query.toLowerCase()),
                     )
                     .map((book) => (
-                      <label
-                        key={book.id}
-                        title={
+                      <AppTooltip
+                        label={
                           book.rootId
                             ? 'Moving into linked folders is not available here.'
                             : undefined
                         }
+                        key={book.id}
                       >
-                        <span className="notebook-swatch" style={{ color: book.color }}>
-                          <NotebookIconGlyph icon={book.icon} color={book.color} size={16} />
-                        </span>
-                        <span>
-                          {notebookPath(book, notebooks)}
-                          {book.rootId && <small>Linked folder · unavailable</small>}
-                        </span>
-                        <input
-                          type="radio"
-                          name="destination"
-                          disabled={!!book.rootId}
-                          checked={destination === book.id}
-                          onChange={() => setDestination(book.id)}
-                        />
-                      </label>
+                        <label>
+                          <span className="notebook-swatch" style={{ color: book.color }}>
+                            <NotebookIconGlyph icon={book.icon} color={book.color} size={16} />
+                          </span>
+                          <span>
+                            {notebookPath(book, notebooks)}
+                            {book.rootId && <small>Linked folder · unavailable</small>}
+                          </span>
+                          <input
+                            type="radio"
+                            name="destination"
+                            disabled={!!book.rootId}
+                            checked={destination === book.id}
+                            onChange={() => setDestination(book.id)}
+                          />
+                        </label>
+                      </AppTooltip>
                     ))}
                 </div>
               </>

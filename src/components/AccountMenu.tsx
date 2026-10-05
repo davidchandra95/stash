@@ -1,3 +1,4 @@
+import AppTooltip from './AppTooltip'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { RefreshCw, Settings2, Trash2, UserRound } from '../icons'
 import { useRef } from 'react'
@@ -11,6 +12,7 @@ export default function AccountMenu({
   dark,
   palette,
   settingsTitle,
+  settingsShortcut,
   onSync,
   onTrash,
   onSettings,
@@ -21,6 +23,7 @@ export default function AccountMenu({
   dark: boolean
   palette: string
   settingsTitle: string
+  settingsShortcut?: string
   onSync: () => void
   onTrash: () => void
   onSettings: () => void
@@ -71,9 +74,11 @@ export default function AccountMenu({
             <MenuActionContent icon={Trash2} label="Trash" />
             {trashCount > 0 && <span className="account-menu-count">{trashCount}</span>}
           </Dropdown.Item>
-          <Dropdown.Item onSelect={onSettings} title={settingsTitle}>
-            <MenuActionContent icon={Settings2} label="Settings" />
-          </Dropdown.Item>
+          <AppTooltip label={settingsTitle} shortcut={settingsShortcut}>
+            <Dropdown.Item onSelect={onSettings}>
+              <MenuActionContent icon={Settings2} label="Settings" />
+            </Dropdown.Item>
+          </AppTooltip>
         </Dropdown.Content>
       </Dropdown.Portal>
     </Dropdown.Root>

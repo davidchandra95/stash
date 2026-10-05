@@ -1,18 +1,23 @@
+import AppTooltip from './AppTooltip'
 import { useShortcutActions } from '../useShortcuts'
 import { MotionPresence, motion } from '../motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { HTMLAttributes } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditorState } from '@tiptap/react'
+import { replaceBodyText } from '../editor/replace'
 import { ArrowDown, ArrowUp, ChevronRight, X } from '../icons'
 import type { Note } from '../model'
 import { getEditor } from '../editor/session'
+import { referenceTitle } from '../editor/noteReferences'
+import { resolveMatch, type MatchNavigation } from '../search'
 import {
   clearReveals,
   documentMatches,
   literalMatches,
   outline,
   scrollToPosition,
+  scrollToMatch,
   setFind,
   type HeadingEntry,
 } from '../editor/noteTools'
@@ -23,40 +28,67 @@ export default function NoteTools({
   findOpen,
   onFindOpenChange,
   disabled,
+  readOnly = false,
   contentsDividerProps,
+  searchNavigation,
+  searchNotes = [note],
+  onSearchNavigationComplete,
 }: {
   note: Note
   contentsOpen: boolean
   findOpen: boolean
   onFindOpenChange: (open: boolean) => void
   disabled: boolean
+  readOnly?: boolean
+  searchNavigation?: MatchNavigation | null
+  searchNotes?: Note[]
+  onSearchNavigationComplete?: () => void
   contentsDividerProps?: HTMLAttributes<HTMLDivElement>
 }) {
   const editor = getEditor(note.id, note.content, undefined, !!note.source)
-  const doc = useEditorState({
+  useEditorState({
     editor,
     selector: ({ editor }) => editor.state.doc,
     equalityFn: Object.is,
   })
+  // The subscription can still hold the previous editor's snapshot during a tab switch.
+  // Always calculate positions against the currently mounted editor.
+  const doc = editor.state.doc
   const headings = useMemo(() => outline(doc), [doc])
   const [query, setQuery] = useState('')
+  const [replaceOpen, setReplaceOpen] = useState(false)
+  const [replacement, setReplacement] = useState('')
+  const replacementInput = useRef<HTMLInputElement>(null)
   const [index, setIndex] = useState(0)
+  const [navigationError, setNavigationError] = useState('')
+  const pendingReveal = useRef<import('../editor/searchText').DocumentMatch | null>(null)
+  const handledNavigation = useRef<MatchNavigation | null>(null)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [visibleSections, setVisibleSections] = useState<Set<number>>(new Set())
   const input = useRef<HTMLInputElement>(null)
+  const [slot, setSlot] = useState<Element | null>(null)
+  const [titleSlot, setTitleSlot] = useState<Element | null>(null)
   const titleMatches = useMemo(
     () => literalMatches(note.title, findOpen ? query : ''),
     [note.title, findOpen, query],
   )
   const bodyMatches = useMemo(
-    () => documentMatches(doc, findOpen ? query : ''),
-    [doc, findOpen, query],
+    () =>
+      documentMatches(doc, findOpen ? query : '', (id, fallback) =>
+        referenceTitle(editor, id, fallback),
+      ),
+    [doc, findOpen, query, editor, searchNotes],
   )
   const total = titleMatches.length + bodyMatches.length
   const current = Math.min(index, Math.max(0, total - 1))
   useEffect(() => {
     setCollapsed(new Set())
     setIndex(0)
+    setNavigationError('')
+    setReplaceOpen(false)
+    setReplacement('')
+    pendingReveal.current = null
+    handledNavigation.current = null
     return () => {
       if (editor.isDestroyed) return
       setFind(editor, '', -1)
@@ -142,12 +174,76 @@ export default function NoteTools({
         title.scrollLeft = Math.max(0, mark.offsetLeft - title.clientWidth / 2)
         highlights.scrollLeft = title.scrollLeft
       }
-    } else scrollToPosition(editor, bodyMatches[next - titleMatches.length].from)
+    } else scrollToMatch(editor, bodyMatches[next - titleMatches.length])
   }
   // Jump as a query changes, but keep the find field focused while typing.
   useEffect(() => {
-    if (findOpen && query && total) revealMatch(current)
-  }, [query, findOpen, editor, total])
+    if (findOpen && query && total && !navigationError) revealMatch(current)
+  }, [query, findOpen, editor, total, navigationError])
+  useEffect(() => {
+    if (
+      !searchNavigation ||
+      searchNavigation.noteId !== note.id ||
+      disabled ||
+      handledNavigation.current === searchNavigation
+    )
+      return
+    handledNavigation.current = searchNavigation
+    const match = resolveMatch(editor.state.doc, searchNavigation, searchNotes)
+    setQuery(searchNavigation.query)
+    if (match) {
+      const matches = documentMatches(editor.state.doc, searchNavigation.query, (id, fallback) =>
+        referenceTitle(editor, id, fallback),
+      )
+      const bodyIndex = matches.findIndex(
+        (candidate) => candidate.from === match.from && candidate.offset === match.offset,
+      )
+      const titleCount = literalMatches(note.title, searchNavigation.query).length
+      setIndex(titleCount + bodyIndex)
+      pendingReveal.current = match
+      setNavigationError('')
+    } else {
+      setNavigationError('This match changed. Search again to find its current location.')
+    }
+    onSearchNavigationComplete?.()
+  }, [
+    searchNavigation,
+    editor,
+    note.id,
+    disabled,
+    searchNotes,
+    note.title,
+    onSearchNavigationComplete,
+  ])
+  useEffect(() => {
+    const match = pendingReveal.current
+    if (!match || !findOpen || !slot) return
+    pendingReveal.current = null
+    scrollToMatch(editor, match)
+    input.current?.focus({ preventScroll: true })
+  })
+  const writesBlocked = disabled || readOnly || !!note.trashed || !editor.isEditable
+  const activeBodyMatch = bodyMatches[current - titleMatches.length]
+  const replace = (all: boolean) => {
+    if (writesBlocked || editor.isDestroyed) return
+    // Re-read the document and title matches immediately before any write.
+    const freshTitle = literalMatches(note.title, query)
+    const freshBody = documentMatches(editor.state.doc, query, (id, fallback) =>
+      referenceTitle(editor, id, fallback),
+    )
+    const match = freshBody[current - freshTitle.length]
+    if (!all && (!match || match.atom)) return
+    const result = replaceBodyText(editor, query, replacement, all ? undefined : match)
+    if (result) {
+      const next = documentMatches(editor.state.doc, query, (id, fallback) =>
+        referenceTitle(editor, id, fallback),
+      )
+      const nextIndex = next.findIndex((candidate) => candidate.from >= result.next)
+      setIndex(nextIndex >= 0 ? freshTitle.length + nextIndex : 0)
+      setNavigationError('')
+    }
+    replacementInput.current?.focus({ preventScroll: true })
+  }
   const close = () => {
     onFindOpenChange(false)
     editor.view.focus()
@@ -176,15 +272,16 @@ export default function NoteTools({
             ) : (
               <span className="outline-bullet">·</span>
             )}
-            <button
-              className="outline-heading"
-              title={heading.title}
-              onClick={() => {
-                scrollToPosition(editor, heading.pos + 1)
-              }}
-            >
-              {heading.title}
-            </button>
+            <AppTooltip label={heading.title}>
+              <button
+                className="outline-heading"
+                onClick={() => {
+                  scrollToPosition(editor, heading.pos + 1)
+                }}
+              >
+                {heading.title}
+              </button>
+            </AppTooltip>
           </div>
           {heading.children.length > 0 && (
             <MotionPresence
@@ -200,8 +297,6 @@ export default function NoteTools({
       ))}
     </ul>
   )
-  const [slot, setSlot] = useState<Element | null>(null)
-  const [titleSlot, setTitleSlot] = useState<Element | null>(null)
   useLayoutEffect(() => {
     setSlot(document.getElementById('note-find-slot'))
     setTitleSlot(document.querySelector('.note-title-highlights'))
@@ -248,56 +343,112 @@ export default function NoteTools({
         createPortal(
           <MotionPresence open={findOpen} collapse duration={motion.find}>
             <div className="note-find-bar" role="search" aria-label="Find in current note">
-              <input
-                ref={input}
-                className="text-field"
-                value={query}
-                disabled={disabled}
-                aria-label="Find in current note"
-                placeholder="Find in note…"
-                onChange={(event) => {
-                  setQuery(event.target.value)
-                  setIndex(0)
-                }}
-                onKeyDown={(event) => {
-                  if (event.nativeEvent.isComposing) return
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    revealMatch(current + (event.shiftKey ? -1 : 1))
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    close()
-                  }
-                }}
-              />
-              <span role="status">
-                {total ? `${current + 1} of ${total}` : query ? 'No matches' : '0 of 0'}
-              </span>
-              <button
-                className="icon-button"
-                aria-label="Previous match"
-                disabled={!total || disabled}
-                onClick={() => revealMatch(current - 1)}
-              >
-                <ArrowUp size={15} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Next match"
-                disabled={!total || disabled}
-                onClick={() => revealMatch(current + 1)}
-              >
-                <ArrowDown size={15} />
-              </button>
-              <button className="icon-button" aria-label="Close find" onClick={close}>
-                <X size={15} />
-              </button>
+              <div className="note-find-row">
+                <button
+                  className="icon-button find-replace-toggle"
+                  aria-label="Show replacement"
+                  aria-expanded={replaceOpen}
+                  disabled={disabled}
+                  onClick={() => setReplaceOpen((open) => !open)}
+                >
+                  <ChevronRight size={15} />
+                </button>
+                <input
+                  ref={input}
+                  className="text-field"
+                  value={query}
+                  disabled={disabled}
+                  aria-label="Find in current note"
+                  placeholder="Find in note…"
+                  onChange={(event) => {
+                    setQuery(event.target.value)
+                    setIndex(0)
+                    setNavigationError('')
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.nativeEvent.isComposing) return
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      revealMatch(current + (event.shiftKey ? -1 : 1))
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      close()
+                    }
+                  }}
+                />
+                <span role="status">
+                  {total ? `${current + 1} of ${total}` : query ? 'No matches' : '0 of 0'}
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label="Previous match"
+                  disabled={!total || disabled}
+                  onClick={() => revealMatch(current - 1)}
+                >
+                  <ArrowUp size={15} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Next match"
+                  disabled={!total || disabled}
+                  onClick={() => revealMatch(current + 1)}
+                >
+                  <ArrowDown size={15} />
+                </button>
+                <button className="icon-button" aria-label="Close find" onClick={close}>
+                  <X size={15} />
+                </button>
+              </div>
+              {replaceOpen && (
+                <div className="note-find-row note-replace-row">
+                  <input
+                    ref={replacementInput}
+                    className="text-field"
+                    aria-label="Replace with"
+                    placeholder="Replace with…"
+                    value={replacement}
+                    disabled={writesBlocked}
+                    onChange={(event) => setReplacement(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        replace(event.shiftKey)
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        close()
+                      }
+                    }}
+                  />
+                  <button
+                    className="quiet-button"
+                    disabled={writesBlocked || !activeBodyMatch || !!activeBodyMatch.atom}
+                    onClick={() => replace(false)}
+                  >
+                    Replace
+                  </button>
+                  <button
+                    className="quiet-button"
+                    disabled={writesBlocked || !bodyMatches.some((match) => !match.atom)}
+                    onClick={() => replace(true)}
+                  >
+                    Replace all
+                  </button>
+                </div>
+              )}
             </div>
           </MotionPresence>,
           slot,
         )}
+      {findOpen && navigationError && (
+        <p className="content-search-navigation-error" role="status">
+          {navigationError}
+        </p>
+      )}
       {titleSlot && createPortal(markedTitle(), titleSlot)}
       {contentsOpen && contentsDividerProps && <div {...contentsDividerProps} />}
       <MotionPresence open={contentsOpen} duration={motion.contents}>

@@ -30,13 +30,19 @@ export function useContentsResize({
   savedWidth,
   disabled,
   onCommit,
+  side = 'right',
+  reserveWidth,
 }: {
   workspaceRef: RefObject<HTMLElement | null>
   savedWidth: number | undefined
   disabled: boolean
   onCommit: (width: number) => void
+  side?: 'left' | 'right'
+  reserveWidth?: (workspaceWidth: number) => number
 }) {
-  const [preferred, setPreferred] = useState(() => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth)
+  const [preferred, setPreferred] = useState(
+    () => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth,
+  )
   const preferredRef = useRef(preferred)
   const [workspaceWidth, setWorkspaceWidth] = useState(0)
   const [resizing, setResizing] = useState(false)
@@ -69,12 +75,14 @@ export function useContentsResize({
 
   const availableWidth = () =>
     Math.round(workspaceRef.current?.getBoundingClientRect().width ?? 0) || workspaceWidth
+  const documentSpace = (width: number) => width - (reserveWidth?.(width) ?? 0)
   const maximum = () =>
     Math.max(
       minimumContentsWidth,
-      Math.min(maximumContentsWidth, availableWidth() - minimumDocumentWidth),
+      Math.min(maximumContentsWidth, documentSpace(availableWidth()) - minimumDocumentWidth),
     )
-  const shown = visibleContentsWidth(preferred, workspaceWidth)
+  const shown = visibleContentsWidth(preferred, documentSpace(workspaceWidth))
+  const direction = side === 'left' ? 1 : -1
 
   const finish = (cancelled: boolean) => {
     const active = session.current
@@ -104,6 +112,10 @@ export function useContentsResize({
     }
   }, [])
 
+  useEffect(() => {
+    if (disabled) finish(true)
+  }, [disabled])
+
   const dividerProps = {
     className: 'contents-resizer',
     role: 'separator' as const,
@@ -116,13 +128,16 @@ export function useContentsResize({
     'aria-disabled': disabled || undefined,
     tabIndex: disabled ? -1 : 0,
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Escape' && session.current) {
+        event.preventDefault()
+        event.stopPropagation()
+        finish(true)
+        return
+      }
       if (latest.current.disabled || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault()
-      const direction = event.key === 'ArrowLeft' ? 1 : -1
-      const width = Math.max(
-        minimumContentsWidth,
-        Math.min(maximum(), shown + direction * (event.shiftKey ? 32 : 8)),
-      )
+      const step = (event.key === 'ArrowRight' ? direction : -direction) * (event.shiftKey ? 32 : 8)
+      const width = Math.max(minimumContentsWidth, Math.min(maximum(), shown + step))
       setWidth(width)
       latest.current.onCommit(width)
     },
@@ -137,6 +152,7 @@ export function useContentsResize({
         element: event.currentTarget,
       }
       event.currentTarget.setPointerCapture?.(event.pointerId)
+      event.currentTarget.focus({ preventScroll: true })
       setResizing(true)
     },
     onPointerMove: (event: PointerEvent<HTMLElement>) => {
@@ -145,7 +161,10 @@ export function useContentsResize({
       setWidth(
         Math.max(
           minimumContentsWidth,
-          Math.min(maximum(), Math.round(active.startWidth + active.startX - event.clientX)),
+          Math.min(
+            maximum(),
+            Math.round(active.startWidth + direction * (event.clientX - active.startX)),
+          ),
         ),
       )
     },

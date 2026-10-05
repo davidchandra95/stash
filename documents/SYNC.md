@@ -8,6 +8,8 @@ The desktop app connects only to the HTTPS API. It never connects directly to Po
 
 Ordinary notes, embedded data-URL images, notebooks and their hierarchy, body-derived tag indexes, notebook memberships, pin and Quick Access state, and Trash state sync. Folder-linked notes, local assets and paths, appearance, shortcuts, workspace tabs, and editor undo history stay on each device.
 
+Excalidraw drawings in ordinary notes sync as part of the note JSON, including editable scene data, embedded images, and cached previews. Existing whole-note conflict copies retain each drawing version. Android displays previews; desktop can reopen and edit scenes. Older clients cannot open notes containing the new drawing node, so update editing clients first. The existing 64 MiB server request limit still applies to complete note operations, including embedded files and previews; an oversized upload fails visibly and leaves local data available.
+
 Each device has its own revocable bearer token. The server stores only the token's SHA-256 hash. macOS stores the token in Keychain, and Android stores it with Android Keystore. The server URL and remote library identity are stored in the local SQLite library. HTTPS certificate verification is required and redirects are not followed. This provides transport encryption, not end-to-end encrypted server storage.
 
 After a connection is configured, one Sync action saves pending local edits, uploads queued operations, downloads remote changes, and applies them locally. Editing pauses during that operation. Failures leave local notes available and preserve the durable queue for a later retry.

@@ -5,7 +5,6 @@ mod native_menu;
 #[cfg(desktop)]
 mod provision;
 mod storage;
-mod symbols;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -93,7 +92,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             platform_info,
             native_menu::show_outline_menu,
-            symbols::render_symbols,
+            native_menu::cancel_outline_menu,
             set_mobile_keyboard,
             mobile_background,
             set_mobile_appearance,
@@ -124,6 +123,12 @@ pub fn run() {
             storage::bridge::clear_file_conflict,
             storage::bridge::preserve_file_conflict,
             storage::bridge::frontend_ready,
+            storage::bridge::list_pdfs,
+            storage::bridge::list_pdf_companions,
+            storage::bridge::ensure_pdf_companion,
+            storage::bridge::import_pdf,
+            storage::bridge::read_pdf_range,
+            storage::bridge::save_pdf_reading,
             storage::bridge::finish_quit
         ])
         .build(tauri::generate_context!())

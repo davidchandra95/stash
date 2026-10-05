@@ -12,6 +12,7 @@ describe('shortcut assignments', () => {
   it('has distinct defaults, preserves cleared bindings, and accepts swaps', () => {
     for (const command of shortcutCommands)
       if (command.defaultKey) expect(bindingError(command.id, command.defaultKey, {})).toBeNull()
+    expect(normalizeOverrides({ search: 'Mod+p' })).toEqual({ search: 'Mod+p', 'quick-open': null })
     expect(bindingFor('bold', { bold: null })).toBeNull()
     expect(bindingFor('bold', {})).toBe('Mod+b')
     expect(normalizeOverrides({ bold: 'Mod+i', italic: 'Mod+b', highlight: null })).toEqual({

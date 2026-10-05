@@ -1,5 +1,6 @@
 import { inkColors, highlightColors, dateFormats } from './slashOptions'
 import { commands } from './commands'
+import { platform } from '../platform'
 export interface SlashEntry {
   id: string
   label: string
@@ -94,10 +95,11 @@ export function slashCatalog(inTable = false): SlashEntry[] {
       ],
       'table',
     ),
+    leaf('date', 'Date', 'date'),
     group(
-      'dates',
-      'Date',
-      dateFormats().map((label, i) => leaf(`date-${i}`, label, 'date')),
+      'today',
+      'Today',
+      dateFormats().map((label, i) => leaf(`today-${i}`, label, 'date')),
       'date',
     ),
     group(
@@ -132,6 +134,7 @@ export function slashCatalog(inTable = false): SlashEntry[] {
     leaf('code', 'Code Block', 'code-block'),
     leaf('link', 'Link', 'link'),
     leaf('image', 'Image', 'image'),
+    ...(!platform.mobile ? [{ ...leaf('drawing'), keywords: 'excalidraw diagram sketch' }] : []),
     group(
       'sections',
       'Section actions',
@@ -144,12 +147,18 @@ export function slashCatalog(inTable = false): SlashEntry[] {
 }
 export function searchSlash(entries: SlashEntry[], query: string, path = ''): SlashEntry[] {
   const normalized = query.trim().toLowerCase()
+  const parts = normalized.split(/\s+/)
   return entries.flatMap((entry) => {
     const full = path ? `${path} / ${entry.label}` : entry.label
-    if (entry.children) return searchSlash(entry.children, query, full)
+    if (entry.children) {
+      // Today's previews contain weekday names and dates. Only search them
+      // when a query word starts the Today command, not through "da" in Today.
+      if (entry.id === 'today' && !parts.some((part) => 'today'.startsWith(part))) return []
+      return searchSlash(entry.children, query, full)
+    }
     const command = commands.find((c) => c.id === entry.command)
     const text =
       `${full} ${entry.keywords ?? ''} ${command?.label ?? ''} ${command?.keywords ?? ''}`.toLowerCase()
-    return normalized.split(/\s+/).every((part) => text.includes(part)) ? [{ ...entry, path }] : []
+    return parts.every((part) => text.includes(part)) ? [{ ...entry, path }] : []
   })
 }

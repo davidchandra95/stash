@@ -14,6 +14,7 @@ export const maximumStoredPaneWidth = 1200
 export type PaneLayoutContext = {
   appWidth: number
   sidebarVisible: boolean
+  noteListVisible: boolean
   contentsOpen: boolean
   contentsWidth?: number
   sidebarWidth: number
@@ -49,6 +50,7 @@ export function clamp(value: number, { min, max }: { min: number; max: number })
 export function paneBounds({
   appWidth,
   sidebarVisible,
+  noteListVisible,
   contentsOpen,
   contentsWidth,
   sidebarWidth,
@@ -58,10 +60,11 @@ export function paneBounds({
     ? writingWithContentsMinimumWidth + (contentsWidth ?? 260) - 260
     : writingMinimumWidth
   const sidebarSpace = sidebarVisible ? sidebarWidth : 0
+  const noteListSpace = noteListVisible ? noteListWidth : 0
   return {
     sidebar: {
       min: sidebarMinimumWidth,
-      max: Math.max(sidebarMinimumWidth, appWidth - noteListWidth - writingMinimum),
+      max: Math.max(sidebarMinimumWidth, appWidth - noteListSpace - writingMinimum),
     },
     noteList: {
       min: noteListMinimumWidth,
@@ -76,13 +79,14 @@ export function paneBounds({
  */
 export function effectivePaneWidths(widths: PaneWidths, context: PaneLayoutContext): PaneWidths {
   if (context.appWidth <= 0) return widths
-  const sidebar = clamp(
-    widths.sidebar,
-    paneBounds({ ...context, sidebarWidth: widths.sidebar }).sidebar,
-  )
-  const noteList = clamp(
-    widths.noteList,
-    paneBounds({ ...context, sidebarWidth: sidebar, noteListWidth: widths.noteList }).noteList,
-  )
+  const sidebar = context.sidebarVisible
+    ? clamp(widths.sidebar, paneBounds({ ...context, sidebarWidth: widths.sidebar }).sidebar)
+    : widths.sidebar
+  const noteList = context.noteListVisible
+    ? clamp(
+        widths.noteList,
+        paneBounds({ ...context, sidebarWidth: sidebar, noteListWidth: widths.noteList }).noteList,
+      )
+    : widths.noteList
   return { sidebar, noteList }
 }

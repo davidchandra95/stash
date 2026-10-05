@@ -1,171 +1,131 @@
-import { invoke, isTauri } from '@tauri-apps/api/core'
-import { forwardRef, useId } from 'react'
+import { forwardRef } from 'react'
 import type { LucideProps } from 'lucide-react'
 import * as Lucide from 'lucide-react'
-import { platform } from './platform'
 
 export type IconComponent = Lucide.LucideIcon
 
-const names = new Map<IconComponent, string>()
-const images = new Map<string, string>()
-
-function icon(Fallback: IconComponent, symbol: string): IconComponent {
-  const Icon = forwardRef<SVGSVGElement, LucideProps>(function PlatformIcon(
-    { size = 24, className, style, ...props },
+function icon(Glyph: IconComponent): IconComponent {
+  return forwardRef<SVGSVGElement, LucideProps>(function AppIcon(
+    { size, className, ...props },
     ref,
   ) {
-    const maskId = `sf-${useId().replace(/:/g, '')}`
-    const image = platform.platform === 'macos' && isTauri() ? images.get(symbol) : undefined
-    if (!image)
-      return <Fallback ref={ref} size={size} className={className} style={style} {...props} />
-    return (
-      <svg
-        ref={ref}
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        className={className}
-        style={style}
-        {...props}
-      >
-        <defs>
-          {/* WebKit needs the SVG alpha mask attribute to preserve the symbol shape. */}
-          <mask
-            id={maskId}
-            {...{ 'mask-type': 'alpha' }}
-            maskUnits="userSpaceOnUse"
-            x="2"
-            y="2"
-            width="20"
-            height="20"
-          >
-            <image
-              href={image}
-              x="2"
-              y="2"
-              width="20"
-              height="20"
-              preserveAspectRatio="xMidYMid meet"
-            />
-          </mask>
-        </defs>
-        <rect x="2" y="2" width="20" height="20" fill="currentColor" mask={`url(#${maskId})`} />
-      </svg>
-    )
+    // Explicit sizes of 24px or more belong to illustrations; UI icons share CSS sizing.
+    const uiIcon = size === undefined || (typeof size === 'number' && size < 24)
+    const iconClassName = [uiIcon && 'ui-icon', className].filter(Boolean).join(' ')
+    return <Glyph ref={ref} size={size ?? 24} className={iconClassName} {...props} />
   }) as IconComponent
-  names.set(Icon, symbol)
-  return Icon
 }
 
-export function sfSymbolFor(Icon: IconComponent): string | undefined {
-  return names.get(Icon)
-}
+export const AlertTriangle = icon(Lucide.AlertTriangle)
+export const AlignLeft = icon(Lucide.AlignLeft)
+export const AlignCenter = icon(Lucide.AlignCenter)
+export const AlignRight = icon(Lucide.AlignRight)
+export const AlignJustify = icon(Lucide.AlignJustify)
+export const Archive = icon(Lucide.Archive)
+export const ArchiveRestore = icon(Lucide.ArchiveRestore)
+export const ArrowDown = icon(Lucide.ArrowDown)
+export const ArrowDownWideNarrow = icon(Lucide.ArrowDownWideNarrow)
+export const ArrowLeft = icon(Lucide.ArrowLeft)
+export const ArrowRight = icon(Lucide.ArrowRight)
+export const ArrowUp = icon(Lucide.ArrowUp)
+export const Bold = icon(Lucide.Bold)
+export const Book = icon(Lucide.Book)
+export const BookOpen = icon(Lucide.BookOpen)
+export const BookPlus = icon(Lucide.BookPlus)
+export const Briefcase = icon(Lucide.Briefcase)
+export const Calendar = icon(Lucide.Calendar)
+export const CalendarDays = icon(Lucide.CalendarDays)
+export const Camera = icon(Lucide.Camera)
+export const Check = icon(Lucide.Check)
+export const ChevronDown = icon(Lucide.ChevronDown)
+export const ChevronRight = icon(Lucide.ChevronRight)
+export const Code = icon(Lucide.Code)
+export const Columns2 = icon(Lucide.Columns2)
+export const Code2 = icon(Lucide.Code2)
+export const Coffee = icon(Lucide.Coffee)
+export const Copy = icon(Lucide.Copy)
+export const Dumbbell = icon(Lucide.Dumbbell)
+export const ExternalLink = icon(Lucide.ExternalLink)
+export const Feather = icon(Lucide.Feather)
+export const FilePlus2 = icon(Lucide.FilePlus2)
+export const FileText = icon(Lucide.FileText)
+export const Files = icon(Lucide.Files)
+export const Flag = icon(Lucide.Flag)
+export const Folder = icon(Lucide.Folder)
+export const FolderInput = icon(Lucide.FolderInput)
+export const FolderOpen = icon(Lucide.FolderOpen)
+export const FolderPlus = icon(Lucide.FolderPlus)
+export const Gamepad2 = icon(Lucide.Gamepad2)
+export const Globe = icon(Lucide.Globe)
+export const GraduationCap = icon(Lucide.GraduationCap)
+export const Heart = icon(Lucide.Heart)
+export const Highlighter = icon(Lucide.Highlighter)
+export const Home = icon(Lucide.Home)
+export const ImagePlus = icon(Lucide.ImagePlus)
+export const Inbox = icon(Lucide.Inbox)
+export const IndentDecrease = icon(Lucide.IndentDecrease)
+export const IndentIncrease = icon(Lucide.IndentIncrease)
+export const Info = icon(Lucide.Info)
+export const Italic = icon(Lucide.Italic)
+export const Keyboard = icon(Lucide.Keyboard)
+export const Lightbulb = icon(Lucide.Lightbulb)
+export const Link = icon(Lucide.Link)
+export const Link2 = icon(Lucide.Link2)
+export const List = icon(Lucide.List)
+export const ListOrdered = icon(Lucide.ListOrdered)
+export const ListTodo = icon(Lucide.ListTodo)
+export const LoaderCircle = icon(Lucide.LoaderCircle)
+export const MapPin = icon(Lucide.MapPin)
+export const Maximize2 = icon(Lucide.Maximize2)
+export const Menu = icon(Lucide.Menu)
+export const Minimize2 = icon(Lucide.Minimize2)
+export const Minus = icon(Lucide.Minus)
+export const Moon = icon(Lucide.Moon)
+export const MoreHorizontal = icon(Lucide.MoreHorizontal)
+export const MoreVertical = icon(Lucide.MoreVertical)
+export const Music = icon(Lucide.Music)
+export const Notebook = icon(Lucide.Notebook)
+export const Palette = icon(Lucide.Palette)
+export const PanelLeft = icon(Lucide.PanelLeft)
+export const PanelLeftClose = icon(Lucide.PanelLeftClose)
+export const PanelsTopLeft = icon(Lucide.PanelsTopLeft)
+export const PenLine = icon(Lucide.PenLine)
+export const Pencil = icon(Lucide.Pencil)
+export const Pin = icon(Lucide.Pin)
+export const PinOff = icon(Lucide.PinOff)
+export const Plane = icon(Lucide.Plane)
+export const Plus = icon(Lucide.Plus)
+export const Quote = icon(Lucide.Quote)
+export const Redo2 = icon(Lucide.Redo2)
+export const RefreshCw = icon(Lucide.RefreshCw)
+export const RotateCcw = icon(Lucide.RotateCcw)
+export const FileSearch = icon(Lucide.FileSearch)
+export const Search = icon(Lucide.Search)
+export const Settings2 = icon(Lucide.Settings2)
+export const ShoppingBag = icon(Lucide.ShoppingBag)
+export const SquareCheck = icon(Lucide.SquareCheck)
+export const SquarePen = icon(Lucide.SquarePen)
+export const Star = icon(Lucide.Star)
+export const StarOff = icon(Lucide.StarOff)
+export const Strikethrough = icon(Lucide.Strikethrough)
+export const Subscript = icon(Lucide.Subscript)
+export const Sun = icon(Lucide.Sun)
+export const Superscript = icon(Lucide.Superscript)
+export const Table2 = icon(Lucide.Table2)
+export const Target = icon(Lucide.Target)
+export const TextCursorInput = icon(Lucide.TextCursorInput)
+export const Trash2 = icon(Lucide.Trash2)
+export const Type = icon(Lucide.Type)
+export const Underline = icon(Lucide.Underline)
+export const Undo2 = icon(Lucide.Undo2)
+export const Unlink2 = icon(Lucide.Unlink2)
+export const UserRound = icon(Lucide.UserRound)
+export const WrapText = icon(Lucide.WrapText)
+export const X = icon(Lucide.X)
 
-export async function initializeSymbols(): Promise<void> {
-  if (platform.platform !== 'macos' || !isTauri()) return
-  const rendered = await invoke<Record<string, string>>('render_symbols', {
-    names: [...new Set(names.values())],
-  })
-  for (const [name, image] of Object.entries(rendered)) images.set(name, image)
-}
-
-export const AlertTriangle = icon(Lucide.AlertTriangle, 'exclamationmark.triangle')
-export const AlignLeft = icon(Lucide.AlignLeft, 'text.alignleft')
-export const Archive = icon(Lucide.Archive, 'archivebox')
-export const ArchiveRestore = icon(Lucide.ArchiveRestore, 'arrow.up.bin')
-export const ArrowDown = icon(Lucide.ArrowDown, 'arrow.down')
-export const ArrowDownWideNarrow = icon(Lucide.ArrowDownWideNarrow, 'line.3.horizontal.decrease')
-export const ArrowLeft = icon(Lucide.ArrowLeft, 'arrow.left')
-export const ArrowRight = icon(Lucide.ArrowRight, 'arrow.right')
-export const ArrowUp = icon(Lucide.ArrowUp, 'arrow.up')
-export const Bold = icon(Lucide.Bold, 'bold')
-export const Book = icon(Lucide.Book, 'book')
-export const BookOpen = icon(Lucide.BookOpen, 'book.pages')
-export const Briefcase = icon(Lucide.Briefcase, 'briefcase')
-export const Calendar = icon(Lucide.Calendar, 'calendar')
-export const CalendarDays = icon(Lucide.CalendarDays, 'calendar')
-export const Camera = icon(Lucide.Camera, 'camera')
-export const Check = icon(Lucide.Check, 'checkmark')
-export const ChevronDown = icon(Lucide.ChevronDown, 'chevron.down')
-export const ChevronRight = icon(Lucide.ChevronRight, 'chevron.right')
-export const Code = icon(Lucide.Code, 'chevron.left.forwardslash.chevron.right')
-export const Code2 = icon(Lucide.Code2, 'chevron.left.forwardslash.chevron.right')
-export const Coffee = icon(Lucide.Coffee, 'cup.and.saucer')
-export const Copy = icon(Lucide.Copy, 'doc.on.doc')
-export const Dumbbell = icon(Lucide.Dumbbell, 'dumbbell')
-export const ExternalLink = icon(Lucide.ExternalLink, 'arrow.up.right.square')
-export const Feather = icon(Lucide.Feather, 'pencil.tip')
-export const FilePlus2 = icon(Lucide.FilePlus2, 'square.and.pencil')
-export const FileText = icon(Lucide.FileText, 'doc.text')
-export const Files = icon(Lucide.Files, 'doc.on.doc')
-export const Flag = icon(Lucide.Flag, 'flag')
-export const Folder = icon(Lucide.Folder, 'folder')
-export const FolderInput = icon(Lucide.FolderInput, 'folder')
-export const FolderOpen = icon(Lucide.FolderOpen, 'folder')
-export const FolderPlus = icon(Lucide.FolderPlus, 'folder.badge.plus')
-export const Gamepad2 = icon(Lucide.Gamepad2, 'gamecontroller')
-export const Globe = icon(Lucide.Globe, 'globe')
-export const GraduationCap = icon(Lucide.GraduationCap, 'graduationcap')
-export const Heart = icon(Lucide.Heart, 'heart')
-export const Highlighter = icon(Lucide.Highlighter, 'highlighter')
-export const Home = icon(Lucide.Home, 'house')
-export const ImagePlus = icon(Lucide.ImagePlus, 'photo.badge.plus')
-export const Inbox = icon(Lucide.Inbox, 'tray')
-export const IndentDecrease = icon(Lucide.IndentDecrease, 'decrease.indent')
-export const IndentIncrease = icon(Lucide.IndentIncrease, 'increase.indent')
-export const Info = icon(Lucide.Info, 'info.circle')
-export const Italic = icon(Lucide.Italic, 'italic')
-export const Keyboard = icon(Lucide.Keyboard, 'keyboard')
-export const Lightbulb = icon(Lucide.Lightbulb, 'lightbulb')
-export const Link = icon(Lucide.Link, 'link')
-export const Link2 = icon(Lucide.Link2, 'link')
-export const List = icon(Lucide.List, 'list.bullet')
-export const ListOrdered = icon(Lucide.ListOrdered, 'list.number')
-export const ListTodo = icon(Lucide.ListTodo, 'checklist')
-export const LoaderCircle = icon(Lucide.LoaderCircle, 'arrow.triangle.2.circlepath')
-export const MapPin = icon(Lucide.MapPin, 'mappin')
-export const Maximize2 = icon(Lucide.Maximize2, 'arrow.up.left.and.arrow.down.right')
-export const Menu = icon(Lucide.Menu, 'line.3.horizontal')
-export const Minimize2 = icon(Lucide.Minimize2, 'arrow.down.right.and.arrow.up.left')
-export const Minus = icon(Lucide.Minus, 'minus')
-export const Moon = icon(Lucide.Moon, 'moon')
-export const MoreHorizontal = icon(Lucide.MoreHorizontal, 'ellipsis')
-export const MoreVertical = icon(Lucide.MoreVertical, 'ellipsis')
-export const Music = icon(Lucide.Music, 'music.note')
-export const Notebook = icon(Lucide.Notebook, 'book.closed')
-export const Palette = icon(Lucide.Palette, 'paintpalette')
-export const PanelLeft = icon(Lucide.PanelLeft, 'sidebar.left')
-export const PanelLeftClose = icon(Lucide.PanelLeftClose, 'sidebar.left')
-export const PanelsTopLeft = icon(Lucide.PanelsTopLeft, 'square.split.2x2')
-export const PenLine = icon(Lucide.PenLine, 'pencil.line')
-export const Pencil = icon(Lucide.Pencil, 'pencil')
-export const Pin = icon(Lucide.Pin, 'pin')
-export const PinOff = icon(Lucide.PinOff, 'pin.slash')
-export const Plane = icon(Lucide.Plane, 'airplane')
-export const Plus = icon(Lucide.Plus, 'plus')
-export const Quote = icon(Lucide.Quote, 'quote.opening')
-export const Redo2 = icon(Lucide.Redo2, 'arrow.uturn.forward')
-export const RefreshCw = icon(Lucide.RefreshCw, 'arrow.clockwise')
-export const RotateCcw = icon(Lucide.RotateCcw, 'arrow.counterclockwise')
-export const Search = icon(Lucide.Search, 'magnifyingglass')
-export const Settings2 = icon(Lucide.Settings2, 'slider.horizontal.3')
-export const ShoppingBag = icon(Lucide.ShoppingBag, 'bag')
-export const SquareCheck = icon(Lucide.SquareCheck, 'checkmark.square')
-export const SquarePen = icon(Lucide.SquarePen, 'square.and.pencil')
-export const Star = icon(Lucide.Star, 'star')
-export const StarOff = icon(Lucide.StarOff, 'star.slash')
-export const Strikethrough = icon(Lucide.Strikethrough, 'strikethrough')
-export const Subscript = icon(Lucide.Subscript, 'textformat.subscript')
-export const Sun = icon(Lucide.Sun, 'sun.max')
-export const Superscript = icon(Lucide.Superscript, 'textformat.superscript')
-export const Table2 = icon(Lucide.Table2, 'tablecells')
-export const Target = icon(Lucide.Target, 'scope')
-export const TextCursorInput = icon(Lucide.TextCursorInput, 'text.cursor')
-export const Trash2 = icon(Lucide.Trash2, 'trash')
-export const Type = icon(Lucide.Type, 'textformat')
-export const Underline = icon(Lucide.Underline, 'underline')
-export const Undo2 = icon(Lucide.Undo2, 'arrow.uturn.backward')
-export const Unlink2 = icon(Lucide.Unlink2, 'link')
-export const UserRound = icon(Lucide.UserRound, 'person.crop.circle')
-export const WrapText = icon(Lucide.WrapText, 'text.justify.left')
-export const X = icon(Lucide.X, 'xmark')
+export const ChevronLeft = icon(Lucide.ChevronLeft)
+export const ChevronsLeft = icon(Lucide.ChevronsLeft)
+export const ChevronsRight = icon(Lucide.ChevronsRight)
+export const Scan = icon(Lucide.Scan)
+export const MoveVertical = icon(Lucide.MoveVertical)
+export const MoveHorizontal = icon(Lucide.MoveHorizontal)

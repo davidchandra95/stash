@@ -22,12 +22,8 @@ const group = (
 export const shortcutCommands: ShortcutCommand[] = [
   ...group('Application', [
     ['new-note', 'New note', 'Create a note in the current location.', 'Mod+n'],
-    [
-      'search',
-      'Search all notes',
-      'Search titles, text, and tags across notebooks.',
-      'Mod+Shift+f',
-    ],
+    ['quick-open', 'Find notes', 'Find notes by title across notebooks.', 'Mod+p'],
+    ['search', 'Search note content', 'Search note bodies across notebooks.', 'Mod+Shift+f'],
     ['settings', 'Open Settings', 'Customize Stash.', 'Mod+,'],
   ]),
   ...group('Navigation', [
@@ -232,6 +228,12 @@ export function normalizeOverrides(value: unknown): ShortcutOverrides {
     const key = (value as ShortcutOverrides)[c.id]
     if (key === null || (typeof key === 'string' && supportedBinding.test(key))) result[c.id] = key
   }
+  // A newly added default must not take an existing customized shortcut away.
+  if (
+    !Object.hasOwn(result, 'quick-open') &&
+    Object.entries(result).some(([id, key]) => id !== 'quick-open' && key === 'Mod+p')
+  )
+    result['quick-open'] = null
   // Validate against the entire candidate map so swapped bindings stay valid.
   for (const [id, key] of Object.entries(result))
     if (key && bindingError(id, key, result)) result[id] = null

@@ -224,15 +224,15 @@ export default function Appearance({
       category: 'appearance',
       group: 'Motion',
       search:
-        'Enable animations Animate panels menus controls and the writing cursor Respects Reduce Motion on this device',
+        'Enable animations Animate panels menus controls scrolling and the writing cursor Respects Reduce Motion on this device',
       content: (
         <>
           <label className="setting-row">
             <span>
               Enable animations
               <small>
-                Animate panels, menus, controls, and the writing cursor. Respects Reduce Motion on
-                this device.
+                Animate panels, menus, controls, scrolling, and the writing cursor. Respects Reduce
+                Motion on this device.
               </small>
             </span>
             <input

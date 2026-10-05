@@ -12,11 +12,11 @@ import {
   pruneWorkspace,
   restoreWorkspace,
   workspacePreferences,
-  type Location,
+  type NoteLocation,
 } from './workspace'
 import type { Note } from './model'
 const notes = ['a', 'b', 'c', 'd'].map((id) => ({ id, trashed: false })) as Note[]
-const location = (noteId: string): Location => ({ noteId, view: 'all', query: '', scroll: 0 })
+const location = (noteId: string): NoteLocation => ({ noteId, view: 'all', query: '', scroll: 0 })
 it('reuses a tab, branches history, restores contexts, and keeps separate tab histories', () => {
   let state = restoreWorkspace(null, notes)
   const first = state.activeTabId!

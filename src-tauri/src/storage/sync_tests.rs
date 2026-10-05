@@ -215,7 +215,7 @@ fn version_five_upgrade_has_readable_backup() {
             .execute_batch(&format!("DROP TRIGGER {name}"))
             .unwrap();
     }
-    s.conn.execute_batch("DROP TABLE sync_dirty; DROP TABLE sync_state; DROP TABLE sync_versions; DROP TABLE sync_outbox; DROP TABLE sync_inbox; DROP TABLE sync_local_notebooks; DROP TABLE tag_body_migrations;").unwrap();
+    s.conn.execute_batch("DROP TABLE sync_dirty; DROP TABLE sync_state; DROP TABLE sync_versions; DROP TABLE sync_outbox; DROP TABLE sync_inbox; DROP TABLE sync_local_notebooks; DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations;").unwrap();
     drop(s);
     let s = Store::open(dir.path()).unwrap();
     assert_eq!(s.sync_status().unwrap().pending, 0);

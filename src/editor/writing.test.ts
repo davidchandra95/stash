@@ -4,6 +4,8 @@ import { Editor } from '@tiptap/core'
 import { writingExtensions } from './extensions'
 import { getEditor, clearSessions } from './session'
 import { runCommand } from './commands'
+import { NodeSelection } from '@tiptap/pm/state'
+import { platform } from '../platform'
 const editors: Editor[] = []
 Element.prototype.scrollIntoView = vi.fn()
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList
@@ -33,7 +35,88 @@ afterEach(() => {
   clearSessions()
 })
 describe('writing contracts', () => {
-  it('marks selected bullet and number markers without changing copied list text', () => {
+  it('paints multiline text selection with inline-only view decorations', () => {
+    const e = make('<p>short</p><p>longer <strong>formatted</strong> line</p><p>last</p>')
+    const positions = new Map<string, number>()
+    e.state.doc.descendants((node, pos) => {
+      if (node.isText) positions.set(node.text!, pos)
+    })
+    const before = e.getJSON()
+
+    e.commands.setTextSelection({
+      from: positions.get('short')! + 2,
+      to: positions.get('last')! + 4,
+    })
+
+    const highlights = [...e.view.dom.querySelectorAll('.selection-highlight')]
+    expect(e.view.dom.dataset.selectionHighlight).toBe('true')
+    expect(highlights.map((element) => element.textContent)).toEqual([
+      'ort',
+      'longer ',
+      'formatted',
+      ' line',
+      'last',
+    ])
+    expect(highlights.every((element) => element.tagName === 'SPAN')).toBe(true)
+    expect(e.view.dom.querySelector('p.selection-highlight')).toBeNull()
+    expect(
+      e.view
+        .serializeForClipboard(e.state.selection.content())
+        .dom.querySelector('.selection-highlight'),
+    ).toBeNull()
+    expect(e.getJSON()).toEqual(before)
+
+    e.commands.setTextSelection({
+      from: positions.get('last')! + 4,
+      to: positions.get('short')! + 2,
+    })
+    expect(
+      [...e.view.dom.querySelectorAll('.selection-highlight')].map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(['ort', 'longer ', 'formatted', ' line', 'last'])
+
+    e.commands.setTextSelection(positions.get('short')!)
+    expect(e.view.dom.dataset.selectionHighlight).toBeUndefined()
+    expect(e.view.dom.querySelector('.selection-highlight')).toBeNull()
+
+    e.commands.selectAll()
+    expect(e.view.dom.dataset.selectionHighlight).toBe('true')
+    expect(e.view.dom.querySelectorAll('.selection-highlight')).toHaveLength(5)
+
+    e.commands.insertContent('replacement')
+    expect(e.getText()).toBe('replacement')
+    expect(e.commands.undo()).toBe(true)
+    expect(e.getJSON()).toEqual(before)
+  })
+
+  it('keeps node selections and mobile text selections native', () => {
+    const e = make('<p>before</p><hr><p>after</p>')
+    let rulePosition: number | undefined
+    e.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'horizontalRule') rulePosition = pos
+    })
+    expect(rulePosition).toBeDefined()
+    e.view.dispatch(e.state.tr.setSelection(NodeSelection.create(e.state.doc, rulePosition!)))
+    expect(e.view.dom.dataset.selectionHighlight).toBeUndefined()
+    expect(e.view.dom.querySelector('.selection-highlight')).toBeNull()
+
+    const wasMobile = platform.mobile
+    try {
+      platform.mobile = true
+      const mobile = getEditor('mobile-selection', {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'mobile text' }] }],
+      })
+      mobile.commands.setTextSelection({ from: 1, to: 7 })
+      expect(mobile.view.dom.dataset.selectionHighlight).toBeUndefined()
+      expect(mobile.view.dom.querySelector('.selection-highlight')).toBeNull()
+    } finally {
+      platform.mobile = wasMobile
+    }
+  })
+
+  it('selects list text without highlighting markers or changing copied list text', () => {
     const e = make(
       '<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li><li><p>four</p></li><li data-kind="number"><p>five</p></li><li data-kind="task"><p>six</p></li></ul>',
     )
@@ -51,7 +134,8 @@ describe('writing contracts', () => {
       from: textPositions.get('one')!,
       to: textPositions.get('four')! + 4,
     })
-    expect(selected()).toEqual(['one', 'two', 'three', 'four'])
+    expect(selected()).toEqual([])
+    expect(e.view.dom.querySelector('.selection-highlight')?.textContent).toBe('one')
     expect(e.view.serializeForClipboard(e.state.selection.content()).text).toBe(
       '- one\n- two\n- three\n- four',
     )
@@ -60,7 +144,8 @@ describe('writing contracts', () => {
       from: textPositions.get('five')! + 1,
       to: textPositions.get('five')! + 3,
     })
-    expect(selected()).toEqual(['five'])
+    expect(selected()).toEqual([])
+    expect(e.view.dom.querySelector('.selection-highlight')?.textContent).toBe('iv')
     e.commands.setTextSelection({
       from: textPositions.get('six')!,
       to: textPositions.get('six')! + 2,

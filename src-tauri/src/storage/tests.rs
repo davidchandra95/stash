@@ -126,7 +126,7 @@ fn version_seven_moves_ordinary_legacy_tags_into_the_document_once() {
         .unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
+        .execute_batch("DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
         .unwrap();
     drop(store);
 
@@ -559,9 +559,13 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
     prefs.expected_revision = 1;
     prefs.operation_id = "tabs".into();
     prefs.workspace = Some(WorkspacePreferences {
+            pdf_notes: Default::default(),
+        recent_note_ids: vec![],
         pane_widths: None,
         note_lists: Default::default(),
         tabs: vec![WorkspaceTab {
+            kind: "note".into(),
+            document_id: None,
             id: "tab-a".into(),
             note_id: "a".into(),
             preview: Some(true),
@@ -582,7 +586,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        7
+        9
     );
 }
 
@@ -592,6 +596,8 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+            pdf_notes: Default::default(),
+        recent_note_ids: vec![],
         pane_widths: None,
         note_lists: Default::default(),
         tabs: vec![],
@@ -618,11 +624,15 @@ fn workspace_rejects_multiple_preview_tabs() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+            pdf_notes: Default::default(),
+        recent_note_ids: vec![],
         pane_widths: None,
         note_lists: Default::default(),
         tabs: ["a", "b"]
             .into_iter()
             .map(|id| WorkspaceTab {
+            kind: "note".into(),
+            document_id: None,
                 id: id.into(),
                 note_id: id.into(),
                 preview: Some(true),
@@ -984,7 +994,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                7
+                9
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))
@@ -1060,4 +1070,39 @@ fn invalid_workspace_pane_widths_are_rejected() {
         store.save_preferences(&prefs).unwrap_err(),
         "Invalid workspace pane widths."
     );
+}
+
+
+#[test]
+fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
+    let legacy: WorkspacePreferences = serde_json::from_value(json!({"tabs": [], "activeTabId": null})).unwrap();
+    assert!(legacy.recent_note_ids.is_empty());
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_note(&note("a")).unwrap();
+    let before = store.note("a", true).unwrap();
+    let mut prefs = preferences();
+    prefs.workspace = Some(WorkspacePreferences {
+            pdf_notes: Default::default(),
+        recent_note_ids: vec!["a".into(), "b".into()],
+        pane_widths: None,
+        note_lists: Default::default(),
+        tabs: vec![],
+        active_tab_id: None,
+    });
+    store.save_preferences(&prefs).unwrap();
+    drop(store);
+    let mut store = Store::open(dir.path()).unwrap();
+    assert_eq!(store.library().unwrap().workspace.unwrap().recent_note_ids, vec!["a", "b"]);
+    let after = store.note("a", true).unwrap();
+    assert_eq!(after.content, before.content);
+    assert_eq!(after.updated, before.updated);
+    assert_eq!(after.revision, before.revision);
+    prefs.expected_revision = 1;
+    prefs.operation_id = "bad-recent".into();
+    prefs.workspace.as_mut().unwrap().recent_note_ids = vec!["a".into(), "a".into()];
+    assert!(store.save_preferences(&prefs).is_err());
+    prefs.workspace.as_mut().unwrap().recent_note_ids = (0..51).map(|i| i.to_string()).collect();
+    assert!(store.save_preferences(&prefs).is_err());
+    assert_eq!(store.library().unwrap().workspace.unwrap().recent_note_ids, vec!["a", "b"]);
 }

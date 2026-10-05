@@ -560,11 +560,11 @@ html[data-platform='mobile'] #root {
   flex: 1;
   padding: 10px;
 }
-.mobile-app .note-find-bar > span {
+.mobile-app .note-find-bar [role='status'] {
   font-size: 11px;
 }
 .mobile-app .note-find-bar .icon-button {
-  min-width: 40px;
+  min-width: var(--ui-target);
 }
 .mobile-app .note-outline {
   position: absolute;

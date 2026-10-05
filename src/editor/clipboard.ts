@@ -1,3 +1,4 @@
+import { isPdfLink, parsePdfCitation } from '../pdf/citations'
 import { validNoteId } from './noteReferences'
 import { canReadClipboard, pastePlain, insertLiteral } from './plainPaste'
 import { insertPastedContent } from './pasteContent'
@@ -8,11 +9,30 @@ import { Plugin } from '@tiptap/pm/state'
 import { DOMSerializer } from '@tiptap/pm/model'
 import { ClipboardSerializer, clipboardText } from './copy'
 import { closeHistory } from '@tiptap/pm/history'
+import { copyDrawings, pasteDrawings } from '../drawing/clipboard'
 export function safeHTML(html: string) {
-  return DOMPurify.sanitize(html, {
+  // Preserve only validated PDF targets; all other URLs keep DOMPurify's default policy.
+  const template = document.createElement('template')
+  template.innerHTML = html
+  const links = new Map<string, string>()
+  for (const anchor of template.content.querySelectorAll('a[href]')) {
+    const href = anchor.getAttribute('href')!
+    if (parsePdfCitation(href)) {
+      const key = `https://pdf-citation.invalid/${crypto.randomUUID()}`
+      links.set(key, href)
+      anchor.setAttribute('href', key)
+    } else if (isPdfLink(href)) anchor.removeAttribute('href')
+  }
+  const clean = DOMPurify.sanitize(template.innerHTML, {
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'style', 'form'],
     FORBID_ATTR: ['srcset'],
   })
+  template.innerHTML = clean
+  for (const anchor of template.content.querySelectorAll('a[href]')) {
+    const href = links.get(anchor.getAttribute('href')!)
+    if (href) anchor.setAttribute('href', href)
+  }
+  return template.innerHTML
 }
 export function markdownHTML(text: string) {
   return safeHTML(marked.parse(text, { async: false, breaks: false }) as string)
@@ -28,6 +48,10 @@ export const Clipboard = Extension.create({
     return [
       new Plugin({
         props: {
+          handleDOMEvents: {
+            copy: (_view, event) => copyDrawings(editor, event, false),
+            cut: (_view, event) => copyDrawings(editor, event, true),
+          },
           clipboardSerializer: new ClipboardSerializer(serializer.nodes, serializer.marks),
           clipboardTextSerializer: () => clipboardText(editor),
           handleKeyDown: (_view, event) => {
@@ -56,6 +80,8 @@ export const Clipboard = Extension.create({
             view.dispatch(closeHistory(view.state.tr))
             if (literal) {
               insertLiteral(editor, text)
+            } else if (pasteDrawings(editor, data)) {
+              // The private format preserves editable drawings; external HTML is a preview.
             } else if (
               /^upnote2:\/\/note\/[a-zA-Z0-9_-]{1,128}$/.test(text.trim()) &&
               validNoteId(text.trim().slice('upnote2://note/'.length))

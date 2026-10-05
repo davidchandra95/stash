@@ -44,6 +44,7 @@ export function usePaneResize({
   appRef,
   savedWidths,
   sidebarVisible,
+  noteListVisible,
   contentsOpen,
   contentsWidth,
   disabled,
@@ -52,6 +53,7 @@ export function usePaneResize({
   appRef: RefObject<HTMLElement | null>
   savedWidths: PaneWidths | undefined
   sidebarVisible: boolean
+  noteListVisible: boolean
   contentsOpen: boolean
   contentsWidth?: number
   disabled: boolean
@@ -64,8 +66,22 @@ export function usePaneResize({
   const [measurements, setMeasurements] = useState<Measurements>(emptyMeasurements)
   const [resizing, setResizing] = useState(false)
   const session = useRef<ResizeSession | null>(null)
-  const latest = useRef({ sidebarVisible, contentsOpen, contentsWidth, disabled, onCommit })
-  latest.current = { sidebarVisible, contentsOpen, contentsWidth, disabled, onCommit }
+  const latest = useRef({
+    sidebarVisible,
+    noteListVisible,
+    contentsOpen,
+    contentsWidth,
+    disabled,
+    onCommit,
+  })
+  latest.current = {
+    sidebarVisible,
+    noteListVisible,
+    contentsOpen,
+    contentsWidth,
+    disabled,
+    onCommit,
+  }
   const savedKey = savedWidths ? `${savedWidths.sidebar}:${savedWidths.noteList}` : ''
 
   const updatePreferred = (next: PaneWidths | undefined) => {
@@ -84,7 +100,15 @@ export function usePaneResize({
       sidebar: width(app?.querySelector<HTMLElement>(':scope > .sidebar') ?? null),
       noteList: width(app?.querySelector<HTMLElement>(':scope > .note-list') ?? null),
     }
-    setMeasurements((current) => (sameMeasurements(current, next) ? current : next))
+    setMeasurements((current) => {
+      // Hidden tracks measure zero, but their last width remains the restore target.
+      const measured = {
+        ...next,
+        sidebar: next.sidebar || current.sidebar,
+        noteList: next.noteList || current.noteList,
+      }
+      return sameMeasurements(current, measured) ? current : measured
+    })
   }
 
   useLayoutEffect(() => {
@@ -103,6 +127,7 @@ export function usePaneResize({
   const contextFor = (widths: PaneWidths): PaneLayoutContext => ({
     appWidth: measurements.app || width(appRef.current),
     sidebarVisible: latest.current.sidebarVisible,
+    noteListVisible: latest.current.noteListVisible,
     contentsOpen: latest.current.contentsOpen,
     contentsWidth: latest.current.contentsWidth,
     sidebarWidth: widths.sidebar,
@@ -110,13 +135,20 @@ export function usePaneResize({
   })
 
   const visibleWidths = () => {
+    const app = appRef.current
+    const defaults = app ? getComputedStyle(app) : undefined
+    // Grid targets include card margins and survive a collapsed zero-width track.
     const measured: PaneWidths = {
       sidebar:
+        Number.parseFloat(defaults?.getPropertyValue('--sidebar-width') ?? '') ||
         measurements.sidebar ||
-        width(appRef.current?.querySelector<HTMLElement>(':scope > .sidebar') ?? null),
+        width(app?.querySelector<HTMLElement>(':scope > .sidebar') ?? null) ||
+        208,
       noteList:
+        Number.parseFloat(defaults?.getPropertyValue('--list-width') ?? '') ||
         measurements.noteList ||
-        width(appRef.current?.querySelector<HTMLElement>(':scope > .note-list') ?? null),
+        width(app?.querySelector<HTMLElement>(':scope > .note-list') ?? null) ||
+        272,
     }
     if (!preferredRef.current) return measured
     return effectivePaneWidths(preferredRef.current, contextFor(preferredRef.current))
@@ -176,7 +208,7 @@ export function usePaneResize({
     const step = event.shiftKey ? 32 : 8
     const direction = event.key === 'ArrowLeft' ? -1 : 1
     const next = {
-      ...visible,
+      ...(preferredRef.current ?? visible),
       [pane]: clamp(visible[pane] + direction * step, boundsFor(visible)[pane]),
     }
     updatePreferred(next)

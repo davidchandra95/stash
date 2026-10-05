@@ -69,8 +69,8 @@ export const slashExtraCommands: WritingCommand[] = [
       c.insertTable({ rows: i + 2, cols: i + 2, withHeaderRow: false }),
   })),
   ...Array.from({ length: 9 }, (_, i) => ({
-    id: `date-${i}`,
-    label: `Date format ${i + 1}`,
+    id: `today-${i}`,
+    label: `Today format ${i + 1}`,
     run: (c: Parameters<WritingCommand['run']>[0]) => c.insertContent(dateFormats()[i]),
   })),
   {

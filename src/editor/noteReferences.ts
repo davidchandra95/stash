@@ -1,4 +1,5 @@
 import { hideMenu } from '../motion'
+import { attachDomTooltip } from '../components/AppTooltip'
 import { Node, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state'
 import { closeHistory } from '@tiptap/pm/history'
@@ -108,6 +109,7 @@ export const NoteReference = Node.create({
     return ({ node, editor }) => {
       let current = node
       const dom = document.createElement('span')
+      const tooltip = attachDomTooltip(dom)
       dom.className = 'note-reference'
       dom.contentEditable = 'false'
       dom.setAttribute('role', 'link')
@@ -117,7 +119,7 @@ export const NoteReference = Node.create({
         dom.textContent = title
         dom.dataset.noteId = current.attrs.noteId
         dom.setAttribute('aria-label', `Open note: ${title}`)
-        dom.title = `Open note: ${title}`
+        tooltip.update(`Open note: ${title}`)
       }
       const open = (newTab = false) => {
         const context = contexts.get(editor)
@@ -157,7 +159,10 @@ export const NoteReference = Node.create({
           refresh()
           return true
         },
-        destroy: () => listeners.delete(refresh),
+        destroy: () => {
+          listeners.delete(refresh)
+          tooltip.destroy()
+        },
       }
     }
   },

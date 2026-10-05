@@ -4,8 +4,10 @@ import { writingExtensions } from './extensions'
 import { markdownExtensions } from './markdown'
 // One live document per note, kept in memory until reload. Remounting EditorContent
 // changes its DOM host, not its document, selection, stored marks, or undo stack.
+export const noteScrollPositions = new Map<string, number>()
 const callbacks = new Map<string, (content: JSONContent, text: string) => void>()
 const sessions = new Map<string, Editor>()
+const mobileExcludedExtensions = new Set(['writingCursorLayer', 'selectionHighlight'])
 export function getEditor(
   id: string,
   content: JSONContent,
@@ -17,7 +19,7 @@ export function getEditor(
   if (!editor || editor.isDestroyed) {
     editor = new Editor({
       extensions: (markdown ? markdownExtensions : writingExtensions).filter(
-        (extension) => !platform.mobile || extension.name !== 'writingCursorLayer',
+        (extension) => !platform.mobile || !mobileExcludedExtensions.has(extension.name),
       ),
       coreExtensionOptions: { clipboardTextSerializer: { blockSeparator: '\n' } },
       content,
@@ -34,6 +36,7 @@ export function resetSession(id: string) {
   callbacks.delete(id)
 }
 export function clearSessions() {
+  noteScrollPositions.clear()
   sessions.forEach((editor) => editor.destroy())
   sessions.clear()
   callbacks.clear()

@@ -1,3 +1,4 @@
+import AppTooltip from './AppTooltip'
 import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { FolderOpen, X } from '../icons'
@@ -209,17 +210,17 @@ export default function NotebookDialog({
               <legend>Icon</legend>
               <div className="notebook-icon-options">
                 {notebookIconOptions.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`notebook-icon-option ${icon === id ? 'selected' : ''}`}
-                    aria-label={label}
-                    aria-pressed={icon === id}
-                    title={label}
-                    onClick={() => setIcon(id)}
-                  >
-                    <Icon size={18} aria-hidden="true" />
-                  </button>
+                  <AppTooltip instant label={label} disabled={busy} key={id}>
+                    <button
+                      type="button"
+                      className={`notebook-icon-option ${icon === id ? 'selected' : ''}`}
+                      aria-label={label}
+                      aria-pressed={icon === id}
+                      onClick={() => setIcon(id)}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
                 ))}
               </div>
             </fieldset>
@@ -252,7 +253,9 @@ export default function NotebookDialog({
                   <>
                     <div className="folder-path">
                       <FolderOpen size={18} />
-                      <span title={path}>{path}</span>
+                      <AppTooltip label={path}>
+                        <span>{path}</span>
+                      </AppTooltip>
                       <button
                         type="button"
                         className="icon-button"

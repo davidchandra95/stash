@@ -41,7 +41,10 @@ it('opens links across filters, restores source selection and scroll, and explai
     notebookIds: [],
     quickAccess: false,
     pinned: false,
-    content: { type: 'doc', content: [{ type: 'paragraph' }] },
+    content: {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Target' }] }],
+    },
   }
   library.setNotebooks([{ id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' }])
   library.setNotes([source, target])
@@ -73,14 +76,20 @@ it('opens links across filters, restores source selection and scroll, and explai
     await act(async () => host.querySelector<HTMLElement>('.note-reference')!.click())
     expect(selectedSection()).toBe('Work')
     expect(title()).toBe('Target')
-    await act(async () => button('Search all notes').click())
-    const search = document.querySelector<HTMLInputElement>('input[aria-label="Search all notes"]')!
+    await act(async () => button('Search note content').click())
+    const search = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search note content"]',
+    )!
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'Target')
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        search,
+        'Target',
+      )
       search.dispatchEvent(new Event('input', { bubbles: true }))
     })
     const targetResult = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
-      (result) => result.querySelector('strong')?.textContent === 'Target',
+      (result) =>
+        result.closest('.content-search-group')?.querySelector('strong')?.textContent === 'Target',
     )!
     await act(async () => targetResult.click())
     expect(selectedSection()).toBe('Work')

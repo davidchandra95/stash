@@ -1,4 +1,5 @@
 import { Extension, Node, getSchema, type JSONContent, type MarkdownToken } from '@tiptap/core'
+import { attachDomTooltip } from '../components/AppTooltip'
 import { MarkdownManager } from '@tiptap/markdown'
 import { Marked, type Token } from 'marked'
 import { ShortcutStarterKit as StarterKit } from './shortcuts'
@@ -11,7 +12,9 @@ import { Plugin } from '@tiptap/pm/state'
 import { writingExtensions } from './extensions'
 import { MixedList, MixedListItem } from './mixedLists'
 import { markdownContexts } from './markdownContext'
-import { NoteReference } from './noteReferences'
+import { NoteReference, referenceTitle } from './noteReferences'
+import { findKey } from './noteTools'
+import { documentMatches, literalMatches } from './searchText'
 
 const RawMarkdown = Node.create({
   name: 'rawMarkdown',
@@ -26,6 +29,54 @@ const RawMarkdown = Node.create({
     String(node.attrs.source),
   ],
   renderMarkdown: (node) => String(node.attrs?.source ?? ''),
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      let current = node,
+        last = ''
+      const dom = document.createElement('pre')
+      dom.className = 'markdown-source-block'
+      dom.contentEditable = 'false'
+      const refresh = () => {
+        const state = findKey.getState(editor.state)
+        const source = String(current.attrs.source ?? ''),
+          query = state?.query ?? ''
+        const key = JSON.stringify([source, query, state?.active, getPos()])
+        if (key === last) return
+        last = key
+        dom.dataset.label = current.attrs.label
+        dom.replaceChildren()
+        const selected =
+          state &&
+          documentMatches(editor.state.doc, query, (id, fallback) =>
+            referenceTitle(editor, id, fallback),
+          )[state.active]
+        let offset = 0
+        for (const match of literalMatches(source, query)) {
+          dom.append(document.createTextNode(source.slice(offset, match.from)))
+          const mark = document.createElement('mark')
+          mark.className = `note-find-match ${selected && selected.from === getPos() && selected.offset === match.from ? 'current-match' : ''}`
+          mark.dataset.searchOffset = String(match.from)
+          mark.textContent = source.slice(match.from, match.to)
+          dom.append(mark)
+          offset = match.to
+        }
+        dom.append(document.createTextNode(source.slice(offset)))
+      }
+      editor.on('transaction', refresh)
+      refresh()
+      return {
+        dom,
+        update(next) {
+          if (next.type !== current.type) return false
+          current = next
+          refresh()
+          return true
+        },
+        ignoreMutation: () => true,
+        destroy: () => editor.off('transaction', refresh),
+      }
+    }
+  },
 })
 const SourceAttributes = Extension.create({
   name: 'markdownSource',
@@ -161,12 +212,15 @@ const MarkdownImage = Image.configure({ inline: true, allowBase64: true }).exten
   addNodeView() {
     return ({ node, editor }) => {
       const img = document.createElement('img')
+      let tooltip: ReturnType<typeof attachDomTooltip> | undefined
       let alive = true
       let version = 0
       const update = (next: typeof node) => {
         if (next.type.name !== 'image') return false
         node = next
         const current = ++version
+        tooltip?.destroy()
+        tooltip = undefined
         const src = String(node.attrs.src ?? '')
         img.alt = String(node.attrs.alt ?? '')
         if (/^(https?:|data:|blob:)/i.test(src)) img.src = src
@@ -181,7 +235,10 @@ const MarkdownImage = Image.configure({ inline: true, allowBase64: true }).exten
                 if (alive && version === current) img.src = url
               })
               .catch((error) => {
-                if (alive) img.title = String(error)
+                if (alive && version === current) {
+                  tooltip = attachDomTooltip(img)
+                  tooltip.update(String(error))
+                }
               })
           })
         }
@@ -193,6 +250,7 @@ const MarkdownImage = Image.configure({ inline: true, allowBase64: true }).exten
         update,
         destroy: () => {
           alive = false
+          tooltip?.destroy()
         },
       }
     }
@@ -249,6 +307,7 @@ const MarkdownReference = NoteReference.extend({
     `[${String(node.attrs?.fallbackTitle ?? 'Note').replace(/[[\]\\]/g, '\\$&')}](upnote2://note/${node.attrs?.noteId})`,
 })
 const excluded = new Set([
+  'drawing',
   'starterKit',
   'tableKit',
   'writingClipboard',

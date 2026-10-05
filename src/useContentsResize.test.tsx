@@ -21,22 +21,41 @@ function pointer(target: HTMLElement, type: string, x: number) {
   target.dispatchEvent(event)
 }
 
-function Fixture({ savedWidth = 300 }: { savedWidth?: number }) {
+function Fixture({
+  savedWidth = 300,
+  side = 'right',
+  reserveWidth,
+  onEscape,
+}: {
+  savedWidth?: number
+  side?: 'left' | 'right'
+  reserveWidth?: (width: number) => number
+  onEscape?: () => void
+}) {
   const workspaceRef = useRef<HTMLDivElement>(null)
   const resize = useContentsResize({
     workspaceRef,
     savedWidth,
     disabled: false,
     onCommit: commit,
+    side,
+    reserveWidth,
   })
   return (
-    <div ref={workspaceRef} className="editor-workspace" style={resize.cssVariables}>
+    <div
+      ref={workspaceRef}
+      className="editor-workspace"
+      style={resize.cssVariables}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onEscape?.()
+      }}
+    >
       <div {...resize.dividerProps} />
     </div>
   )
 }
 
-async function mount() {
+async function mount(props: Parameters<typeof Fixture>[0] = {}) {
   HTMLElement.prototype.getBoundingClientRect = function () {
     const width = this.classList.contains('editor-workspace') ? 800 : 0
     return { width, height: 500 } as DOMRect
@@ -44,7 +63,7 @@ async function mount() {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(<Fixture />))
+  await act(async () => root!.render(<Fixture {...props} />))
   return host.querySelector<HTMLElement>('.contents-resizer')!
 }
 
@@ -82,4 +101,39 @@ it('supports keyboard resizing and cancels a drag with Escape', async () => {
   })
   expect(handle.parentElement?.style.getPropertyValue('--contents-width')).toBe('308px')
   expect(commit).toHaveBeenCalledTimes(1)
+})
+
+it('widens left contents when dragging or pressing Right and cancels before bubbling Escape', async () => {
+  const escaped = vi.fn()
+  const handle = await mount({ side: 'left', onEscape: escaped })
+  await act(async () => {
+    pointer(handle, 'pointerdown', 300)
+    pointer(handle, 'pointermove', 360)
+    pointer(handle, 'pointerup', 360)
+  })
+  expect(commit).toHaveBeenCalledWith(360)
+  expect(document.activeElement).toBe(handle)
+  await act(async () => {
+    handle.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }),
+    )
+  })
+  expect(commit).toHaveBeenLastCalledWith(392)
+  await act(async () => {
+    pointer(handle, 'pointerdown', 392)
+    pointer(handle, 'pointermove', 480)
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  expect(handle.getAttribute('aria-valuenow')).toBe('392')
+  expect(escaped).not.toHaveBeenCalled()
+  expect(commit).toHaveBeenCalledTimes(2)
+})
+
+it('leaves room for other docked panels without saving a temporary clamp', async () => {
+  const handle = await mount({ side: 'left', savedWidth: 400, reserveWidth: () => 320 })
+  expect(handle.getAttribute('aria-valuenow')).toBe('200')
+  expect(handle.getAttribute('aria-valuemax')).toBe('200')
+  expect(commit).not.toHaveBeenCalled()
+  await act(async () => root!.render(<Fixture side="left" savedWidth={400} />))
+  expect(handle.getAttribute('aria-valuenow')).toBe('400')
 })

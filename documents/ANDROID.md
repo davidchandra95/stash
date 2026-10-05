@@ -13,7 +13,7 @@ export NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 npm install
 npm run android:init
-npm run tauri -- icon src-tauri/app-icon.svg
+npm run tauri -- icon assets/new-logo-icon.png
 ```
 
 `android:init` uses Tauri to generate `src-tauri/gen/android` and install the Android Rust targets. Do not edit generated Kotlin or Gradle files. App-specific Android code lives in `src-tauri/plugins/stash-platform`. Its Gradle build locates the certificate verifier AAR using Cargo metadata, so it stays matched to Cargo.lock.

@@ -1,5 +1,25 @@
 # Offline storage
 
+## Editable drawings
+
+Ordinary notes can contain Excalidraw drawing blocks. Each block stores its own ID, format version, scene elements, canvas background/grid settings, embedded image files, content revision, and a cached PNG preview with its source revision. Scenes use the existing note JSON, SQLite transaction, retry, and save-before-quit paths. No database migration is needed. Drawing insertion/deletion participates in note undo; edits inside an open canvas use Excalidraw's own undo history, which does not survive closing the canvas.
+
+Scene changes enter the save queue synchronously. Preview rendering is separate, throttled, and limited to a 1,600-pixel long edge. Late results apply only to the matching block and scene revision. Flush participants finish previews before the save queue drains; a narrowly scoped cache update can finish during sync/quit while user editing is frozen. Preview failure retains the scene and shows a placeholder instead of an outdated image. Saved is still shown only after the storage queue succeeds. Browser preview remains session-only.
+
+Malformed and unknown drawing versions remain in the document unchanged and display an error placeholder. Older clients reject unknown drawing nodes when opening the note. Keep all editing clients updated before using drawings. Ordinary note duplication and internal rich clipboard paste copy scene data with fresh block IDs. External HTML and linked-Markdown paste receive a preview image; plain-text paste receives a drawing label. A private clipboard MIME type carries the scene. If a WebView strips that type, an opaque HTML token can recover the most recent copy within the same running Stash session, without embedding scene data in external HTML. Linked-folder conversion refuses editable drawings.
+
+The first version supports desktop editing and Android viewing. Raster images (PNG, JPEG, GIF, WebP) can be embedded in a scene. Drawing files, online libraries, collaboration, external embeds, and searching text inside drawings are outside this version. Fonts ship locally and Excalidraw loads only when opening the desktop canvas. Dependency overrides pin patched transitive dependencies required by the stable Excalidraw package.
+
+Run `npx vitest run src/drawing`, `npx playwright test --config playwright.drawing.config.ts`, and the Rust storage tests for focused verification. The browser test blocks external requests and covers canvas editing, preview export, Escape handling, and portrait/landscape mobile viewing.
+
+October 4, 2026 drawing verification:
+
+- All 19 focused drawing tests pass, including stale preview completion, save failure/retry, quit flushing, deletion undo, duplication, clipboard event routing, malformed data preservation, and Markdown rejection. The final full frontend run passed 540 of 541 tests; the existing Account menu keyboard-focus test failed. An earlier run also exposed the existing header-actions focus test failing intermittently. Neither unrelated focus behavior was changed.
+- Both browser tests pass. They cover actual canvas editing with an embedded PNG, local-only requests, theme/palette and app-style combinations at 900px and 1,280px desktop widths, keyboard focus/Escape, and portrait/landscape mobile previews. Android behavior was checked in the mobile browser preview, not on an Android device.
+- The production frontend build and isolated macOS debug app build pass. The Rust suite passed 79 tests, with its two existing ignored entries. PostgreSQL-backed server tests, including drawing sync/conflict-copy round trips, pass with the race detector; `go vet ./...` also passes.
+- The isolated native app uses `local.upnote2.drawing-review`. Native checks confirmed insertion, editable copy/paste with a fresh block ID, Enter to reopen, and immediate edit-then-Cmd+Q recovery. After restart, the canvas and SQLite retained both shapes with a matching preview revision. The normal installed Stash app and its library were not replaced.
+- Vite still reports large chunks, including the lazy Excalidraw canvas bundle. The dependency audit retains the pre-existing low-severity DOMPurify advisory; no new moderate/high advisories remain from this integration.
+
 Implemented September 9, 2026. This replaces the native app's session-only prototype storage. The browser preview remains temporary and does not access the Mac library.
 
 ## Storage and ownership
