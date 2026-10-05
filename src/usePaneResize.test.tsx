@@ -43,7 +43,6 @@ function Fixture({
     savedWidths,
     sidebarVisible: true,
     noteListVisible,
-    contentsOpen: false,
     disabled: false,
     onCommit: commits,
   })

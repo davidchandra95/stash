@@ -45,7 +45,11 @@ async function mount() {
   library.setAppearance({ ...defaultAppearance, animationsEnabled: false })
   library.setNotebooks(books)
   library.setNotes([note])
-  library.setWorkspace({ tabs: [{ id: 'tab', noteId: note.id }], activeTabId: 'tab' })
+  library.setWorkspace({
+    tabs: [{ id: 'tab', noteId: note.id }],
+    activeTabId: 'tab',
+    sidebarView: 'all',
+  })
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)

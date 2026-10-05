@@ -8,15 +8,12 @@ export type PaneKind = keyof PaneWidths
 export const sidebarMinimumWidth = 144
 export const noteListMinimumWidth = 200
 export const writingMinimumWidth = 360
-export const writingWithContentsMinimumWidth = 540
 export const maximumStoredPaneWidth = 1200
 
 export type PaneLayoutContext = {
   appWidth: number
   sidebarVisible: boolean
   noteListVisible: boolean
-  contentsOpen: boolean
-  contentsWidth?: number
   sidebarWidth: number
   noteListWidth: number
 }
@@ -51,24 +48,19 @@ export function paneBounds({
   appWidth,
   sidebarVisible,
   noteListVisible,
-  contentsOpen,
-  contentsWidth,
   sidebarWidth,
   noteListWidth,
 }: PaneLayoutContext): PaneBounds {
-  const writingMinimum = contentsOpen
-    ? writingWithContentsMinimumWidth + (contentsWidth ?? 260) - 260
-    : writingMinimumWidth
   const sidebarSpace = sidebarVisible ? sidebarWidth : 0
   const noteListSpace = noteListVisible ? noteListWidth : 0
   return {
     sidebar: {
       min: sidebarMinimumWidth,
-      max: Math.max(sidebarMinimumWidth, appWidth - noteListSpace - writingMinimum),
+      max: Math.max(sidebarMinimumWidth, appWidth - noteListSpace - writingMinimumWidth),
     },
     noteList: {
       min: noteListMinimumWidth,
-      max: Math.max(noteListMinimumWidth, appWidth - sidebarSpace - writingMinimum),
+      max: Math.max(noteListMinimumWidth, appWidth - sidebarSpace - writingMinimumWidth),
     },
   }
 }

@@ -232,6 +232,8 @@ pub struct PdfNotesPreferences {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacePreferences {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidebar_view: Option<String>,
     #[serde(default)]
     pub pdf_notes: std::collections::BTreeMap<String, PdfNotesPreferences>,
     #[serde(default)]

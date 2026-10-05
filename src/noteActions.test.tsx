@@ -56,7 +56,11 @@ async function mount(withReference = false) {
     { id: 'work', name: 'Work', color: '#abc', icon: 'briefcase' },
     { id: 'personal', name: 'Personal', color: '#def', icon: 'notebook' },
   ])
-  library.setWorkspace({ tabs: [{ id: 'a-tab', noteId: 'a' }], activeTabId: 'a-tab' })
+  library.setWorkspace({
+    tabs: [{ id: 'a-tab', noteId: 'a' }],
+    activeTabId: 'a-tab',
+    sidebarView: 'all',
+  })
   const host = document.createElement('div')
   document.body.append(host)
   const root = createRoot(host)

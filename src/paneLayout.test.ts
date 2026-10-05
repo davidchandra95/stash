@@ -10,7 +10,6 @@ const context = (overrides: Partial<PaneLayoutContext> = {}): PaneLayoutContext 
   appWidth: 1320,
   sidebarVisible: true,
   noteListVisible: true,
-  contentsOpen: false,
   sidebarWidth: 208,
   noteListWidth: 272,
   ...overrides,
@@ -35,17 +34,6 @@ it('temporarily clamps saved targets in narrow windows without changing the targ
 
   expect(compact).toEqual({ sidebar: 200, noteList: 340 })
   expect(saved).toEqual({ sidebar: 420, noteList: 340 })
-
-  const withContents = effectivePaneWidths(
-    saved,
-    context({
-      appWidth: 900,
-      contentsOpen: true,
-      sidebarWidth: saved.sidebar,
-      noteListWidth: saved.noteList,
-    }),
-  )
-  expect(withContents).toEqual({ sidebar: 144, noteList: 216 })
 })
 
 it('gives the Notes pane the released sidebar space when navigation is hidden', () => {
@@ -54,11 +42,6 @@ it('gives the Notes pane the released sidebar space when navigation is hidden', 
   )
 
   expect(bounds.noteList).toEqual({ min: 200, max: 540 })
-})
-
-it('reserves the chosen contents width when limiting the other panes', () => {
-  const bounds = paneBounds(context({ appWidth: 1200, contentsOpen: true, contentsWidth: 400 }))
-  expect(bounds.noteList.max).toBe(312)
 })
 
 it('releases Notes space without changing hidden restore targets', () => {

@@ -91,7 +91,8 @@ export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
   appStyle: 'default' | 'cards'
   animationsEnabled: boolean
-  theme: 'classic' | 'zen' | 'financial' | 'tiktok' | 'catppuccin' | 'lastchat' | 'qrafthive'
+  theme:
+    'classic' | 'zen' | 'financial' | 'tiktok' | 'catppuccin' | 'lastchat' | 'qrafthive' | 'aster'
   dark: boolean
   uiFont: string
   titleFont: string

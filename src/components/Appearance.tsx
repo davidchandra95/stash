@@ -167,6 +167,7 @@ export default function Appearance({
               <option value="catppuccin">Catppuccin</option>
               <option value="lastchat">LastChat</option>
               <option value="qrafthive">qrafthive</option>
+              <option value="aster">Aster</option>
             </select>
           </label>
         </>
@@ -258,7 +259,7 @@ export default function Appearance({
       search: 'Theme font presets Use fonts Different jobs Different fonts',
       content: (
         <>
-          {value.theme !== 'classic' && (
+          {value.theme !== 'classic' && value.theme !== 'aster' && (
             <button
               className="zen-fonts"
               onClick={() =>

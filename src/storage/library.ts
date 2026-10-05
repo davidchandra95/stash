@@ -12,7 +12,7 @@ import {
   markdownExtensions,
 } from '../editor/markdown'
 import { resetSession } from '../editor/session'
-import type { FileSource, LinkedRoot } from '../model'
+import type { FileSource, LinkedRoot, View } from '../model'
 import { normalizePdfNotes, normalizeRecentNotes, type WorkspacePreferences } from '../workspace'
 import type { JSONContent } from '@tiptap/core'
 import { getSchema } from '@tiptap/core'
@@ -1036,7 +1036,15 @@ export class LibraryStore {
       recentNoteIds,
     })
   }
+  setSidebarView = (sidebarView: View) => {
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      sidebarView,
+    })
+  }
   setWorkspace = (workspace: WorkspacePreferences) => {
+    if (workspace.sidebarView === undefined && this.state.workspace?.sidebarView !== undefined)
+      workspace = { ...workspace, sidebarView: this.state.workspace.sidebarView }
     if (this.state.workspace?.pdfNotes && !workspace.pdfNotes)
       workspace = { ...workspace, pdfNotes: this.state.workspace.pdfNotes }
 

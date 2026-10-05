@@ -16,6 +16,8 @@
   border-bottom: 1px solid var(--line);
 }
 .pdf-toolbar {
+  background: var(--surface-document-header, var(--surface-toolbar, transparent));
+  border-bottom-color: var(--document-header-divider, var(--line));
   flex-wrap: nowrap;
   gap: var(--ui-space-1);
   padding-inline: var(--ui-space-2);
@@ -65,6 +67,9 @@
   padding: var(--ui-space-2) var(--ui-space-3);
   margin: 0;
   font-size: var(--ui-font-small);
+}
+.pdf-message[role='alert'] {
+  color: var(--danger, var(--text));
 }
 .pdf-scroll-shell {
   position: relative;
@@ -192,7 +197,7 @@
 }
 .pdf-citation-region {
   position: absolute;
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring, var(--accent));
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   pointer-events: none;
   z-index: 5;
@@ -216,7 +221,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--surface-panel);
+  background: var(--surface-list, var(--surface-panel));
   border-right: 1px solid var(--line);
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
@@ -278,7 +283,7 @@
   background: var(--hover);
 }
 .pdf-outline button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring, var(--accent));
   outline-offset: -2px;
 }
 @container (max-width: 560px) {
@@ -299,7 +304,7 @@
   gap: var(--ui-space-1);
   padding: var(--ui-space-1) var(--ui-space-2);
   border-top: 1px solid var(--line);
-  background: var(--surface-editor);
+  background: var(--surface-toolbar, var(--surface-editor));
 }
 .pdf-bottom-toolbar .pdf-page-controls {
   grid-column: 2;
@@ -326,7 +331,7 @@
   color: var(--accent);
 }
 .pdf-bottom-toolbar button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring, var(--accent));
   outline-offset: -2px;
 }
 .pdf-actual-size {
@@ -340,7 +345,7 @@
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--line);
-  background: var(--surface-panel);
+  background: var(--surface-list, var(--surface-panel));
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
 }
@@ -399,12 +404,15 @@
   background: var(--nav-active-bg);
 }
 .pdf-search-result mark {
-  background: var(--selection);
-  color: inherit;
+  background: var(--search-bg, var(--selection));
+  color: var(--search-text, inherit);
   font-weight: 700;
 }
+.pdf-search-result[aria-current='true'] mark {
+  box-shadow: var(--search-current-edge, none);
+}
 .pdf-search-panel :is(button, summary):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring, var(--accent));
   outline-offset: -2px;
 }
 @container (max-width: 720px) {

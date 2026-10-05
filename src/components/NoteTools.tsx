@@ -2,7 +2,7 @@ import AppTooltip from './AppTooltip'
 import { useShortcutActions } from '../useShortcuts'
 import { MotionPresence, motion } from '../motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { HTMLAttributes } from 'react'
+import type { HTMLAttributes, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditorState } from '@tiptap/react'
 import { replaceBodyText } from '../editor/replace'
@@ -30,6 +30,10 @@ export default function NoteTools({
   disabled,
   readOnly = false,
   contentsDividerProps,
+  contentsMode = 'docked',
+  onContentsOpenChange,
+  contentsLauncher,
+  focusContentsOnOpen = false,
   searchNavigation,
   searchNotes = [note],
   onSearchNavigationComplete,
@@ -44,6 +48,10 @@ export default function NoteTools({
   searchNotes?: Note[]
   onSearchNavigationComplete?: () => void
   contentsDividerProps?: HTMLAttributes<HTMLDivElement>
+  contentsMode?: 'docked' | 'overlay'
+  onContentsOpenChange?: (open: boolean) => void
+  contentsLauncher?: RefObject<HTMLButtonElement | null>
+  focusContentsOnOpen?: boolean
 }) {
   const editor = getEditor(note.id, note.content, undefined, !!note.source)
   useEditorState({
@@ -68,6 +76,68 @@ export default function NoteTools({
   const input = useRef<HTMLInputElement>(null)
   const [slot, setSlot] = useState<Element | null>(null)
   const [titleSlot, setTitleSlot] = useState<Element | null>(null)
+  const contents = useRef<HTMLElement>(null)
+  const closeContents = () => {
+    onContentsOpenChange?.(false)
+    contentsLauncher?.current?.focus({ preventScroll: true })
+  }
+  useEffect(() => {
+    if (contentsOpen && focusContentsOnOpen)
+      (
+        contents.current?.querySelector<HTMLElement>('.outline-heading') ??
+        contents.current?.querySelector<HTMLElement>('button')
+      )?.focus({ preventScroll: true })
+    // Resizing or changing display mode must not move keyboard focus.
+  }, [contentsOpen])
+  useEffect(() => {
+    if (!contentsOpen || contentsMode !== 'overlay' || !onContentsOpenChange) return
+    const outside = (event: globalThis.PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (
+        contents.current?.contains(event.target) ||
+        contentsLauncher?.current?.contains(event.target)
+      )
+        return
+      // Portaled controls sit above the non-modal outline and own their dismissal.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          '[role="dialog"], [role="alertdialog"], [role="menu"], [data-radix-popper-content-wrapper]',
+        )
+      )
+        return
+      closeContents()
+    }
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      // A tooltip on an outline item can consume Escape; close both together.
+      if (
+        event.defaultPrevented &&
+        !(event.target instanceof Node && contents.current?.contains(event.target))
+      )
+        return
+      if (
+        document.querySelector(
+          '[role="dialog"]:not([inert]), [role="alertdialog"]:not([inert]), [role="menu"]:not([inert]), .slash-menu:not([hidden])',
+        )
+      )
+        return
+      event.preventDefault()
+      closeContents()
+    }
+    const outlineEscape = (event: globalThis.KeyboardEvent) => {
+      // Tooltip dismissal can stop bubbling before the outline sees Escape.
+      if (event.target instanceof Node && contents.current?.contains(event.target)) escape(event)
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    document.addEventListener('keydown', outlineEscape, true)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', escape)
+      document.removeEventListener('keydown', outlineEscape, true)
+    }
+  }, [contentsOpen, contentsMode, onContentsOpenChange, contentsLauncher])
   const titleMatches = useMemo(
     () => literalMatches(note.title, findOpen ? query : ''),
     [note.title, findOpen, query],
@@ -277,6 +347,7 @@ export default function NoteTools({
                 className="outline-heading"
                 onClick={() => {
                   scrollToPosition(editor, heading.pos + 1)
+                  if (contentsMode === 'overlay') closeContents()
                 }}
               >
                 {heading.title}
@@ -450,10 +521,31 @@ export default function NoteTools({
         </p>
       )}
       {titleSlot && createPortal(markedTitle(), titleSlot)}
-      {contentsOpen && contentsDividerProps && <div {...contentsDividerProps} />}
+      {contentsOpen && contentsMode === 'docked' && contentsDividerProps && (
+        <div {...contentsDividerProps} />
+      )}
       <MotionPresence open={contentsOpen} duration={motion.contents}>
-        <aside className="note-outline" aria-label="Table of contents">
-          <h2>Table of contents</h2>
+        <aside
+          ref={contents}
+          id={onContentsOpenChange ? 'note-contents' : undefined}
+          className="note-outline"
+          aria-label="Table of contents"
+          data-mode={contentsMode}
+        >
+          <header className="outline-header">
+            <h2>Table of contents</h2>
+            {onContentsOpenChange && (
+              <AppTooltip instant label="Close table of contents">
+                <button
+                  className="icon-button"
+                  aria-label="Close table of contents"
+                  onClick={closeContents}
+                >
+                  <X size={16} />
+                </button>
+              </AppTooltip>
+            )}
+          </header>
           {headings.length ? (
             <nav aria-label="Note headings">{tree(headings)}</nav>
           ) : (

@@ -10,6 +10,7 @@ let host: HTMLDivElement | undefined
 let root: ReturnType<typeof createRoot> | undefined
 let commit = vi.fn()
 const originalRect = HTMLElement.prototype.getBoundingClientRect
+let workspaceWidth = 800
 
 function pointer(target: HTMLElement, type: string, x: number) {
   const event = new Event(type, { bubbles: true, cancelable: true })
@@ -26,11 +27,13 @@ function Fixture({
   side = 'right',
   reserveWidth,
   onEscape,
+  adaptive = false,
 }: {
   savedWidth?: number
   side?: 'left' | 'right'
   reserveWidth?: (width: number) => number
   onEscape?: () => void
+  adaptive?: boolean
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null)
   const resize = useContentsResize({
@@ -40,11 +43,13 @@ function Fixture({
     onCommit: commit,
     side,
     reserveWidth,
+    adaptive,
   })
   return (
     <div
       ref={workspaceRef}
       className="editor-workspace"
+      data-overlay={resize.overlay}
       style={resize.cssVariables}
       onKeyDown={(event) => {
         if (event.key === 'Escape') onEscape?.()
@@ -57,7 +62,7 @@ function Fixture({
 
 async function mount(props: Parameters<typeof Fixture>[0] = {}) {
   HTMLElement.prototype.getBoundingClientRect = function () {
-    const width = this.classList.contains('editor-workspace') ? 800 : 0
+    const width = this.classList.contains('editor-workspace') ? workspaceWidth : 0
     return { width, height: 500 } as DOMRect
   }
   host = document.createElement('div')
@@ -73,6 +78,7 @@ afterEach(async () => {
   root = undefined
   host = undefined
   commit = vi.fn()
+  workspaceWidth = 800
   HTMLElement.prototype.getBoundingClientRect = originalRect
 })
 
@@ -136,4 +142,42 @@ it('leaves room for other docked panels without saving a temporary clamp', async
   expect(commit).not.toHaveBeenCalled()
   await act(async () => root!.render(<Fixture side="left" savedWidth={400} />))
   expect(handle.getAttribute('aria-valuenow')).toBe('400')
+})
+
+it('overlays only below the preferred width plus document minimum and restores the saved width', async () => {
+  const handle = await mount({ savedWidth: 400, adaptive: true })
+  const workspace = handle.parentElement!
+  const resize = async (width: number) =>
+    act(async () => {
+      workspaceWidth = width
+      window.dispatchEvent(new Event('resize'))
+    })
+  await resize(680)
+  expect(workspace.dataset.overlay).toBe('false')
+  expect(workspace.style.getPropertyValue('--contents-width')).toBe('400px')
+  await resize(679)
+  expect(workspace.dataset.overlay).toBe('true')
+  expect(workspace.style.getPropertyValue('--contents-width')).toBe('400px')
+  await resize(240)
+  expect(workspace.style.getPropertyValue('--contents-width')).toBe('240px')
+  await resize(800)
+  expect(workspace.dataset.overlay).toBe('false')
+  expect(workspace.style.getPropertyValue('--contents-width')).toBe('400px')
+  expect(commit).not.toHaveBeenCalled()
+})
+
+it('cancels an active resize when the writing pane becomes too narrow to dock', async () => {
+  const handle = await mount({ adaptive: true })
+  await act(async () => {
+    pointer(handle, 'pointerdown', 500)
+    pointer(handle, 'pointermove', 450)
+  })
+  expect(handle.getAttribute('aria-valuenow')).toBe('350')
+  await act(async () => {
+    workspaceWidth = 500
+    window.dispatchEvent(new Event('resize'))
+  })
+  expect(handle.parentElement!.dataset.overlay).toBe('true')
+  expect(handle.getAttribute('aria-valuenow')).toBe('300')
+  expect(commit).not.toHaveBeenCalled()
 })
