@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
+import { retainEditorOperation } from '../editor/lifecycle'
 import type { Transaction } from '@tiptap/pm/state'
 import {
   applyLink,
@@ -145,6 +146,7 @@ export default function MarkdownTools({
               onChange={async (e) => {
                 const file = e.target.files?.[0]
                 if (!file) return
+                const release = retainEditorOperation(editor)
                 try {
                   const context = markdownContexts.get(editor)
                   if (!context) throw Error('The note is not ready.')
@@ -154,6 +156,8 @@ export default function MarkdownTools({
                   setOpen(false)
                 } catch (error) {
                   setError(String(error))
+                } finally {
+                  release()
                 }
               }}
             />

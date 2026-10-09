@@ -3,11 +3,16 @@ import type { Editor } from '@tiptap/core'
 import type { Transaction } from '@tiptap/pm/state'
 import { closeHistory } from '@tiptap/pm/history'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { retainEditorOperation } from './lifecycle'
 export function insertLiteral(editor: Editor, text: string) {
   editor.view.dispatch(closeHistory(editor.state.tr))
-  if (editor.isActive('codeBlock') || !/[\r\n]/.test(text))
-    editor.view.dispatch(editor.state.tr.insertText(text))
-  else
+  if (editor.isActive('codeBlock') || !/[\r\n]/.test(text)) {
+    const { from } = editor.state.selection
+    const tr = editor.state.tr.insertText(text)
+    const tag = editor.schema.marks.bodyTag
+    if (tag) tr.removeMark(from, from + text.length, tag).removeStoredMark(tag)
+    editor.view.dispatch(tr)
+  } else
     insertPastedContent(editor, {
       type: 'doc',
       content: text.split(/\r\n?|\n/).map((line) => ({
@@ -24,6 +29,7 @@ export async function pastePlain(
   editor: Editor,
   read = () => ('__TAURI_INTERNALS__' in window ? readText() : navigator.clipboard.readText()),
 ) {
+  const release = retainEditorOperation(editor)
   let bookmark = editor.state.selection.getBookmark()
   const map = ({ transaction }: { transaction: Transaction }) => {
     bookmark = bookmark.map(transaction.mapping)
@@ -45,5 +51,6 @@ export async function pastePlain(
       )
   } finally {
     editor.off('transaction', map)
+    release()
   }
 }

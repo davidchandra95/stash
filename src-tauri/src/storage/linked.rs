@@ -422,7 +422,7 @@ impl Store {
                 .map_err(db_err)?;
             self.conn.execute("INSERT INTO linked_notes(note_id,root_id,relative_path,fingerprint,markdown,identity) VALUES(?,?,?,?,?,?) ON CONFLICT(note_id) DO UPDATE SET relative_path=excluded.relative_path,fingerprint=excluded.fingerprint,markdown=excluded.markdown,identity=excluded.identity,unavailable=NULL",params![id,root,file.path,fingerprint,file.text,file.identity]).map_err(db_err)?;
             if previous.is_none() || self.tags_migrated(&id)? {
-                self.replace_body_tags(&id, &body_tags(&file.text))?;
+                self.replace_body_tags(&id, &markdown_tags(&file.text))?;
                 self.mark_tags_migrated(&id)?;
             }
         }
@@ -499,40 +499,9 @@ impl Store {
             let Some(markdown) = source.markdown.as_deref() else {
                 continue;
             };
-            let tags = body_tags(markdown);
-            let missing: Vec<String> = self
-                .stored_tags(&id)?
-                .iter()
-                .filter_map(|tag| legacy_tag_name(tag))
-                .filter(|tag| !tags.contains(tag))
-                .collect();
-            if missing.is_empty() {
-                self.replace_body_tags(&id, &tags)?;
-                self.mark_tags_migrated(&id)?;
-                continue;
-            }
-            let next_markdown = append_markdown_tag_footer(markdown, &missing);
-            let input = SaveNote {
-                id: note.id.clone(),
-                title: note.title.clone(),
-                notebook_ids: note.notebook_ids.clone(),
-                quick_access: note.quick_access,
-                tags: vec![],
-                content: None,
-                text: next_markdown.clone(),
-                pinned: note.pinned,
-                trashed: note.trashed,
-                markdown: Some(next_markdown),
-                expected_fingerprint: Some(source.fingerprint.clone()),
-                expected_revision: note.revision,
-                operation_id: format!("tag-body-migration-{}", note.id),
-            };
-            match self.save_note(&input) {
-                Ok(_) => self.mark_tags_migrated(&id)?,
-                Err(error) => {
-                    self.conn.execute("INSERT INTO file_conflicts VALUES(?,?,?) ON CONFLICT(note_id) DO UPDATE SET draft=excluded.draft,error=excluded.error",params![id,serde_json::to_string(&input).map_err(db_err)?,format!("FILE_CONFLICT: Tags still need to be added to this Markdown file. {error}")]).map_err(db_err)?;
-                }
-            }
+            let tags = markdown_tags(markdown);
+            self.replace_body_tags(&id, &tags)?;
+            self.mark_tags_migrated(&id)?;
         }
         Ok(())
     }
@@ -557,7 +526,7 @@ impl Store {
                             self.conn.execute("UPDATE linked_notes SET markdown=?,fingerprint=?,unavailable=NULL WHERE note_id=?",params![text,fingerprint,id]).map_err(db_err)?;
                             self.conn.execute("UPDATE notes SET plain_text=?,has_tasks=?,updated=?,revision=revision+1 WHERE id=?",params![text,text.contains("- ["),now(),id]).map_err(db_err)?;
                             if self.tags_migrated(id)? {
-                                self.replace_body_tags(id, &body_tags(&text))?;
+                                self.replace_body_tags(id, &markdown_tags(&text))?;
                             }
                         } else {
                             self.conn

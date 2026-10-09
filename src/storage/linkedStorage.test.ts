@@ -82,6 +82,27 @@ it('opening and changing metadata never send Markdown to the writer', async () =
   await store.flush()
   expect(saveNote.mock.calls[0][0].markdown).toBeUndefined()
 })
+it('patches linked metadata with an immediate flush and preserves newer unsaved content', async () => {
+  const { store, saveNote, original } = await fixture()
+  let finish!: (receipt: Awaited<ReturnType<Transport['saveNote']>>) => void
+  saveNote.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  store.patchNote('a', { title: 'Renamed' })
+  await vi.waitFor(() => expect(saveNote).toHaveBeenCalledOnce())
+  expect(saveNote.mock.calls[0][0].markdown).toBeUndefined()
+  const latest = parseMarkdown('Latest unsaved body')
+  store.patchNote('a', { content: latest, text: 'Latest unsaved body' })
+  finish({
+    revision: 2, updated: 2,
+    note: { ...original, title: 'Renamed', source: {
+      ...original.source!, relativePath: 'Renamed.md', fingerprint: 'renamed', markdown: 'Old canonical body',
+    } },
+  })
+  await store.flush()
+  expect(store.getSnapshot().notes[0].content).toBe(latest)
+  expect(saveNote.mock.calls[1][0]).toMatchObject({
+    markdown: 'Latest unsaved body', expectedRevision: 2, expectedFingerprint: 'renamed',
+  })
+})
 it('a conflict freezes one note while ordinary notes save and quit stays blocked', async () => {
   const { store, saveNote, transport } = await fixture()
   saveNote.mockImplementation(async (input) => {

@@ -7,6 +7,7 @@ import {
   quickTitleParts,
   searchContent,
   searchDocument,
+  searchSegments,
   matchSnippet,
   resolveMatch,
 } from './search'
@@ -209,4 +210,39 @@ it('normalizes and bounds recent history without using edited timestamps', () =>
       notes.map((note) => ({ ...note, trashed: note.id === '1' })),
     ),
   ).toEqual(['2'])
+})
+
+it('invalidates only displayed reference labels and keeps precise atom positions', () => {
+  const target = note('reference', 'Reference', '')
+  target.content = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'before ' },
+          { type: 'noteReference', attrs: { noteId: 'linked', fallbackTitle: 'Fallback' } },
+          { type: 'text', text: ' after' },
+        ],
+      },
+    ],
+  }
+  const doc = searchDocument(target),
+    plain = searchDocument(note('plain', 'Plain', 'ordinary text'))
+  const titles = new Map([['linked', 'Visible label'], ['unrelated', 'One']])
+  const segments = searchSegments(doc, titles),
+    ordinary = searchSegments(plain, titles)
+  const unrelated = new Map([['linked', 'Visible label'], ['unrelated', 'Renamed']])
+  expect(searchSegments(doc, unrelated)).toBe(segments)
+  expect(searchSegments(plain, unrelated)).toBe(ordinary)
+  const renamed = new Map([['linked', 'Changed label']])
+  const changed = searchSegments(doc, renamed)
+  expect(changed).not.toBe(segments)
+  expect(changed.find((segment) => segment.atom)?.text).toBe('Changed label')
+  expect(searchSegments(plain, renamed)).toBe(ordinary)
+  expect(
+    searchContent([{ note: target, doc }], 'changed', [note('linked', 'Changed label', '')])[0]
+      .matches[0],
+  ).toMatchObject({ from: 8, to: 9, offset: 0, atom: true })
+  expect(searchSegments(doc, new Map()).find((segment) => segment.atom)?.text).toBe('Fallback')
 })

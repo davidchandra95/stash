@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SaveQueue } from './saveQueue'
+import * as bodyTags from '../tags'
+import { getEditor, resetSession } from '../editor/session'
 import {
   LibraryStore,
   defaultAppearance,
@@ -168,6 +170,146 @@ describe('save queue', () => {
   })
 })
 describe('persistent library controller', () => {
+  it('patches one note immediately without changing neighboring notes or loaded membership', async () => {
+    const t = transport(['a', 'b', 'c'].map((id) => ({
+      ...note(id), revision: 1, documentVersion: 1,
+    })))
+    const store = new LibraryStore(t)
+    await store.open()
+    await store.load('b')
+    const before = store.getSnapshot()
+    const content = note('b', 'Unsaved body').content
+    store.patchNote('b', { content, text: 'Unsaved body', updated: 42, hasTasks: undefined })
+    const current = store.getSnapshot()
+    expect(current.notes.map((n) => n.id)).toEqual(['a', 'b', 'c'])
+    expect(current.notes[0]).toBe(before.notes[0])
+    expect(current.notes[2]).toBe(before.notes[2])
+    expect(current.loaded).toBe(before.loaded)
+    expect(current.notes[1]).toMatchObject({ content, text: 'Unsaved body', updated: 42 })
+    expect((await store.readSearchNote('b')).content).toBe(content)
+    expect(t.saveNote).not.toHaveBeenCalled()
+    expect(current.status).toBe('saving')
+    await store.flush()
+    expect(t.saveNote).toHaveBeenCalledOnce()
+    expect(t.saveNote.mock.calls[0][0]).toMatchObject({
+      id: 'b', content, text: 'Unsaved body', expectedRevision: 1,
+    })
+  })
+
+  it('keeps an unopened body and its confirmed tags intact during a metadata patch', async () => {
+    const t = transport([{ ...note('a'), tags: ['saved'], revision: 1, documentVersion: 1 }])
+    const store = new LibraryStore(t)
+    await store.open()
+    const before = store.getSnapshot()
+    store.patchNote('missing', { title: 'Missing' })
+    expect(store.getSnapshot()).toBe(before)
+    store.patchNote('a', { pinned: true })
+    expect(store.getSnapshot().loaded).toBe(before.loaded)
+    expect(store.getSnapshot().notes[0].content).toBe(before.notes[0].content)
+    expect(store.getSnapshot().notes[0].tags).toEqual(['saved'])
+    await store.flush()
+    expect(t.load).not.toHaveBeenCalled()
+    expect(t.saveNote.mock.calls[0][0]).toMatchObject({ pinned: true, tags: ['saved'] })
+    expect(t.saveNote.mock.calls[0][0].content).toBeUndefined()
+  })
+
+  it('reuses canonical body tags for metadata patches and restores them on undo', async () => {
+    const content = { type: 'doc', content: [{ type: 'paragraph', content: [
+      { type: 'text', text: '#confirmed', marks: [{ type: 'bodyTag', attrs: { tag: 'confirmed' } }] },
+    ] }] }
+    const t = transport([{ ...note('a'), content, revision: 1, documentVersion: 1 }])
+    const store = new LibraryStore(t)
+    await store.open()
+    await store.load('a')
+    const derive = vi.spyOn(bodyTags, 'tagsFromContent')
+    try {
+      store.patchNote('a', { title: 'Renamed', tags: ['forged'] })
+      store.setNotes((notes) => notes.map((n) => ({ ...n, pinned: true })))
+      expect(derive).not.toHaveBeenCalled()
+      expect(store.getSnapshot().notes[0].tags).toEqual(['confirmed'])
+      const edited = note('a', '#unconfirmed').content
+      store.patchNote('a', { content: edited, text: '#unconfirmed' })
+      expect(derive).toHaveBeenCalledOnce()
+      expect(store.getSnapshot().notes[0].tags).toEqual([])
+      store.patchNote('a', { content, text: '#confirmed' })
+      expect(derive).toHaveBeenCalledOnce()
+      expect(store.getSnapshot().notes[0].tags).toEqual(['confirmed'])
+      await store.flush()
+    } finally {
+      derive.mockRestore()
+    }
+  })
+
+  it('retries a failed patch unchanged before saving a newer patch', async () => {
+    const t = transport([{ ...note('a'), revision: 1, documentVersion: 1 }])
+    const store = new LibraryStore(t)
+    await store.open()
+    await store.load('a')
+    t.saveNote.mockRejectedValueOnce(Error('response interrupted'))
+    store.patchNote('a', { content: note('a', 'first').content, text: 'first' })
+    await expect(store.flush()).rejects.toThrow('response interrupted')
+    store.patchNote('a', { content: note('a', 'latest').content, text: 'latest' })
+    expect(store.getSnapshot().status).toBe('error')
+    expect((await store.readSearchNote('a')).text).toBe('latest')
+    await store.flush()
+    const inputs = t.saveNote.mock.calls.map(([input]) => input)
+    expect(inputs[1]).toBe(inputs[0])
+    expect(inputs.map((input) => input.text)).toEqual(['first', 'first', 'latest'])
+    expect(inputs.map((input) => input.expectedRevision)).toEqual([1, 1, 2])
+    expect(inputs[2].operationId).not.toBe(inputs[0].operationId)
+  })
+
+  it('drains a newer patch after an in-flight save before allowing quit', async () => {
+    const t = transport([{ ...note('a'), revision: 1, documentVersion: 1 }])
+    const store = new LibraryStore(t)
+    await store.open()
+    await store.load('a')
+    const gate = deferred<{ revision: number; updated: number }>()
+    t.saveNote.mockReturnValueOnce(gate.promise)
+    store.patchNote('a', { content: note('a', 'first').content, text: 'first' })
+    const saving = store.flush()
+    await vi.waitFor(() => expect(t.saveNote).toHaveBeenCalledOnce())
+    const latest = note('a', 'latest').content
+    store.patchNote('a', { content: latest, text: 'latest' })
+    const quitting = store.requestQuit()
+    store.patchNote('a', { text: 'ignored during quit' })
+    expect(store.getSnapshot().notes[0].content).toBe(latest)
+    expect(store.getSnapshot().notes[0].text).toBe('latest')
+    expect(t.quit).not.toHaveBeenCalled()
+    gate.resolve({ revision: 2, updated: 2 })
+    await Promise.all([saving, quitting])
+    expect(t.saveNote.mock.calls.map(([input]) => [input.text, input.expectedRevision])).toEqual([
+      ['first', 1], ['latest', 2],
+    ])
+    expect(store.getSnapshot().notes[0].content).toBe(latest)
+    expect(t.quit).toHaveBeenCalledOnce()
+    expect(store.getSnapshot().status).toBe('saved')
+  })
+
+  it('publishes editor undo and redo through the patch path before quit', async () => {
+    const t = transport([{ ...note('patch-undo'), revision: 1, documentVersion: 1 }])
+    const store = new LibraryStore(t)
+    await store.open()
+    await store.load('patch-undo')
+    const editor = getEditor('patch-undo', store.getSnapshot().notes[0].content, (content, text) =>
+      store.patchNote('patch-undo', { content, text }),
+    )
+    try {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+      editor.commands.insertContent(' latest')
+      expect((await store.readSearchNote('patch-undo')).text).toBe('hello latest')
+      editor.commands.undo()
+      expect(store.getSnapshot().notes[0].text).toBe('hello')
+      editor.commands.redo()
+      expect(store.getSnapshot().notes[0].content).toEqual(editor.getJSON())
+      await store.requestQuit()
+      expect(t.saveNote.mock.calls.at(-1)![0].text).toBe('hello latest')
+      expect(t.quit).toHaveBeenCalledOnce()
+    } finally {
+      resetSession('patch-undo')
+    }
+  })
+
   it('loads summaries first and hydrates each body only once', async () => {
     const t = transport([{ ...note('a'), revision: 1, documentVersion: 1 }])
     const l = new LibraryStore(t)
@@ -794,4 +936,58 @@ it('preserves recent notes through workspace updates and reopening, pruning unav
   reopened.setRecentNotes(['a', 'b'])
   expect(reopened.getSnapshot().workspace?.recentNoteIds).toEqual(['b'])
   expect(reopened.getSnapshot().notes.map((note) => note.updated)).toEqual([1, 1])
+})
+
+it('saves the list mode across workspace updates and restart without changing notes or sorting', async () => {
+  const t = transport([{ ...note('a'), revision: 1, documentVersion: 1 }])
+  const store = new LibraryStore(t)
+  await store.open()
+  expect(store.getSnapshot().workspace?.noteListMode ?? 'compact').toBe('compact')
+  const before = store.getSnapshot().notes
+  store.setNoteListMode('preview')
+  store.setSidebarView('book:empty')
+  store.setNoteList('all', { mode: 'title', order: [] })
+  store.setWorkspace({ tabs: [{ id: 'tab-a', noteId: 'a' }], activeTabId: 'tab-a' })
+  await store.flush()
+  const saved = store.getSnapshot().workspace!
+  expect(saved.noteListMode).toBe('preview')
+  expect(saved.sidebarView).toBe('book:empty')
+  expect(saved.noteLists?.all.mode).toBe('title')
+  expect(t.savePreferences.mock.calls.at(-1)![0]).toMatchObject({
+    workspace: { noteListMode: 'preview' },
+  })
+  expect(store.getSnapshot().notes).toBe(before)
+  expect(t.saveNote).not.toHaveBeenCalled()
+  const reopened = new LibraryStore({
+    ...t,
+    open: async () => ({ ...(await t.open()), workspace: saved }),
+  })
+  await reopened.open()
+  expect(reopened.getSnapshot().workspace?.noteListMode).toBe('preview')
+  reopened.setNoteListMode('compact')
+  await reopened.flush()
+  expect(reopened.getSnapshot().workspace?.noteListMode).toBe('compact')
+})
+
+it('preserves saved confirmed tags before loading and derives edits from content', async () => {
+  const saved = {
+    ...note('a', '#confirmed #abcdef'),
+    tags: ['confirmed'], revision: 1, documentVersion: 1,
+    content: { type: 'doc', content: [{ type: 'paragraph', content: [
+      { type: 'text', text: '#confirmed', marks: [{ type: 'bodyTag', attrs: { tag: 'confirmed' } }] },
+      { type: 'text', text: ' #abcdef' },
+    ] }] },
+  }
+  const t = transport([saved])
+  const store = new LibraryStore(t)
+  await store.open()
+  expect(store.getSnapshot().notes[0].tags).toEqual(['confirmed'])
+  store.setNotes((notes) => notes.map((n) => ({ ...n, pinned: true })))
+  expect(store.getSnapshot().notes[0].tags).toEqual(['confirmed'])
+  await store.flush()
+  await store.load('a')
+  expect(store.getSnapshot().notes[0].tags).toEqual(['confirmed'])
+  store.setNotes((notes) => notes.map((n) => ({ ...n, content: note('a', '#confirmed #abcdef').content })))
+  expect(store.getSnapshot().notes[0].tags).toEqual([])
+  await store.flush()
 })

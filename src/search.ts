@@ -1,8 +1,6 @@
-import { getSchema, type JSONContent } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
 import type { Note, Notebook } from './model'
-import { writingExtensions } from './editor/extensions'
-import { markdownExtensions } from './editor/markdown'
+import { documentSchema } from './editor/documentSchema'
 import {
   documentText,
   literalMatches,
@@ -127,22 +125,35 @@ export function quickTitleParts(
   return parts
 }
 
-const documentCache = new WeakMap<JSONContent, { native?: Node; markdown?: Node }>()
 export function searchDocument(note: Note): Node {
-  const content = note.content
-  const kind = note.source ? 'markdown' : 'native'
-  const cached = documentCache.get(content) ?? {}
-  let doc = cached[kind]
-  if (!doc) {
-    doc = getSchema(note.source ? markdownExtensions : writingExtensions).nodeFromJSON(content)
-    doc.check()
-    cached[kind] = doc
-    documentCache.set(content, cached)
-  }
+  // The search hook owns document reuse and its bounded warm cache. A global
+  // JSON-keyed cache would retain every parsed body while library JSON survives.
+  const doc = documentSchema(!!note.source).nodeFromJSON(note.content)
+  doc.check()
   return doc
 }
 
-const segmentCache = new WeakMap<Node, { labels: string; segments: TextSegment[] }>()
+const segmentCache = new WeakMap<
+  Node,
+  { references: { id: string; fallback: string; label: string }[]; segments: TextSegment[] }
+>()
+
+export function searchSegments(doc: Node, titles: ReadonlyMap<string, string>): TextSegment[] {
+  const cached = segmentCache.get(doc)
+  if (
+    cached &&
+    cached.references.every(({ id, fallback, label }) => (titles.get(id) ?? fallback) === label)
+  )
+    return cached.segments
+  const references: { id: string; fallback: string; label: string }[] = []
+  const segments = documentText(doc, (id, fallback) => {
+    const label = titles.get(id) ?? fallback
+    references.push({ id, fallback, label })
+    return label
+  })
+  segmentCache.set(doc, { references, segments })
+  return segments
+}
 export function searchContent(
   documents: SearchDocument[],
   query: string,
@@ -151,19 +162,10 @@ export function searchContent(
   const term = query.trim()
   if (!term) return []
   const titles = new Map(notes.map((note) => [note.id, note.title || 'Untitled note']))
-  const labels = JSON.stringify([...titles])
   return documents
     .flatMap(({ note, doc }) => {
       if (note.trashed) return []
-      let cached = segmentCache.get(doc)
-      if (!cached || cached.labels !== labels) {
-        cached = {
-          labels,
-          segments: documentText(doc, (id, fallback) => titles.get(id) ?? fallback),
-        }
-        segmentCache.set(doc, cached)
-      }
-      const matches = segmentMatches(cached.segments, term)
+      const matches = segmentMatches(searchSegments(doc, titles), term)
       return matches.length ? [{ note, doc, matches }] : []
     })
     .sort((a, b) => b.note.updated - a.note.updated || a.note.id.localeCompare(b.note.id))

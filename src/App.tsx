@@ -1,3 +1,11 @@
+import NoteListNotebook from './components/NoteListNotebook'
+import VirtualNoteRows, { type VirtualNoteRowsApi } from './components/VirtualNoteRows'
+import {
+  normalizeNoteListMode,
+  noteListModes,
+  noteNotebookContext,
+  type NoteListMode,
+} from './noteListPresentation'
 import AppTooltip from './components/AppTooltip'
 import { useDesktopWindowAppearance } from './useDesktopWindowAppearance'
 import { PanelRightOpen, PanelRightClose } from 'lucide-react'
@@ -29,7 +37,22 @@ import {
   moveNote,
   type NoteSortMode,
 } from './noteOrder'
-import MoveNoteDialog from './components/MoveNoteDialog'
+import {
+  LiveMoveNoteDialog as MoveNoteDialog,
+  LiveAddToNotebooks as AddToNotebooksPopover,
+  LiveNoteOrganization as NoteOrganization,
+  LiveNotebookDeleteDialog as NotebookDeleteDialog,
+  LiveNoteEditor as NoteEditor,
+  LiveNoteTools as NoteTools,
+  LiveSyncConnection as SyncConnection,
+  LiveNoteRow,
+  NoteStatistics,
+  SaveStatus,
+  SaveFeedback,
+  useLibraryShell,
+  useNoteIds,
+} from './storage/libraryReaders'
+import { libraryProjection, type NavigationNote } from './storage/librarySelectors'
 import { useNotebookMove } from './useNotebookMove'
 import { moveSource, notebookMoveTarget } from './notebookMove'
 import { useNoteDrag } from './useNoteDrag'
@@ -39,11 +62,11 @@ import { bindingFor, shortcutLabel } from './shortcuts'
 import { validateMarkdown } from './editor/markdown'
 import { getEditor, noteScrollPositions } from './editor/session'
 import { MotionPresence, motion, useMotionPreference, useAnimatedItems } from './motion'
-import { useSmoothScrolling } from './useSmoothScrolling'
 import {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useId,
   useLayoutEffect,
   useRef,
@@ -57,18 +80,18 @@ import NoteContextMenu, { type NoteAction } from './components/NoteContextMenu'
 import MenuActionContent from './components/MenuActionContent'
 import NativeNoteMenuButton from './components/NativeNoteMenuButton'
 import { usesNativeContextMenu } from './nativeContextMenu'
-import AddToNotebooksPopover, { type PopoverAnchor } from './components/AddToNotebooksPopover'
-import NoteOrganization from './components/NoteOrganization'
+import { type PopoverAnchor } from './components/AddToNotebooksPopover'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import NotebookDialog from './components/NotebookDialog'
 import NotebookTree from './components/NotebookTree'
-import NotebookDeleteDialog, { type NotebookDeleteOptions } from './components/NotebookDeleteDialog'
-import FileConflictDialog from './components/FileConflictDialog'
+import { type NotebookDeleteOptions } from './components/NotebookDeleteDialog'
+import { LiveFileConflictDialog as FileConflictDialog } from './storage/libraryReaders'
 import { fileTitleError, notebookPath } from './notebooks'
 import type { Notebook as NotebookModel } from './model'
 import { NotebookIconGlyph } from './notebookIcons'
 import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import {
+  Check,
   BookOpen,
   BookPlus,
   Notebook,
@@ -98,7 +121,6 @@ import {
   FileText,
   ArrowDownWideNarrow,
   FolderInput,
-  Check,
   Maximize2,
   Minimize2,
 } from './icons'
@@ -106,19 +128,17 @@ import { useWorkspace } from './useWorkspace'
 import { restoreSidebarView } from './workspace'
 import { usePaneResize } from './usePaneResize'
 import { useContentsResize } from './useContentsResize'
-import NoteTools from './components/NoteTools'
+import { observeEditorScrollSpace } from './editorScrollSpace'
 import type { NoteLinkContext } from './editor/noteReferences'
 import NotebookConvertDialog from './components/NotebookConvertDialog'
-import NoteEditor from './components/NoteEditor'
 import Appearance from './components/Appearance'
 import AccountMenu from './components/AccountMenu'
-import SyncConnection from './components/SyncConnection'
 import TitleBar from './components/TitleBar'
 import NoteTabs from './components/NoteTabs'
 import type { MatchNavigation } from './search'
 import { matchesView, type Note, type View } from './model'
 
-import { useLibrary, library as libraryStore } from './storage/useLibrary'
+import { useLibrarySelector, library as libraryStore } from './storage/useLibrary'
 import { fontFamily } from './fonts'
 import { headingStyleVariables } from './headingStyles'
 const viewNames: Record<string, string> = {
@@ -130,13 +150,6 @@ const viewNames: Record<string, string> = {
   quickAccess: 'Quick Access',
   trash: 'Trash',
 }
-const noteListDateTime = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
 
 function SidebarSection({
   title,
@@ -177,7 +190,7 @@ function SidebarSection({
 }
 
 export default function App() {
-  const library = useLibrary()
+  const library = useLibraryShell()
   useEffect(() => {
     if (!(library.syncing || library.converting)) return
     const block = (event: Event) => {
@@ -193,7 +206,6 @@ export default function App() {
   }, [library.syncing || library.converting])
   const { notes, setNotes, notebooks, setNotebooks, appearance, setAppearance } = library
   const motionActive = useMotionPreference(appearance.animationsEnabled)
-  useSmoothScrolling(motionActive)
   useLayoutEffect(() => {
     // Document scope includes Radix portals as well as the workspace.
     document.documentElement.dataset.appStyle = appearance.appStyle
@@ -209,6 +221,7 @@ export default function App() {
     }
   }, [appearance.uiFont])
   const rowsRef = useRef<HTMLDivElement>(null)
+  const virtualRowsRef = useRef<VirtualNoteRowsApi | null>(null)
   const chipsRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<HTMLDivElement>(null)
   const editorWorkspaceRef = useRef<HTMLDivElement>(null)
@@ -226,6 +239,7 @@ export default function App() {
     if (library.ready) libraryStore.setSidebarView(view)
   }, [library.ready, view])
   const [query, setQuery] = useState('')
+  const filterInput = useRef<HTMLInputElement>(null)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [settingsCategory, setSettingsCategory] = useState<'appearance' | 'sync'>('appearance')
   useEffect(() => {
@@ -363,6 +377,7 @@ export default function App() {
   useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
   const workspace = useWorkspace({
     notes,
+    initialNotes: () => libraryStore.getSnapshot().notes,
     documents: pdfs.documents,
     ready: library.ready && pdfs.ready,
     saved: library.workspace,
@@ -584,19 +599,41 @@ export default function App() {
       setPdfImporting(false)
     }
   }
+  const noteListMode = normalizeNoteListMode(library.workspace?.noteListMode)
+  const listModeScroll = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    if (listModeScroll.current !== null && rowsRef.current) {
+      rowsRef.current.scrollTop = listModeScroll.current
+      listModeScroll.current = null
+    }
+  }, [noteListMode])
+  const changeListMode = (mode: NoteListMode) => {
+    if (mode === noteListMode) return
+    listModeScroll.current = rowsRef.current?.scrollTop ?? null
+    libraryStore.setNoteListMode(mode)
+  }
   const listPreferences = library.workspace?.noteLists?.[view]
   const sortMode = listPreferences?.mode ?? 'lastEdited'
-  const ordered = sortNotes(
-    notes.filter((n) => matchesView(n, view)),
-    listPreferences,
+  const notesById = useMemo(() => new Map(notes.map((note) => [note.id, note])), [notes])
+  const orderedIds = useNoteIds(view, '', listPreferences)
+  const filteredIds = useNoteIds(view, query, listPreferences)
+  const ordered = useMemo(
+    () => orderedIds.map((id) => notesById.get(id)!).filter(Boolean),
+    [orderedIds, notesById],
   )
-  const filtered = ordered.filter((n) =>
-    `${n.title} ${n.text}`.toLowerCase().includes(query.toLowerCase()),
+  const filtered = useMemo(
+    () => filteredIds.map((id) => notesById.get(id)!).filter(Boolean),
+    [filteredIds, notesById],
+  )
+  const filteredIndexById = useMemo(
+    () => new Map(filteredIds.map((id, index) => [id, index])),
+    [filteredIds],
   )
   const selected = notes.find(
     (n) => n.id === (activePdf ? (notesOpen ? companionId : undefined) : workspace.noteId),
   )
-  const active = selected && library.loaded.has(selected.id) ? selected : undefined
+  const selectedLoaded = useLibrarySelector((state) => !!selected && state.loaded.has(selected.id))
+  const active = selectedLoaded ? selected : undefined
   useEffect(() => {
     if (selected) void library.activate(selected.id)
   }, [selected?.id, workspace.activation, selected?.source?.fingerprint, library.converting])
@@ -642,7 +679,7 @@ export default function App() {
     const root = notebooks.find((b) => `book:${b.id}` === view)?.rootId
     if (root) void refreshFolder(root)
   }, [view])
-  const tags = [...new Set(notes.filter((n) => !n.trashed).flatMap((n) => n.tags))].sort()
+  const tags = useLibrarySelector(libraryProjection.tags)
   const headingNotebook = view.startsWith('book:')
     ? notebooks.find((b) => b.id === view.slice(5))
     : undefined
@@ -651,9 +688,16 @@ export default function App() {
     : view.startsWith('tag:')
       ? `#${view.slice(4)}`
       : viewNames[view]
-  const animateRows = useAnimatedItems(rowsRef, '[data-motion-key]', `${view}:${query}`, motion.row)
+  const animateRows = useAnimatedItems(
+    rowsRef,
+    '[data-motion-key]',
+    `${view}:${query}`,
+    motion.row,
+    false,
+    true,
+  )
   useAnimatedItems(chipsRef, '[data-motion-key]', active?.id ?? '', motion.chip, true)
-  const commitOrder = (next: Note[]) => {
+  const commitOrder = (next: NavigationNote[]) => {
     libraryStore.setNoteList(view, {
       mode: 'custom',
       order: reorderSlots(ordered, next, listPreferences?.order),
@@ -662,6 +706,7 @@ export default function App() {
   const notebookMove = useNotebookMove(animateRows)
   const drag = useNoteDrag({
     rows: rowsRef,
+    resolveRow: (clientY) => virtualRowsRef.current?.hitTest(clientY),
     notes: filtered,
     identity: JSON.stringify([
       view,
@@ -709,7 +754,7 @@ export default function App() {
     if (!saved?.noteLists) return
     const noteLists = reconcileNoteLists(
       saved.noteLists,
-      notes,
+      libraryStore.getSnapshot().notes,
       notebooks.map((book) => book.id),
     )
     if (JSON.stringify(noteLists) !== JSON.stringify(saved.noteLists))
@@ -734,9 +779,9 @@ export default function App() {
           : [],
     })
   }
-  const orderActions = (note: Note): NoteAction[] =>
+  const orderActions = (note: NavigationNote): NoteAction[] =>
     [-1, 1].map((direction) => {
-      const index = filtered.findIndex((n) => n.id === note.id)
+      const index = filteredIndexById.get(note.id) ?? -1
       const target = filtered[index + direction]
       return {
         label: direction < 0 ? 'Move up' : 'Move down',
@@ -807,21 +852,23 @@ export default function App() {
       query: '',
     })
   }
-  const noteLinks: NoteLinkContext = {
+  const currentNoteLinks: NoteLinkContext = {
     contextMenu: (id, position) => {
       if (notes.some((note) => note.id === id && !note.trashed)) setNoteContext({ id, ...position })
     },
     notes: () =>
-      notes.map((n) => ({
+      libraryStore.getSnapshot().notes.map((n) => ({
         ...n,
         notebook: notebookLabel(n),
       })),
     create: (title) => {
       if (!active || library.quitting || library.syncing || library.converting) return undefined
-      const existing = notes.find(
-        (n) =>
-          !n.trashed && n.title.trim().toLocaleLowerCase() === title.trim().toLocaleLowerCase(),
-      )
+      const existing = libraryStore
+        .getSnapshot()
+        .notes.find(
+          (n) =>
+            !n.trashed && n.title.trim().toLocaleLowerCase() === title.trim().toLocaleLowerCase(),
+        )
       if (existing) return { ...existing, notebook: notebookLabel(existing) }
       const created: Note = {
         id: crypto.randomUUID(),
@@ -840,7 +887,7 @@ export default function App() {
       return { ...created, notebook: notebookLabel(created) }
     },
     open: (id, newTab = false) => {
-      const target = notes.find((n) => n.id === id)
+      const target = libraryStore.getSnapshot().notes.find((n) => n.id === id)
       if (!target || target.trashed) {
         setLinkMessage(
           target?.trashed
@@ -852,7 +899,29 @@ export default function App() {
       workspace.open(id, newTab)
     },
   }
-  const notebookLabel = (note: Note) =>
+  const latestNoteLinks = useRef(currentNoteLinks)
+  latestNoteLinks.current = currentNoteLinks
+  const noteLinks = useMemo<NoteLinkContext>(
+    () => ({
+      notes: () => latestNoteLinks.current.notes(),
+      create: (title) => latestNoteLinks.current.create(title),
+      open: (id, newTab) => latestNoteLinks.current.open(id, newTab),
+      contextMenu: (id, position) => latestNoteLinks.current.contextMenu?.(id, position),
+    }),
+    [notes, notebooks],
+  )
+  const cursorSettings = useMemo(
+    () =>
+      motionActive
+        ? appearance
+        : {
+            ...appearance,
+            cursorSmoothCaretAnimation: 'off' as const,
+            cursorBlinking: 'solid' as const,
+          },
+    [appearance, motionActive],
+  )
+  const notebookLabel = (note: Pick<Note, 'notebookIds'>) =>
     notebooks
       .filter((b) => note.notebookIds.includes(b.id))
       .map((b) => notebookPath(b, notebooks))
@@ -883,7 +952,7 @@ export default function App() {
       })
     } else update(id, patch)
   }
-  const actionsFor = (note: Note): NoteAction[] => {
+  const actionsFor = (note: NavigationNote): NoteAction[] => {
     const open = {
       label: 'Open in new tab',
       icon: ExternalLink,
@@ -995,7 +1064,6 @@ export default function App() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void libraryStore.sync()
   }
-  const syncFailure = !library.error && !library.quitFailed && !!library.syncError
   useShortcutActions(
     {
       'new-note': addNote,
@@ -1015,7 +1083,7 @@ export default function App() {
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),
       'close-tab': () => {
-        if (workspace.activeTabId) workspace.close(workspace.activeTabId)
+        workspace.closeActive()
       },
       pin: () => {
         if (!activePdf || focusedPane === 'note') runNoteAction('pin')
@@ -1094,7 +1162,7 @@ export default function App() {
       </Dropdown.Root>
     ) : null
   const nav = (id: View, icon: ReactNode, label: string, notebook = false) => {
-    const count = notes.filter((note) => matchesView(note, id)).length
+    const count = libraryProjection.count(libraryStore.getSnapshot(), id)
     return (
       <button
         key={id}
@@ -1149,14 +1217,14 @@ export default function App() {
         style={variables}
       >
         <TitleBar
-          notes={notes}
           notebooks={notebooks}
           appearance={appearance}
           recentNoteIds={library.workspace?.recentNoteIds ?? []}
           readSearchNote={libraryStore.readSearchNote}
           onSelectMatch={(request, newTab) => {
             if (!notes.some((note) => note.id === request.noteId && !note.trashed)) return
-            workspace.open(request.noteId, newTab)
+            if (newTab) workspace.open(request.noteId, true)
+            else workspace.preview(request.noteId)
             setFocus(false)
             setFindOpen(true)
             setMatchNavigation(request)
@@ -1169,7 +1237,8 @@ export default function App() {
           onToggleSidebar={toggleSidebar}
           onSelect={(id, newTab) => {
             if (!notes.some((note) => note.id === id && !note.trashed)) return
-            workspace.open(id, newTab)
+            if (newTab) workspace.open(id, true)
+            else workspace.preview(id)
             setFocus(false)
           }}
           canBack={workspace.canBack}
@@ -1177,40 +1246,7 @@ export default function App() {
           onBack={() => workspace.move(-1)}
           onForward={() => workspace.move(1)}
         />
-        <MotionPresence
-          open={!!(library.error || library.quitFailed || library.syncError)}
-          duration={motion.notice}
-        >
-          <div className="save-error" role="alert">
-            <strong>{syncFailure ? 'Couldn’t sync' : 'Couldn’t save'}</strong>
-            <span>
-              {library.error || (library.quitFailed ? 'Quit was cancelled.' : library.syncError)}
-            </span>
-            <button
-              onClick={() =>
-                syncFailure
-                  ? syncNow()
-                  : void (library.quitFailed
-                      ? library.requestQuit()
-                      : library.flush().catch(() => {}))
-              }
-            >
-              {syncFailure
-                ? library.syncStatus?.configured
-                  ? 'Retry sync'
-                  : 'Open sync settings'
-                : library.quitFailed
-                  ? 'Retry and quit'
-                  : 'Retry save'}
-            </button>
-            {library.quitFailed && <button onClick={library.keepEditing}>Keep editing</button>}
-          </div>
-        </MotionPresence>
-        {(library.quitting || library.syncing) && (
-          <div className="saving-overlay" role="status">
-            {library.syncing ? library.syncProgress : 'Saving before quitting…'}
-          </div>
-        )}
+        <SaveFeedback syncNow={syncNow} />
         <MotionPresence open={!focus && sidebar} duration={motion.sidebar} initial={false}>
           <aside className="sidebar" id="notebook-sidebar">
             <div className="sidebar-content">
@@ -1413,7 +1449,7 @@ export default function App() {
             <div className="sidebar-bottom">
               <AccountMenu
                 state={library}
-                trashCount={notes.filter((note) => matchesView(note, 'trash')).length}
+                trashCount={libraryProjection.count(libraryStore.getSnapshot(), 'trash')}
                 trashSelected={view === 'trash'}
                 dark={appearance.dark}
                 palette={appearance.theme}
@@ -1482,20 +1518,64 @@ export default function App() {
           <div className="search-box text-field-shell">
             <Search size={15} />
             <input
+              ref={filterInput}
               className="text-field"
-              aria-label="Search notes"
-              placeholder="Search your notes…"
+              aria-label="Filter this view"
+              aria-description="Filter note titles and text in the selected view."
+              placeholder="Filter this view…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             {query && (
-              <button aria-label="Clear search" onClick={() => setQuery('')}>
+              <button aria-label="Clear filter" onClick={() => setQuery('')}>
                 <X size={14} />
               </button>
             )}
           </div>
           <div className="list-sort">
-            <span>{query ? 'Search results' : 'Notes'}</span>
+            <Dropdown.Root>
+              <AppTooltip
+                label="Change note list view"
+                disabled={library.quitting || library.syncing || library.converting}
+              >
+                <Dropdown.Trigger asChild>
+                  <button
+                    aria-label="Note list view"
+                    disabled={library.quitting || library.syncing || library.converting}
+                  >
+                    {noteListModes[noteListMode]}
+                    <ChevronDown size={13} aria-hidden="true" />
+                  </button>
+                </Dropdown.Trigger>
+              </AppTooltip>
+              <Dropdown.Portal>
+                <Dropdown.Content
+                  className="workspace-action-menu note-sort-menu"
+                  align="start"
+                  sideOffset={5}
+                  data-theme={appearance.dark ? 'dark' : 'light'}
+                  data-palette={appearance.theme}
+                  style={{ fontFamily: fontFamily(appearance.uiFont) }}
+                >
+                  <Dropdown.RadioGroup
+                    value={noteListMode}
+                    onValueChange={(value) => changeListMode(value as NoteListMode)}
+                    aria-label="Note list view"
+                  >
+                    {(Object.keys(noteListModes) as NoteListMode[]).map((mode) => (
+                      <Dropdown.RadioItem key={mode} value={mode}>
+                        <span className="sort-check">
+                          <Dropdown.ItemIndicator>
+                            <Check size={14} />
+                          </Dropdown.ItemIndicator>
+                        </span>
+                        {noteListModes[mode]}
+                      </Dropdown.RadioItem>
+                    ))}
+                  </Dropdown.RadioGroup>
+                </Dropdown.Content>
+              </Dropdown.Portal>
+            </Dropdown.Root>
             <Dropdown.Root>
               <AppTooltip
                 label="Change note sorting"
@@ -1549,51 +1629,97 @@ export default function App() {
               }
             }}
           >
-            {(drag.preview ?? filtered).map((n) => (
-              <NoteContextMenu
-                key={n.id}
-                actions={[...actionsFor(n), ...orderActions(n)]}
-                dark={appearance.dark}
-                palette={appearance.theme}
-                style={{ fontFamily: fontFamily(appearance.uiFont) }}
-                disabled={library.quitting || library.syncing || library.converting}
-              >
-                <button
-                  className={`note-row ${n.id === selected?.id ? 'selected' : ''} ${drag.draggedId === n.id ? 'note-drag-placeholder' : ''}`}
-                  key={n.id}
-                  data-note-id={n.id}
-                  data-motion-key={n.id}
-                  onPointerDown={(event) => drag.onPointerDown(event, n.id)}
-                  onDragStart={(event) => event.preventDefault()}
-                  onClick={(event) => {
-                    if (drag.consumeClick()) {
-                      event.preventDefault()
-                      return
-                    }
-                    if (event.metaKey || event.ctrlKey) workspace.open(n.id, true)
-                    else workspace.preview(n.id)
-                  }}
-                  onDoubleClick={() => workspace.open(n.id, true)}
-                >
-                  <span className="note-row-title">
-                    {n.pinned && <Pin size={12} />}
-                    <span>{n.title || 'Untitled note'}</span>
-                  </span>
-                  <span className="note-row-meta">{noteListDateTime.format(n.updated)}</span>
-                </button>
-              </NoteContextMenu>
-            ))}
+            <VirtualNoteRows
+              items={drag.preview ?? filtered}
+              scrollRef={rowsRef}
+              apiRef={virtualRowsRef}
+              retainedIds={[selected?.id, drag.draggedId]}
+              rowGap={appearance.appStyle === 'cards' ? 4 : 1}
+              estimatedSize={
+                (noteListMode === 'preview' ? 76 : 54) + (appearance.appStyle === 'cards' ? 3 : 0)
+              }
+              geometryKey={`${noteListMode}:${appearance.uiFont}:${appearance.appStyle}`}
+              renderRow={(n, index, controls) => {
+                const context = view === 'all' ? noteNotebookContext(n, notebooks) : undefined
+                const next = (drag.preview ?? filtered)[index + 1]
+                return (
+                  <LiveNoteRow noteId={n.id} preview={noteListMode === 'preview'}>
+                    {(row) => (
+                      <NoteContextMenu
+                        key={n.id}
+                        tooltipLabel={context?.description}
+                        onTrackingChange={controls.onMenuTrackingChange}
+                        onRestoreFocus={controls.restoreFocus}
+                        actions={[...actionsFor(n), ...orderActions(n)]}
+                        dark={appearance.dark}
+                        palette={appearance.theme}
+                        style={{ fontFamily: fontFamily(appearance.uiFont) }}
+                        disabled={library.quitting || library.syncing || library.converting}
+                      >
+                        <button
+                          className={`note-row ${n.id === selected?.id ? 'selected' : ''} ${drag.draggedId === n.id ? 'note-drag-placeholder' : ''} ${n.id !== selected?.id && next && next.id !== selected?.id ? 'note-row-separated' : ''}`}
+                          key={n.id}
+                          aria-label={row.title || 'Untitled note'}
+                          aria-description={
+                            [row.preview, context?.description].filter(Boolean).join('. ') ||
+                            undefined
+                          }
+                          data-note-id={n.id}
+                          data-motion-key={n.id}
+                          onPointerDown={(event) => drag.onPointerDown(event, n.id)}
+                          onDragStart={(event) => event.preventDefault()}
+                          onClick={(event) => {
+                            if (drag.consumeClick()) {
+                              event.preventDefault()
+                              return
+                            }
+                            if (event.metaKey || event.ctrlKey) workspace.open(n.id, true)
+                            else workspace.preview(n.id)
+                          }}
+                          onDoubleClick={() => workspace.open(n.id, true)}
+                        >
+                          <span className="note-row-title">
+                            {n.pinned && <Pin size={12} />}
+                            <span>{row.title || 'Untitled note'}</span>
+                          </span>
+                          {row.preview && <span className="note-list-preview">{row.preview}</span>}
+                          <span className="note-row-meta">
+                            {context && <NoteListNotebook context={context} />}
+                            <span className="note-row-date">{row.date}</span>
+                          </span>
+                        </button>
+                      </NoteContextMenu>
+                    )}
+                  </LiveNoteRow>
+                )
+              }}
+            />
             {!filtered.length && (
               <div className="list-empty">
                 <Search size={25} />
-                <p>{query ? 'No notes found' : 'Nothing here yet'}</p>
-                <small>{query ? 'Try a different word.' : 'Your notes will appear here.'}</small>
+                <p>{query ? 'No matches in this view' : 'Nothing here yet'}</p>
+                <small>
+                  {query ? 'No matching titles or text.' : 'Your notes will appear here.'}
+                </small>
+                {query && view !== 'all' && (
+                  <button
+                    className="quiet-button"
+                    disabled={library.quitting || library.syncing || library.converting}
+                    onClick={() => {
+                      setView('all')
+                      filterInput.current?.focus()
+                    }}
+                  >
+                    <Search size={16} aria-hidden="true" />
+                    Search all notes
+                  </button>
+                )}
               </div>
             )}
           </div>
           <div className="list-footer">
             <BookOpen size={13} />
-            <span>{notes.filter((n) => !n.trashed).length} notes</span>
+            <span>{libraryProjection.count(libraryStore.getSnapshot(), 'all')} notes</span>
           </div>
         </section>
         {sidebar && !focus && (
@@ -1612,11 +1738,17 @@ export default function App() {
               noteId: tab.entries[tab.index].noteId,
               documentId: tab.entries[tab.index].documentId,
               preview: tab.preview,
+              pinned: tab.pinned,
             }))}
             activeTabId={workspace.activeTabId}
             onSelectTab={workspace.select}
+            dark={appearance.dark}
+            palette={appearance.theme}
+            menuStyle={{ fontFamily: fontFamily(appearance.uiFont) }}
+            onPinTab={workspace.setPinned}
             onCloseTab={workspace.close}
             onKeepOpenTab={workspace.keepOpen}
+            onReorderTab={workspace.reorderTab}
           />
           {pdfs.savingError && (
             <div role="alert" className="pdf-message">
@@ -1838,6 +1970,7 @@ export default function App() {
                   <>
                     <div
                       className="note-scroll"
+                      ref={observeEditorScrollSpace}
                       key={active.id}
                       data-note-id={active.id}
                       onScroll={(event) => {
@@ -1907,7 +2040,11 @@ export default function App() {
                               )
                                 return
                               e.preventDefault()
-                              getEditor(active.id, active.content).commands.focus('start')
+                              getEditor(
+                                active.id,
+                                libraryProjection.note(libraryStore.getSnapshot(), active.id)!
+                                  .content,
+                              ).commands.focus('start')
                             }}
                             onScroll={(event) => {
                               const highlights =
@@ -2031,18 +2168,10 @@ export default function App() {
                             busyNote === active.id
                           }
                           key={`${active.id}:${library.syncGeneration}`}
-                          note={active}
+                          noteId={active.id}
                           noteLinks={noteLinks}
                           onOpenTag={(tag) => navigate(`tag:${tag}`)}
-                          cursorSettings={
-                            motionActive
-                              ? appearance
-                              : {
-                                  ...appearance,
-                                  cursorSmoothCaretAnimation: 'off',
-                                  cursorBlinking: 'solid',
-                                }
-                          }
+                          cursorSettings={cursorSettings}
                           onChange={(content, text) => {
                             workspace.keepNoteOpen(active.id)
                             update(active.id, { content, text, hasTasks: undefined })
@@ -2051,29 +2180,8 @@ export default function App() {
                       </article>
                     </div>
                     <footer className="editor-status">
-                      <span>
-                        {(active.text.trim()
-                          ? active.text.trim().split(/\s+/).length
-                          : 0
-                        ).toLocaleString('en-US')}{' '}
-                        words
-                        <span className="status-dot">·</span>
-                        {active.text.length.toLocaleString('en-US')} characters
-                      </span>
-                      <AppTooltip label={library.path} key={library.status}>
-                        <span role="status" className="save-status">
-                          <Check size={12} />{' '}
-                          {library.preview
-                            ? 'Browser preview · session only'
-                            : Object.keys(library.conflicts).length
-                              ? 'File changes need attention'
-                              : library.status === 'saved'
-                                ? 'Saved on this Mac'
-                                : library.status === 'error'
-                                  ? 'Couldn’t save'
-                                  : 'Saving…'}
-                        </span>
-                      </AppTooltip>
+                      <NoteStatistics noteId={active.id} />
+                      <SaveStatus />
                     </footer>
                   </>
                 ) : selected ? (
@@ -2123,21 +2231,13 @@ export default function App() {
                         Add sample notes
                       </button>
                     )}
-                    <p role="status">
-                      {library.preview
-                        ? 'Browser preview · session only'
-                        : library.status === 'saved'
-                          ? 'Stored on this Mac'
-                          : library.status === 'error'
-                            ? 'Couldn’t save'
-                            : 'Saving…'}
-                    </p>
+                    <SaveStatus empty />
                   </div>
                 )}
               </div>
               {active && (
                 <NoteTools
-                  note={active}
+                  noteId={active.id}
                   contentsOpen={contentsOpen}
                   contentsMode={contentsResize.overlay ? 'overlay' : 'docked'}
                   onContentsOpenChange={setContentsOpen}
@@ -2145,7 +2245,6 @@ export default function App() {
                   focusContentsOnOpen={contentsKeyboardOpen.current}
                   findOpen={findOpen}
                   searchNavigation={matchNavigation}
-                  searchNotes={notes}
                   onSearchNavigationComplete={() => setMatchNavigation(null)}
                   onFindOpenChange={setFindOpen}
                   disabled={library.quitting || library.syncing || library.converting}
@@ -2196,8 +2295,7 @@ export default function App() {
         {addOrganization && notes.some((n) => n.id === addOrganization.id && !n.trashed) && (
           <AddToNotebooksPopover
             key={`add:${addOrganization.id}`}
-            note={notes.find((n) => n.id === addOrganization.id)!}
-            notes={notes}
+            noteId={addOrganization.id}
             notebooks={notebooks}
             appearance={appearance}
             anchor={addOrganization.anchor}
@@ -2264,7 +2362,7 @@ export default function App() {
               key={`move:${organization.id}:${organization.destination ?? 'choose'}`}
               anchor={organization.anchor}
               launcher={organization.launcher}
-              note={notes.find((n) => n.id === organization.id)!}
+              noteId={organization.id}
               notebooks={notebooks}
               appearance={appearance}
               view={organization.view}
@@ -2287,8 +2385,7 @@ export default function App() {
             key={`move-file:${organization.id}`}
             anchor={organization.anchor}
             launcher={organization.launcher}
-            note={notes.find((n) => n.id === organization.id)!}
-            notes={notes}
+            noteId={organization.id}
             notebooks={notebooks}
             appearance={appearance}
             update={(patch) => updateNotebookMembership(organization.id, patch)}
@@ -2298,7 +2395,7 @@ export default function App() {
         )}
         <Appearance
           initialCategory={settingsCategory}
-          syncSettings={appearanceOpen ? <SyncConnection state={library} /> : undefined}
+          syncSettings={appearanceOpen ? <SyncConnection /> : undefined}
           open={appearanceOpen}
           onOpenChange={setAppearanceOpen}
           value={appearance}
@@ -2326,7 +2423,6 @@ export default function App() {
             open
             notebook={bookToDelete}
             notebooks={notebooks}
-            notes={notes}
             appearance={appearance}
             onConfirm={(options) => deleteNotebook(bookToDelete, options)}
             onClose={() => setBookToDelete(null)}
@@ -2344,7 +2440,7 @@ export default function App() {
         <FileConflictDialog
           dark={appearance.dark}
           palette={appearance.theme}
-          note={notes.find((n) => n.id === conflictId) ?? null}
+          noteId={conflictId}
           error={conflictId ? (library.conflicts[conflictId] ?? '') : ''}
           onClose={() => setConflictId(null)}
         />

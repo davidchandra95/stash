@@ -159,10 +159,54 @@ for (const palette of palettes)
             ),
         ).toEqual(fonts)
         await field(
-          page.getByRole('textbox', { name: 'Search notes', exact: true }),
+          page.getByRole('textbox', { name: 'Filter this view', exact: true }),
           page.locator('.search-box'),
         )
-        await page.getByRole('textbox', { name: 'Search notes', exact: true }).blur()
+        await page.getByRole('textbox', { name: 'Filter this view', exact: true }).blur()
+        const newNote = page.locator('.list-heading .new-note-button')
+        const newNoteColors = await newNote.evaluate((el) => ({
+          foreground: getComputedStyle(el).color,
+          background: getComputedStyle(el).backgroundColor,
+        }))
+        expect(await contrast(newNote), 'New note text').toBeGreaterThanOrEqual(4.5)
+        await newNote.hover()
+        expect(await contrast(newNote), 'New note hover text').toBeGreaterThanOrEqual(4.5)
+        await expect(newNote).toHaveCSS('color', newNoteColors.foreground)
+        const newNoteHover = await newNote.evaluate((el) => getComputedStyle(el).backgroundColor)
+        expect(newNoteHover).not.toEqual(newNoteColors.background)
+        await newNote.press('Tab')
+        await page.keyboard.press('Shift+Tab')
+        await expect(newNote).toHaveCSS('background-color', newNoteHover)
+        await page.mouse.move(1270, 790)
+        await expect(newNote).toBeFocused()
+        await expect(newNote).toHaveCSS('background-color', newNoteColors.background)
+        await expect(newNote).toHaveCSS('color', newNoteColors.foreground)
+        await expect(newNote).toHaveCSS('outline-style', 'solid')
+        const builtInNav = page.locator('.nav-item.selected:not(.notebook-nav-item)')
+        expect(
+          await contrast(builtInNav.locator(':scope > svg'), 'stroke'),
+          'selected navigation icon',
+        ).toBeGreaterThanOrEqual(3)
+        const allNotes = page.locator('.nav-item:not(.notebook-nav-item)').filter({
+          has: page.locator('span', { hasText: /^All notes$/ }),
+        })
+        const initialNoteId = await page.locator('.note-row.selected').getAttribute('data-note-id')
+        for (const [id, color] of [
+          ['personal', 'rgb(130, 147, 111)'],
+          ['work', 'rgb(137, 154, 180)'],
+          ['learning', 'rgb(186, 151, 117)'],
+        ]) {
+          const notebook = page.locator(`[data-notebook-drop-id="${id}"] .notebook-nav-item`)
+          const icon = notebook.locator(':scope > svg')
+          await expect(icon).toHaveCSS('color', color)
+          await notebook.click()
+          await expect(notebook).toHaveClass(/selected/)
+          await expect(icon).toHaveCSS('color', color)
+          await notebook.focus()
+          await expect(icon).toHaveCSS('color', color)
+        }
+        await allNotes.click()
+        await page.locator(`.note-row[data-note-id="${initialNoteId}"]`).click()
         const checkmark = page
           .locator('[data-checked="true"] > .checkbox-glyph > .checkbox-box svg')
           .first()
@@ -205,6 +249,22 @@ for (const palette of palettes)
         ]) {
           await page.setViewportSize(size)
           await page.screenshot({ path: test.info().outputPath(`${label}-${size.width}.png`) })
+          if (palette === 'aster' && !dark && !cards && size.width === 1280) {
+            const visionSession = await page.context().newCDPSession(page)
+            try {
+              for (const deficiency of ['deuteranopia', 'protanopia', 'tritanopia'] as const) {
+                await visionSession.send('Emulation.setEmulatedVisionDeficiency', {
+                  type: deficiency,
+                })
+                await page.screenshot({
+                  path: test.info().outputPath(`${label}-${deficiency}.png`),
+                })
+              }
+            } finally {
+              await visionSession.send('Emulation.setEmulatedVisionDeficiency', { type: 'none' })
+              await visionSession.detach()
+            }
+          }
           expect(
             await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           ).toBe(true)
@@ -224,10 +284,28 @@ for (const palette of palettes)
         await page
           .getByRole('textbox', { name: 'Notebook name', exact: true })
           .fill('Review notebook')
-        expect(
-          await contrast(page.getByRole('button', { name: 'Create notebook', exact: true })),
-          'filled button text',
-        ).toBeGreaterThanOrEqual(4.5)
+        const createNotebook = page.getByRole('button', { name: 'Create notebook', exact: true })
+        expect(await contrast(createNotebook), 'filled button text').toBeGreaterThanOrEqual(4.5)
+        const createColors = await createNotebook.evaluate((el) => ({
+          foreground: getComputedStyle(el).color,
+          background: getComputedStyle(el).backgroundColor,
+        }))
+        await createNotebook.hover()
+        expect(await contrast(createNotebook), 'filled button hover text').toBeGreaterThanOrEqual(
+          4.5,
+        )
+        const createHover = await createNotebook.evaluate(
+          (el) => getComputedStyle(el).backgroundColor,
+        )
+        expect(createHover).not.toEqual(createColors.background)
+        await createNotebook.press('Tab')
+        await page.keyboard.press('Shift+Tab')
+        await expect(createNotebook).toHaveCSS('background-color', createHover)
+        await page.mouse.move(1270, 790)
+        await expect(createNotebook).toBeFocused()
+        await expect(createNotebook).toHaveCSS('background-color', createColors.background)
+        await expect(createNotebook).toHaveCSS('color', createColors.foreground)
+        await expect(createNotebook).toHaveCSS('outline-style', 'solid')
         await page
           .getByRole('button', { name: 'Link a folder from this computer', exact: true })
           .click()

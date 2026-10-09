@@ -3,6 +3,7 @@ import type { DrawingData, DrawingScene } from './model'
 import { readDrawing, sceneSignature } from './model'
 import { findDrawing } from './node'
 import { closeHistory } from '@tiptap/pm/history'
+import { retainEditorOperation } from '../editor/lifecycle'
 
 /** A session belongs to one editor and one block. It never follows active-note state. */
 export class DrawingSession {
@@ -10,6 +11,7 @@ export class DrawingSession {
   private signature: string
   private timer?: ReturnType<typeof setTimeout>
   private previewJob?: Promise<void>
+  private release: () => void
   previewError = ''
   constructor(
     readonly editor: Editor,
@@ -19,6 +21,7 @@ export class DrawingSession {
     private persistPreview: (data: DrawingData) => void = () => {},
   ) {
     this.signature = sceneSignature(this.data!.scene)
+    this.release = retainEditorOperation(editor)
     editor.view.dispatch(closeHistory(editor.state.tr))
   }
   get data() {
@@ -91,5 +94,6 @@ export class DrawingSession {
   dispose() {
     this.alive = false
     clearTimeout(this.timer)
+    this.release()
   }
 }

@@ -120,7 +120,7 @@ it('opens title lookup inline, shows recent notes, excludes bodies, and supports
   expect(host.querySelector('[aria-label="Back to previous note"]')).not.toBeNull()
   expect(host.querySelector('[aria-label="Forward to next note"]')).not.toBeNull()
   await press('p')
-  const input = host.querySelector<HTMLInputElement>('[aria-label="Find notes"]')!
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
   expect(document.activeElement).toBe(input)
   expect(document.querySelector('[role="dialog"]')).toBeNull()
   expect(
@@ -157,7 +157,7 @@ it('keeps full notebook context accessible without searching or highlighting it'
     { id: 'extra', name: 'Second notebook', color: '', icon: 'notebook' },
   ])
   await press('p')
-  const input = host.querySelector<HTMLInputElement>('[aria-label="Find notes"]')!
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
   await type(input, 'ap')
   const row = document.querySelector<HTMLElement>('.quick-open-result')!
   const context = 'Personal notebook with a long name, Second notebook'
@@ -176,7 +176,7 @@ it('keeps full notebook context accessible without searching or highlighting it'
 it('opens body search separately, highlights grouped occurrences, and returns the selected match', async () => {
   const { host, onSelectMatch } = await mount()
   await press('f', { shiftKey: true })
-  const input = document.querySelector<HTMLInputElement>('input[aria-label="Search note content"]')!
+  const input = document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!
   expect(document.activeElement).toBe(input)
   expect(document.querySelector('[role="dialog"]')).toBeTruthy()
   await type(input, 'alpha')
@@ -193,16 +193,16 @@ it('opens body search separately, highlights grouped occurrences, and returns th
     false,
   )
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[aria-label="Search note content"]')!.click(),
+    host.querySelector<HTMLButtonElement>('[aria-label="Search note bodies"]')!.click(),
   )
   expect(
-    document.querySelector<HTMLInputElement>('input[aria-label="Search note content"]')!.value,
+    document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!.value,
   ).toBe('')
   await press('Escape')
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
-  expect(document.activeElement).toBe(host.querySelector('[aria-label="Search note content"]'))
+  expect(document.activeElement).toBe(host.querySelector('[aria-label="Search note bodies"]'))
 })
 it('switches between surfaces and respects custom bindings', async () => {
   const { host } = await mount({ 'quick-open': 'Mod+Alt+p', search: 'Mod+Alt+f' })
@@ -213,14 +213,51 @@ it('switches between surfaces and respects custom bindings', async () => {
   await press('f', { altKey: true })
   expect(document.querySelector('.quick-open-popup')).toBeNull()
   const content = document.querySelector<HTMLInputElement>(
-    'input[aria-label="Search note content"]',
+    'input[aria-label="Search note bodies"]',
   )!
   await press('p', { altKey: true }, content)
   expect(document.querySelector('[role="dialog"]')).toBeNull()
   expect(document.querySelector('.quick-open-popup')).toBeTruthy()
-  expect(document.activeElement).toBe(host.querySelector('[aria-label="Find notes"]'))
+  expect(document.activeElement).toBe(host.querySelector('[aria-label="Find note titles"]'))
   await press('Escape', {}, document.activeElement!)
   expect(document.querySelector('.quick-open-popup')).toBeNull()
+})
+
+it('offers body search from title lookup, carries the query, and resets direct searches', async () => {
+  const { host } = await mount()
+  await press('p')
+  const titles = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
+  await type(titles, 'garden')
+  expect(document.querySelectorAll('.quick-open-result')).toHaveLength(0)
+  expect(document.querySelector('.quick-open-heading')?.textContent).toContain('all notebooks')
+  const searchBodies = document.querySelector<HTMLButtonElement>('.quick-open-content-action')!
+  await press('Tab', { ctrlKey: false }, titles)
+  expect(document.activeElement).toBe(searchBodies)
+  await press('Tab', { ctrlKey: false, shiftKey: true }, searchBodies)
+  expect(document.activeElement).toBe(titles)
+  await press('Tab', { ctrlKey: false }, titles)
+  await press('Escape', {}, searchBodies)
+  expect(document.activeElement).toBe(titles)
+  expect(document.querySelector('.quick-open-popup')).toBeNull()
+  await press('p')
+  await type(titles, 'garden')
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('.quick-open-content-action')!.click(),
+  )
+  const bodies = document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!
+  expect(bodies.value).toBe('garden')
+  expect(document.activeElement).toBe(bodies)
+  expect(document.querySelector('.quick-open-popup')).toBeNull()
+  expect(document.querySelector('.global-search-description')?.textContent).toContain(
+    'Excludes Trash',
+  )
+  expect(document.querySelectorAll('.content-search-group')).toHaveLength(1)
+  expect(document.querySelector('.content-search-heading strong')?.textContent).toBe('ALPHA')
+  await press('Escape', {}, bodies)
+  await press('f', { shiftKey: true })
+  expect(
+    document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')?.value,
+  ).toBe('')
 })
 
 it('orders app-bar navigation before search and retains the sidebar toggle', async () => {
@@ -238,7 +275,12 @@ it('orders app-bar navigation before search and retains the sidebar toggle', asy
     [...host.querySelectorAll('.title-bar-controls button, .title-bar-controls input')].map(
       (node) => node.getAttribute('aria-label'),
     ),
-  ).toEqual(['Back to previous note', 'Forward to next note', 'Find notes', 'Search note content'])
+  ).toEqual([
+    'Back to previous note',
+    'Forward to next note',
+    'Find note titles',
+    'Search note bodies',
+  ])
   await act(() => {
     host.querySelector<HTMLButtonElement>('[aria-label="Back to previous note"]')!.click()
     host.querySelector<HTMLButtonElement>('[aria-label="Forward to next note"]')!.click()

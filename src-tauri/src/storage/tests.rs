@@ -8,7 +8,7 @@ fn note(id: &str) -> SaveNote {
         quick_access: false,
         tags: vec!["ideas".into()],
         content: Some(
-            json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Keep me #ideas"}]}]}),
+            json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Keep me "},{"type":"text","text":"#ideas","marks":[{"type":"bodyTag","attrs":{"tag":"ideas"}}]}]}]}),
         ),
         text: "Keep me #ideas".into(),
         pinned: false,
@@ -109,7 +109,7 @@ fn restart_retains_notes_settings_tags_and_trash() {
 }
 
 #[test]
-fn version_seven_moves_ordinary_legacy_tags_into_the_document_once() {
+fn old_tags_are_cleared_without_modifying_the_document() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
     let mut legacy = note("a");
@@ -132,11 +132,11 @@ fn version_seven_moves_ordinary_legacy_tags_into_the_document_once() {
 
     let store = Store::open(dir.path()).unwrap();
     let migrated = store.note("a", true).unwrap();
-    assert_eq!(migrated.text, "Keep me\nTags: #my-project");
-    assert_eq!(migrated.tags, vec!["my-project"]);
+    assert_eq!(migrated.text, "Keep me");
+    assert!(migrated.tags.is_empty());
     assert_eq!(
-        migrated.content.unwrap()["content"][1]["content"][0]["text"],
-        "Tags: #my-project"
+        migrated.content.unwrap()["content"][0]["content"][0]["text"],
+        "Keep me"
     );
     assert_eq!(
         store
@@ -164,7 +164,7 @@ fn version_seven_moves_ordinary_legacy_tags_into_the_document_once() {
     drop(store);
     let store = Store::open(dir.path()).unwrap();
     let reopened = store.note("a", true).unwrap();
-    assert_eq!(reopened.text, "Keep me\nTags: #my-project");
+    assert_eq!(reopened.text, "Keep me");
     assert_eq!(reopened.revision, revision);
 }
 #[test]
@@ -559,6 +559,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
     prefs.expected_revision = 1;
     prefs.operation_id = "tabs".into();
     prefs.workspace = Some(WorkspacePreferences {
+        note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
@@ -570,6 +571,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             id: "tab-a".into(),
             note_id: "a".into(),
             preview: Some(true),
+            pinned: None,
         }],
         active_tab_id: Some("tab-a".into()),
     });
@@ -587,7 +589,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        9
+        10
     );
 }
 
@@ -597,6 +599,7 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        note_list_mode: NoteListMode::Compact,
         sidebar_view: Some("book:empty".into()),
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
@@ -627,6 +630,7 @@ fn workspace_rejects_multiple_preview_tabs() {
     let mut store = Store::open(dir.path()).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
@@ -640,6 +644,7 @@ fn workspace_rejects_multiple_preview_tabs() {
                 id: id.into(),
                 note_id: id.into(),
                 preview: Some(true),
+            pinned: None,
             })
             .collect(),
         active_tab_id: Some("a".into()),
@@ -998,7 +1003,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                9
+                10
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))
@@ -1087,6 +1092,7 @@ fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
     let before = store.note("a", true).unwrap();
     let mut prefs = preferences();
     prefs.workspace = Some(WorkspacePreferences {
+        note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec!["a".into(), "b".into()],
@@ -1123,4 +1129,373 @@ fn sidebar_view_defaults_for_legacy_workspace_preferences() {
     ).unwrap();
     assert_eq!(saved.sidebar_view.as_deref(), Some("tag:project"));
     assert_eq!(serde_json::to_value(saved).unwrap()["sidebarView"], "tag:project");
+}
+
+
+#[test]
+fn note_list_mode_defaults_and_survives_restart_without_editing_notes() {
+    let legacy: WorkspacePreferences = serde_json::from_value(
+        json!({"tabs": [], "activeTabId": null}),
+    ).unwrap();
+    assert_eq!(legacy.note_list_mode, NoteListMode::Compact);
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_note(&note("a")).unwrap();
+    let before = store.note("a", true).unwrap();
+    let mut prefs = preferences();
+    prefs.workspace = Some(serde_json::from_value(json!({
+        "tabs": [], "activeTabId": null, "noteListMode": "preview",
+        "noteLists": {"all": {"mode": "title", "order": []}}
+    })).unwrap());
+    store.save_preferences(&prefs).unwrap();
+    drop(store);
+    let mut store = Store::open(dir.path()).unwrap();
+    let workspace = store.library().unwrap().workspace.unwrap();
+    assert_eq!(workspace.note_list_mode, NoteListMode::Preview);
+    assert!(matches!(workspace.note_lists["all"].mode, NoteSortMode::Title));
+    let after = store.note("a", true).unwrap();
+    assert_eq!(after.updated, before.updated);
+    assert_eq!(after.revision, before.revision);
+    assert_eq!(after.content, before.content);
+    prefs.expected_revision = 1;
+    prefs.operation_id = "compact-mode".into();
+    prefs.workspace.as_mut().unwrap().note_list_mode = NoteListMode::Compact;
+    store.save_preferences(&prefs).unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    assert_eq!(store.library().unwrap().workspace.unwrap().note_list_mode, NoteListMode::Compact);
+}
+
+#[test]
+fn confirmed_tags_survive_metadata_saves_and_old_indexes_are_rebuilt_without_text_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut input = note("confirmed");
+    input.text.push_str(" #abcdef");
+    store.save_note(&input).unwrap();
+    assert_eq!(store.note(&input.id, true).unwrap().tags, vec!["ideas"]);
+    input.content = None;
+    input.pinned = true;
+    input.expected_revision = 1;
+    input.operation_id = "metadata".into();
+    store.save_note(&input).unwrap();
+    assert_eq!(store.note(&input.id, true).unwrap().tags, vec!["ideas"]);
+    let before = store.note(&input.id, true).unwrap();
+    store.conn.execute("INSERT INTO note_tags VALUES('confirmed','abcdef')", []).unwrap();
+    store.conn.execute_batch("PRAGMA user_version=9;").unwrap();
+    drop(store);
+    for _ in 0..2 {
+        let store = Store::open(dir.path()).unwrap();
+        let after = store.note("confirmed", true).unwrap();
+        assert_eq!(after.tags, vec!["ideas"]);
+        assert_eq!(after.content, before.content);
+        assert_eq!(after.text, before.text);
+        assert_eq!(after.revision, before.revision);
+    }
+}
+
+#[test]
+fn workspace_pinned_tabs_survive_restart_and_default_for_legacy() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut prefs = preferences();
+    prefs.workspace = Some(serde_json::from_value(json!({
+        "tabs": [
+            {"id":"a", "noteId":"a", "pinned":true},
+            {"id":"pdf", "kind":"pdf", "documentId":"pdf", "pinned":true},
+            {"id":"b", "noteId":"b"}
+        ], "activeTabId":"a"
+    })).unwrap());
+    store.save_preferences(&prefs).unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let workspace = store.library().unwrap().workspace.unwrap();
+    assert_eq!(workspace.tabs[0].pinned, Some(true));
+    assert_eq!(workspace.tabs[1].pinned, Some(true));
+    assert_eq!(workspace.tabs[2].pinned, None);
+}
+
+#[test]
+fn workspace_rejects_pinned_preview_tabs() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut prefs = preferences();
+    prefs.workspace = Some(serde_json::from_value(json!({
+        "tabs": [{"id":"a", "noteId":"a", "pinned":true, "preview":true}],
+        "activeTabId":"a"
+    })).unwrap());
+    assert_eq!(store.save_preferences(&prefs).unwrap_err(), "Invalid workspace tabs.");
+    assert!(store.library().unwrap().workspace.is_none());
+}
+
+#[test]
+fn library_summaries_preserve_note_order_associations_and_recovery_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    save_notebooks(
+        &mut store,
+        vec![
+            notebook("z-book", "First", None),
+            notebook("a-book", "Second", None),
+        ],
+        "summary-books",
+    );
+    let full_text = format!("First line\n{}last-token-尾", "Full text ☕ ".repeat(100));
+    for (id, updated) in [("z-tie", 20), ("a-tie", 20), ("old", 10), ("new", 30)] {
+        let mut input = note(id);
+        input.text = full_text.clone();
+        if id == "z-tie" {
+            input.notebook_ids = vec!["a-book".into()];
+        }
+        if id == "a-tie" {
+            input.notebook_ids = vec!["z-book".into(), "a-book".into()];
+            input.quick_access = true;
+            input.pinned = true;
+            input.trashed = true;
+        }
+        store.save_note(&input).unwrap();
+        store
+            .conn
+            .execute(
+                "UPDATE notes SET created=5,updated=?,revision=7,has_tasks=? WHERE id=?",
+                params![updated, id == "a-tie", id],
+            )
+            .unwrap();
+    }
+    // Interleave memberships of different notes instead of grouping them by note ID.
+    store
+        .conn
+        .execute("INSERT INTO note_notebooks VALUES('z-tie','z-book')", [])
+        .unwrap();
+    store
+        .replace_body_tags(
+            "a-tie",
+            &["z-last".into(), "中".into(), "A-first".into(), "é".into()],
+        )
+        .unwrap();
+    store.replace_body_tags("old", &[]).unwrap();
+    store.conn.execute_batch(
+        "INSERT INTO linked_roots(id,path,error) VALUES('z-root','/synthetic/first','Root unavailable');
+         INSERT INTO linked_roots(id,path) VALUES('a-root','/synthetic/second');",
+    ).unwrap();
+    for (id, unavailable, trash_path) in [
+        ("new", None, None),
+        ("a-tie", Some("File missing"), Some("file-trash/a-tie.md")),
+    ] {
+        store.conn.execute(
+            "INSERT INTO linked_notes(note_id,root_id,relative_path,fingerprint,markdown,identity,unavailable,trash_path)
+             VALUES(?,'z-root',?,'fingerprint',?,'identity',?,?)",
+            params![id, format!("{id}.md"), full_text, unavailable, trash_path],
+        ).unwrap();
+    }
+    let draft = note("draft-only");
+    store
+        .conn
+        .execute(
+            "INSERT INTO file_conflicts VALUES(?,?,?)",
+            params![
+                draft.id,
+                serde_json::to_string(&draft).unwrap(),
+                "FILE_CONFLICT: recover me"
+            ],
+        )
+        .unwrap();
+
+    let before_reads = store.conn.total_changes();
+    let library = store.library().unwrap();
+    assert_eq!(store.conn.total_changes(), before_reads);
+    let ids: Vec<_> = library.notes.iter().map(|note| note.id.as_str()).collect();
+    assert_eq!(ids, vec!["new", "z-tie", "a-tie", "old"]);
+    let individually_read: Vec<_> = ids
+        .iter()
+        .map(|id| store.note(id, false).unwrap())
+        .collect();
+    assert_eq!(
+        serde_json::to_value(&library.notes).unwrap(),
+        serde_json::to_value(individually_read).unwrap(),
+    );
+    assert!(library
+        .notes
+        .iter()
+        .all(|note| note.content.is_none() && note.text == full_text));
+    assert!(library.notes[1].source.is_none());
+    assert_eq!(library.notes[1].notebook_ids, vec!["a-book", "z-book"]);
+    assert!(library.notes[3].tags.is_empty() && library.notes[3].notebook_ids.is_empty());
+    let trashed = &library.notes[2];
+    assert_eq!(trashed.tags, vec!["A-first", "z-last", "é", "中"]);
+    assert_eq!(trashed.notebook_ids, vec!["z-book", "a-book"]);
+    assert!(trashed.trashed && trashed.trashed_at.is_some());
+    assert!(trashed.pinned && trashed.quick_access && trashed.has_tasks);
+    assert_eq!(
+        (
+            trashed.created,
+            trashed.updated,
+            trashed.revision,
+            trashed.document_version
+        ),
+        (5, 20, 7, 1)
+    );
+    let source = trashed.source.as_ref().unwrap();
+    assert_eq!(source.root_id, "z-root");
+    assert_eq!(source.relative_path, "a-tie.md");
+    assert_eq!(source.fingerprint, "fingerprint");
+    assert_eq!(source.unavailable.as_deref(), Some("File missing"));
+    assert_eq!(source.trash_path.as_deref(), Some("file-trash/a-tie.md"));
+    assert!(source.markdown.is_none());
+    let live_source = library.notes[0].source.as_ref().unwrap();
+    assert!(
+        live_source.unavailable.is_none()
+            && live_source.trash_path.is_none()
+            && live_source.markdown.is_none()
+    );
+    assert_eq!(
+        library
+            .notebooks
+            .iter()
+            .map(|book| book.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["z-book", "a-book"]
+    );
+    assert_eq!(
+        library
+            .roots
+            .iter()
+            .map(|root| root.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["z-root", "a-root"]
+    );
+    assert_eq!(library.roots[0].error.as_deref(), Some("Root unavailable"));
+    assert_eq!(library.preferences_revision, 1);
+    assert_eq!(
+        library.appearance.as_ref().unwrap(),
+        &preferences().appearance
+    );
+    assert_eq!(library.conflicts.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&library.conflicts[0].draft).unwrap(),
+        serde_json::to_value(&draft).unwrap()
+    );
+    assert_eq!(library.conflicts[0].error, "FILE_CONFLICT: recover me");
+    let serialized = serde_json::to_value(&library).unwrap();
+    assert!(serialized["notes"][0].get("content").is_none());
+    assert!(serialized["notes"][0]["source"].get("markdown").is_none());
+    assert_eq!(
+        store
+            .note("new", true)
+            .unwrap()
+            .source
+            .unwrap()
+            .markdown
+            .as_deref(),
+        Some(full_text.as_str())
+    );
+    drop(store);
+
+    let reopened = Store::open(dir.path()).unwrap();
+    assert_eq!(
+        serde_json::to_value(reopened.library().unwrap()).unwrap(),
+        serialized
+    );
+}
+
+#[test]
+fn library_summaries_keep_body_validation_lazy_and_reject_new_document_versions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_note(&note("a")).unwrap();
+    store
+        .conn
+        .execute("UPDATE notes SET body='invalid JSON' WHERE id='a'", [])
+        .unwrap();
+    assert_eq!(store.library().unwrap().notes[0].text, "Keep me #ideas");
+    assert!(store
+        .note("a", true)
+        .unwrap_err()
+        .starts_with("Storage error:"));
+    store
+        .conn
+        .execute("UPDATE notes SET document_version=2 WHERE id='a'", [])
+        .unwrap();
+    let expected = "This note needs a newer document format. Its content has not been changed.";
+    let before_reads = store.conn.total_changes();
+    assert_eq!(store.library().unwrap_err(), expected);
+    assert_eq!(store.note("a", false).unwrap_err(), expected);
+    assert_eq!(store.note("a", true).unwrap_err(), expected);
+    assert_eq!(store.conn.total_changes(), before_reads);
+}
+
+#[test]
+fn empty_library_preserves_preferences_conflict_drafts_and_validation() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let empty = store.library().unwrap();
+    assert!(empty.notes.is_empty() && empty.notebooks.is_empty() && empty.roots.is_empty());
+    assert!(empty.appearance.is_none() && empty.workspace.is_none() && empty.conflicts.is_empty());
+    assert_eq!(empty.preferences_revision, 0);
+    let mut prefs = preferences();
+    prefs.workspace =
+        Some(serde_json::from_value(json!({"tabs": [], "activeTabId": null})).unwrap());
+    store.save_preferences(&prefs).unwrap();
+    let draft = note("recovery-only");
+    store
+        .conn
+        .execute(
+            "INSERT INTO file_conflicts VALUES(?,?,?)",
+            params![
+                draft.id,
+                serde_json::to_string(&draft).unwrap(),
+                "FILE_CONFLICT: draft"
+            ],
+        )
+        .unwrap();
+    let library = store.library().unwrap();
+    assert!(library.notes.is_empty());
+    assert_eq!(library.appearance.unwrap(), prefs.appearance);
+    assert!(library.workspace.unwrap().tabs.is_empty());
+    assert_eq!(library.preferences_revision, 1);
+    assert_eq!(library.notebooks.len(), 1);
+    assert_eq!(library.conflicts[0].draft.content, draft.content);
+    store
+        .conn
+        .execute("UPDATE preferences SET workspace='invalid JSON'", [])
+        .unwrap();
+    assert!(store.library().unwrap_err().starts_with("Storage error:"));
+    store
+        .conn
+        .execute("UPDATE preferences SET workspace=NULL,appearance='{}'", [])
+        .unwrap();
+    assert_eq!(
+        store.library().unwrap_err(),
+        "Invalid appearance settings. The saved settings have not been replaced."
+    );
+    store
+        .conn
+        .execute("UPDATE preferences SET appearance='invalid JSON'", [])
+        .unwrap();
+    assert!(store.library().unwrap_err().starts_with("Storage error:"));
+}
+
+#[test]
+fn library_summaries_ignore_orphaned_associations() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_note(&note("a")).unwrap();
+    // Old per-note reads never decode associations for nonexistent note IDs.
+    store
+        .conn
+        .execute_batch(
+            "PRAGMA foreign_keys=OFF;
+         INSERT INTO note_tags VALUES('orphan',X'FF');
+         INSERT INTO note_notebooks VALUES('orphan',X'FF');
+         INSERT INTO linked_notes(note_id,root_id,relative_path,fingerprint,markdown,identity)
+         VALUES('orphan',X'FF','orphan.md','fingerprint','cached','identity');
+         PRAGMA foreign_keys=ON;",
+        )
+        .unwrap();
+    let library = store.library().unwrap();
+    assert_eq!(library.notes.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&library.notes[0]).unwrap(),
+        serde_json::to_value(store.note("a", false).unwrap()).unwrap(),
+    );
 }

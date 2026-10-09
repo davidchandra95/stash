@@ -2,7 +2,7 @@ import AppTooltip from './AppTooltip'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import type { Appearance, Note, Notebook } from '../model'
-import { Search, FileText } from '../icons'
+import { Search, FileText, FileSearch } from '../icons'
 import { fontFamily } from '../fonts'
 import { notebookContext, quickOpenResults, quickTitleParts } from '../search'
 import { useShortcutLabel } from '../useShortcuts'
@@ -16,6 +16,7 @@ export default function QuickOpen({
   appearance,
   disabled,
   onSelect,
+  onSearchContent,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -25,10 +26,12 @@ export default function QuickOpen({
   appearance: Appearance
   disabled: boolean
   onSelect: (id: string, newTab?: boolean) => void
+  onSearchContent: (query: string) => void
 }) {
   const [query, setQuery] = useState(''),
     [index, setIndex] = useState(0)
   const input = useRef<HTMLInputElement>(null),
+    contentAction = useRef<HTMLButtonElement>(null),
     listId = useId()
   const shortcutLabel = useShortcutLabel()
   const results = useMemo(
@@ -61,8 +64,9 @@ export default function QuickOpen({
           <input
             ref={input}
             className="text-field"
-            aria-label="Find notes"
-            placeholder="Find notes…"
+            aria-label="Find note titles"
+            aria-description="Find note titles across all notebooks. Excludes Trash."
+            placeholder="Find note titles…"
             role="combobox"
             aria-expanded={open}
             aria-controls={open ? listId : undefined}
@@ -96,7 +100,12 @@ export default function QuickOpen({
                 event.preventDefault()
                 choose(selected.note, event.metaKey || event.ctrlKey)
               }
-              if (event.key === 'Tab') onOpenChange(false)
+              if (event.key === 'Tab') {
+                if (open && !event.shiftKey) {
+                  event.preventDefault()
+                  contentAction.current?.focus()
+                } else onOpenChange(false)
+              }
             }}
           />
           <kbd>{shortcutLabel('quick-open')}</kbd>
@@ -118,6 +127,7 @@ export default function QuickOpen({
             if (input.current?.parentElement?.contains(event.target as Node)) event.preventDefault()
           }}
         >
+          <p className="quick-open-heading">Titles across all notebooks · Excludes Trash</p>
           {!query.trim() && <p className="quick-open-heading">Recently opened</p>}
           <div id={listId} role="listbox" aria-label="Matching note titles">
             {results.map(({ note, ranges }, i) => {
@@ -159,9 +169,32 @@ export default function QuickOpen({
           </div>
           {!results.length && (
             <p className="global-search-empty" role="status">
-              {query.trim() ? 'No notes found.' : 'No recently opened notes. Type to find a note.'}
+              {query.trim()
+                ? 'No matching titles.'
+                : 'No recently opened notes. Type to find a title.'}
             </p>
           )}
+          <button
+            ref={contentAction}
+            className="quiet-button quick-open-content-action"
+            onClick={() => onSearchContent(query)}
+            disabled={disabled}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                input.current?.focus()
+                onOpenChange(false)
+              } else if (event.key === 'Tab' && event.shiftKey) {
+                event.preventDefault()
+                input.current?.focus()
+              }
+            }}
+          >
+            <FileSearch size={16} aria-hidden="true" />
+            <span>Search note bodies</span>
+            <kbd>{shortcutLabel('search')}</kbd>
+          </button>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

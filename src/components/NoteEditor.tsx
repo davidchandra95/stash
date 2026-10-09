@@ -1,7 +1,7 @@
 import AppTooltip from './AppTooltip'
 import { isPdfLink } from '../pdf/citations'
 import { platform, openExternalUrl } from '../platform'
-import { useContext } from 'react'
+import { memo, useContext } from 'react'
 import { ShortcutContext, useShortcutLabel } from '../useShortcuts'
 import { editorShortcutOverrides } from '../editor/shortcuts'
 import MarkdownTools from './MarkdownTools'
@@ -14,9 +14,11 @@ import WritingTools from './WritingTools'
 import DatePicker from './DatePicker'
 import DrawingDialog from '../drawing/Dialog'
 import DesktopWritingToolbar from './DesktopWritingToolbar'
-import { EditorContent, useEditorState, type JSONContent } from '@tiptap/react'
+import { contextPresentation, portablePresentation, samePresentation } from './editorPresentation'
+import { EditorContent, useEditorState, type Editor, type JSONContent } from '@tiptap/react'
 import { useLayoutEffect } from 'react'
 import { getEditor } from '../editor/session'
+import { retainEditorView } from '../editor/lifecycle'
 import { setCursorSettings } from '../editor/cursor'
 import { runCommand } from '../editor/commands'
 import {
@@ -56,8 +58,8 @@ export default function NoteEditor({
   onChange: (content: JSONContent, text: string) => void
 }) {
   const overrides = useContext(ShortcutContext)
-  const shortcutLabel = useShortcutLabel()
   const editor = getEditor(note.id, note.content, onChange, !!note.source)
+  useLayoutEffect(() => retainEditorView(editor), [editor])
   useLayoutEffect(() => {
     editorShortcutOverrides.set(editor, overrides)
   }, [editor, overrides])
@@ -106,7 +108,12 @@ export default function NoteEditor({
       },
       open: (href, newTab) => {
         const state = library.getSnapshot()
-        const target = resolveFileLink(note, href, state.notes, state.roots)
+        const target = resolveFileLink(
+          state.notes.find((current) => current.id === note.id) ?? note,
+          href,
+          state.notes,
+          state.roots,
+        )
         if (target) {
           if (target.fragment) pendingFragments.set(target.id, target.fragment)
           noteLinks.open(target.id, newTab)
@@ -122,7 +129,14 @@ export default function NoteEditor({
           )
       },
     })
-  }, [editor, note.source, noteLinks])
+  }, [
+    editor,
+    note.id,
+    note.source?.rootId,
+    note.source?.relativePath,
+    note.source?.fingerprint,
+    noteLinks,
+  ])
   useLayoutEffect(() => {
     const fragment = pendingFragments.get(note.id)
     if (fragment) {
@@ -142,7 +156,14 @@ export default function NoteEditor({
         }
       })
     }
-  }, [editor, note.source, noteLinks])
+  }, [
+    editor,
+    note.id,
+    note.source?.rootId,
+    note.source?.relativePath,
+    note.source?.fingerprint,
+    noteLinks,
+  ])
   useLayoutEffect(() => {
     if (note.source) return
     const dom = editor.view.dom
@@ -152,7 +173,7 @@ export default function NoteEditor({
         event.preventDefault()
         event.stopImmediatePropagation()
         void openExternalUrl(href).catch((error) =>
-          editor.view.dom.dispatchEvent(
+          dom.dispatchEvent(
             new CustomEvent('writing-error', { bubbles: true, detail: String(error) }),
           ),
         )
@@ -177,7 +198,7 @@ export default function NoteEditor({
           return
         }
         void library.command('open_external_file', { href }).catch((error) => {
-          editor.view.dom.dispatchEvent(
+          dom.dispatchEvent(
             new CustomEvent('writing-error', { bubbles: true, detail: String(error) }),
           )
         })
@@ -185,12 +206,22 @@ export default function NoteEditor({
     }
     dom.addEventListener('click', click, true)
     return () => dom.removeEventListener('click', click, true)
-  }, [editor, note, noteLinks])
+  }, [editor, note.id, note.source, noteLinks])
   useLayoutEffect(() => {
     setNoteLinkContext(editor, noteLinks)
   }, [editor, noteLinks])
   useLayoutEffect(() => {
-    setBodyTagContext(editor, { open: onOpenTag })
+    setBodyTagContext(editor, {
+      open: onOpenTag,
+      tags: () => [
+        ...new Set(
+          library
+            .getSnapshot()
+            .notes.filter((note) => !note.trashed)
+            .flatMap((note) => note.tags),
+        ),
+      ],
+    })
   }, [editor, onOpenTag])
   useLayoutEffect(() => {
     setCursorSettings(editor, cursorSettings)
@@ -206,8 +237,135 @@ export default function NoteEditor({
       dom.dispatchEvent(new Event('writing-deactivate'))
     }
   }, [editor])
-  useEditorState({ editor, selector: ({ editor: current }) => current?.state })
-  if (!editor) return null
+  return (
+    <EditorSurface
+      editor={editor}
+      noteId={note.id}
+      linked={!!note.source}
+      readOnly={readOnly}
+      appearance={appearance}
+    />
+  )
+}
+
+type SurfaceProps = {
+  editor: Editor
+  noteId: string
+  linked: boolean
+  readOnly: boolean
+  appearance?: Appearance
+}
+const EditorSurface = memo(function EditorSurface({
+  editor,
+  noteId,
+  linked,
+  readOnly,
+  appearance,
+}: SurfaceProps) {
+  return (
+    <>
+      <EditorContent editor={editor} className="editor-body" />
+      <DatePicker editor={editor} readOnly={readOnly} appearance={appearance} />
+      {!linked && (
+        <DrawingDialog
+          key={noteId}
+          noteId={noteId}
+          editor={editor}
+          readOnly={readOnly}
+          appearance={appearance}
+        />
+      )}
+      <fieldset className="writing-dock editor-controls" disabled={readOnly}>
+        <ContextTools editor={editor} readOnly={readOnly} />
+        {!platform.mobile && !linked ? (
+          <DesktopWritingToolbar editor={editor} readOnly={readOnly} appearance={appearance} />
+        ) : (
+          <PortableToolbar editor={editor} linked={linked} readOnly={readOnly} />
+        )}
+      </fieldset>
+    </>
+  )
+})
+function ContextTools({ editor, readOnly }: Pick<SurfaceProps, 'editor' | 'readOnly'>) {
+  useEditorState({
+    editor,
+    selector: ({ editor }) => contextPresentation(editor),
+    equalityFn: samePresentation,
+  })
+  return (
+    <>
+      {editor.isActive('table') && (
+        <div
+          className="context-tools"
+          aria-label="Table controls"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span>TABLE</span>
+          <button onClick={() => runCommand(editor, 'row-after')}>+ Row</button>
+          <button onClick={() => runCommand(editor, 'column-after')}>+ Column</button>
+          <button onClick={() => runCommand(editor, 'remove-row')}>Remove row</button>
+          <button onClick={() => runCommand(editor, 'remove-column')}>Remove column</button>
+          <button onClick={() => runCommand(editor, 'remove-table')}>Remove table</button>
+        </div>
+      )}
+      {editor.isActive('codeBlock') && (
+        <div className="context-tools">
+          <span>CODE</span>
+          <select
+            aria-label="Code language"
+            value={editor.getAttributes('codeBlock').language || 'plaintext'}
+            onChange={(e) =>
+              editor
+                .chain()
+                .focus()
+                .updateAttributes('codeBlock', { language: e.target.value })
+                .run()
+            }
+          >
+            {[
+              'plaintext',
+              'mermaid',
+              'typescript',
+              'javascript',
+              'rust',
+              'go',
+              'python',
+              'json',
+              'css',
+              'bash',
+              'sql',
+            ].map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </select>
+          <AppTooltip instant label="Exit code block" disabled={readOnly}>
+            <button
+              type="button"
+              className="tool"
+              aria-label="Exit code block"
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.chain().focus().exitCode().run()}
+            >
+              <WrapText size={15} />
+            </button>
+          </AppTooltip>
+        </div>
+      )}
+    </>
+  )
+}
+function PortableToolbar({
+  editor,
+  linked,
+  readOnly,
+}: Pick<SurfaceProps, 'editor' | 'linked' | 'readOnly'>) {
+  const shortcutLabel = useShortcutLabel()
+  useEditorState({
+    editor,
+    selector: ({ editor }) => portablePresentation(editor),
+    equalityFn: samePresentation,
+  })
   const toolShortcut = (label: string) => {
     const id =
       (
@@ -233,9 +391,7 @@ export default function NoteEditor({
       instant
       label={label}
       shortcut={toolShortcut(label)}
-      disabled={
-        disabled || readOnly || (!!note.source && ['Underline', 'Highlight'].includes(label))
-      }
+      disabled={disabled || readOnly || (linked && ['Underline', 'Highlight'].includes(label))}
       key={label}
     >
       <button
@@ -244,9 +400,7 @@ export default function NoteEditor({
 
         aria-label={label}
         aria-pressed={active}
-        disabled={
-          disabled || readOnly || (!!note.source && ['Underline', 'Highlight'].includes(label))
-        }
+        disabled={disabled || readOnly || (linked && ['Underline', 'Highlight'].includes(label))}
         onMouseDown={(e) => e.preventDefault()}
         onClick={action}
       >
@@ -255,203 +409,135 @@ export default function NoteEditor({
     </AppTooltip>
   )
   return (
-    <>
-      <EditorContent editor={editor} className="editor-body" />
-      <DatePicker editor={editor} readOnly={readOnly} appearance={appearance} />
-      {!note.source && (
-        <DrawingDialog
-          key={note.id}
-          noteId={note.id}
-          editor={editor}
-          readOnly={readOnly}
-          appearance={appearance}
-        />
+    <div className="toolbar" role="toolbar" aria-label="Text formatting">
+      <select
+        aria-label="Text style"
+        value={editor.isActive('heading') ? `h${editor.getAttributes('heading').level}` : 'p'}
+        onChange={(e) => {
+          const value = e.target.value
+          runCommand(editor, value === 'p' ? 'paragraph' : value)
+        }}
+      >
+        <option value="p">Text</option>
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <option value={`h${n}`} key={n}>
+            Heading {n}
+          </option>
+        ))}
+      </select>
+      <i />
+      {tool(
+        'Bold',
+        <Bold />,
+        () => {
+          runCommand(editor, 'bold')
+        },
+        editor.isActive('bold'),
       )}
-      <fieldset className="writing-dock editor-controls" disabled={readOnly}>
-        {editor.isActive('table') && (
-          <div
-            className="context-tools"
-            aria-label="Table controls"
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <span>TABLE</span>
-            <button onClick={() => runCommand(editor, 'row-after')}>+ Row</button>
-            <button onClick={() => runCommand(editor, 'column-after')}>+ Column</button>
-            <button onClick={() => runCommand(editor, 'remove-row')}>Remove row</button>
-            <button onClick={() => runCommand(editor, 'remove-column')}>Remove column</button>
-            <button onClick={() => runCommand(editor, 'remove-table')}>Remove table</button>
-          </div>
-        )}
-        {editor.isActive('codeBlock') && (
-          <div className="context-tools">
-            <span>CODE</span>
-            <select
-              aria-label="Code language"
-              value={editor.getAttributes('codeBlock').language || 'plaintext'}
-              onChange={(e) =>
-                editor
-                  .chain()
-                  .focus()
-                  .updateAttributes('codeBlock', { language: e.target.value })
-                  .run()
-              }
-            >
-              {[
-                'plaintext',
-                'mermaid',
-                'typescript',
-                'javascript',
-                'rust',
-                'go',
-                'python',
-                'json',
-                'css',
-                'bash',
-                'sql',
-              ].map((l) => (
-                <option key={l}>{l}</option>
-              ))}
-            </select>
-            {tool('Exit code block', <WrapText size={15} />, () => {
-              editor.chain().focus().exitCode().run()
-            })}
-          </div>
-        )}
-        {!platform.mobile && !note.source ? (
-          <DesktopWritingToolbar editor={editor} readOnly={readOnly} appearance={appearance} />
-        ) : (
-          <div className="toolbar" role="toolbar" aria-label="Text formatting">
-            <select
-              aria-label="Text style"
-              value={editor.isActive('heading') ? `h${editor.getAttributes('heading').level}` : 'p'}
-              onChange={(e) => {
-                const value = e.target.value
-                runCommand(editor, value === 'p' ? 'paragraph' : value)
-              }}
-            >
-              <option value="p">Text</option>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <option value={`h${n}`} key={n}>
-                  Heading {n}
-                </option>
-              ))}
-            </select>
-            <i />
-            {tool(
-              'Bold',
-              <Bold />,
-              () => {
-                runCommand(editor, 'bold')
-              },
-              editor.isActive('bold'),
-            )}
-            {tool(
-              'Italic',
-              <Italic />,
-              () => {
-                runCommand(editor, 'italic')
-              },
-              editor.isActive('italic'),
-            )}
-            {tool(
-              'Underline',
-              <Underline />,
-              () => {
-                runCommand(editor, 'underline')
-              },
-              editor.isActive('underline'),
-            )}
-            {tool(
-              'Strikethrough',
-              <Strikethrough />,
-              () => {
-                runCommand(editor, 'strike')
-              },
-              editor.isActive('strike'),
-            )}
-            {tool(
-              'Highlight',
-              <Highlighter />,
-              () => {
-                runCommand(editor, 'highlight')
-              },
-              editor.isActive('highlight'),
-            )}
-            <i />
-            {tool(
-              'Bullet list',
-              <List />,
-              () => {
-                runCommand(editor, 'bullet')
-              },
-              editor.isActive('mixedListItem', { kind: 'bullet' }),
-            )}
-            {tool(
-              'Numbered list',
-              <ListOrdered />,
-              () => {
-                runCommand(editor, 'number')
-              },
-              editor.isActive('mixedListItem', { kind: 'number' }),
-            )}
-            {tool(
-              'Checklist',
-              <ListTodo />,
-              () => {
-                runCommand(editor, 'task')
-              },
-              editor.isActive('mixedListItem', { kind: 'task' }),
-            )}
-            <i />
-            {tool(
-              'Quote',
-              <Quote />,
-              () => {
-                runCommand(editor, 'quote')
-              },
-              editor.isActive('blockquote'),
-            )}
-            {tool(
-              'Code block',
-              <Code2 />,
-              () => {
-                runCommand(editor, 'code')
-              },
-              editor.isActive('codeBlock'),
-            )}
-            {tool('Insert table', <Table2 />, () => {
-              runCommand(editor, 'table')
-            })}
-            {tool('Divider', <Minus />, () => {
-              runCommand(editor, 'divider')
-            })}
-            {note.source ? (
-              <MarkdownTools editor={editor} readOnly={readOnly} />
-            ) : (
-              <WritingTools editor={editor} readOnly={readOnly} />
-            )}
-            <i />
-            {tool(
-              'Undo',
-              <Undo2 />,
-              () => {
-                runCommand(editor, 'undo')
-              },
-              false,
-              !editor.can().undo(),
-            )}
-            {tool(
-              'Redo',
-              <Redo2 />,
-              () => {
-                runCommand(editor, 'redo')
-              },
-              false,
-              !editor.can().redo(),
-            )}
-          </div>
-        )}
-      </fieldset>
-    </>
+      {tool(
+        'Italic',
+        <Italic />,
+        () => {
+          runCommand(editor, 'italic')
+        },
+        editor.isActive('italic'),
+      )}
+      {tool(
+        'Underline',
+        <Underline />,
+        () => {
+          runCommand(editor, 'underline')
+        },
+        editor.isActive('underline'),
+      )}
+      {tool(
+        'Strikethrough',
+        <Strikethrough />,
+        () => {
+          runCommand(editor, 'strike')
+        },
+        editor.isActive('strike'),
+      )}
+      {tool(
+        'Highlight',
+        <Highlighter />,
+        () => {
+          runCommand(editor, 'highlight')
+        },
+        editor.isActive('highlight'),
+      )}
+      <i />
+      {tool(
+        'Bullet list',
+        <List />,
+        () => {
+          runCommand(editor, 'bullet')
+        },
+        editor.isActive('mixedListItem', { kind: 'bullet' }),
+      )}
+      {tool(
+        'Numbered list',
+        <ListOrdered />,
+        () => {
+          runCommand(editor, 'number')
+        },
+        editor.isActive('mixedListItem', { kind: 'number' }),
+      )}
+      {tool(
+        'Checklist',
+        <ListTodo />,
+        () => {
+          runCommand(editor, 'task')
+        },
+        editor.isActive('mixedListItem', { kind: 'task' }),
+      )}
+      <i />
+      {tool(
+        'Quote',
+        <Quote />,
+        () => {
+          runCommand(editor, 'quote')
+        },
+        editor.isActive('blockquote'),
+      )}
+      {tool(
+        'Code block',
+        <Code2 />,
+        () => {
+          runCommand(editor, 'code')
+        },
+        editor.isActive('codeBlock'),
+      )}
+      {tool('Insert table', <Table2 />, () => {
+        runCommand(editor, 'table')
+      })}
+      {tool('Divider', <Minus />, () => {
+        runCommand(editor, 'divider')
+      })}
+      {linked ? (
+        <MarkdownTools editor={editor} readOnly={readOnly} />
+      ) : (
+        <WritingTools editor={editor} readOnly={readOnly} />
+      )}
+      <i />
+      {tool(
+        'Undo',
+        <Undo2 />,
+        () => {
+          runCommand(editor, 'undo')
+        },
+        false,
+        !editor.can().undo(),
+      )}
+      {tool(
+        'Redo',
+        <Redo2 />,
+        () => {
+          runCommand(editor, 'redo')
+        },
+        false,
+        !editor.can().redo(),
+      )}
+    </div>
   )
 }

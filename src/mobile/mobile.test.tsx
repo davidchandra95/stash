@@ -49,6 +49,7 @@ beforeEach(async () => {
     { id: 'child', name: 'Child', parentId: 'parent', icon: 'book', color: '#82936f' },
   ])
   library.setNotes([makeNote('Direct note', 'parent'), makeNote('Nested note', 'child')])
+  library.setNoteListMode('compact')
   vi.mocked(tauriCore.isTauri).mockReturnValue(true)
   host = document.createElement('div')
   document.body.append(host)
@@ -216,4 +217,64 @@ it('keeps settings and nested notebook history typed and bounded at the library 
     route: { kind: 'settings', category: 'sync' },
   })
   expect(mobileNavigation(nested, { type: 'back' })).toEqual(initial)
+})
+
+it('switches saved list views while preserving search and scroll and showing context only in All notes', async () => {
+  await act(async () => library.setNoteListMode('compact'))
+  expect(host.querySelectorAll('.note-list-preview')).toHaveLength(0)
+  expect(host.querySelector('.note-list-notebook')?.textContent).toBe('Parent')
+  await click('Search notes')
+  await input('Search notes', 'Direct')
+  const list = host.querySelector<HTMLElement>('.mobile-list')!
+  list.scrollTop = 37
+  await click('Page actions')
+  const preview = document.querySelector<HTMLInputElement>(
+    'input[name="note-list-mode"][value="preview"]',
+  )!
+  expect(preview).toBeTruthy()
+  await act(async () => preview.click())
+  expect(library.getSnapshot().workspace?.noteListMode).toBe('preview')
+  expect(host.querySelector('.note-list-preview')?.textContent).toBe('Body Direct note')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="Search notes"]')?.value).toBe(
+    'Direct',
+  )
+  expect(list.scrollTop).toBe(37)
+  await click('Direct note')
+  await androidBack()
+  expect(host.querySelector('.note-list-preview')?.textContent).toBe('Body Direct note')
+  await click('Open navigation')
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('.mobile-drawer .mobile-book-label')!.click(),
+  )
+  expect(host.querySelector('.note-list-notebook')).toBeNull()
+  expect(host.querySelector('.note-list-preview')?.textContent).toBe('Body Direct note')
+  await click('Page actions')
+  await act(async () =>
+    document
+      .querySelector<HTMLInputElement>('input[name="note-list-mode"][value="compact"]')!
+      .click(),
+  )
+  expect(host.querySelector('.note-list-preview')).toBeNull()
+})
+
+it('restores an offscreen virtual list and its focusable note after Android Back', async () => {
+  const notes = Array.from({ length: 1000 }, (_, index) => ({
+    ...makeNote(`Large ${String(index).padStart(5, '0')}`, 'parent'),
+    updated: 1000 - index,
+  }))
+  await act(async () => library.setNotes(notes))
+  const pane = document.querySelector<HTMLElement>('.mobile-list')!
+  const offset = 500 * 67
+  await act(async () => {
+    pane.scrollTop = offset
+    pane.dispatchEvent(new Event('scroll'))
+  })
+  expect(pane.querySelectorAll('.mobile-note-row').length).toBeLessThan(50)
+  await click('Large 00500')
+  expect(document.querySelector('.mobile-note-scroll')).toBeTruthy()
+  await androidBack()
+  const restored = document.querySelector<HTMLElement>('.mobile-list')!
+  expect(restored.scrollTop).toBe(offset)
+  expect(restored.querySelectorAll('.mobile-note-row').length).toBeLessThan(50)
+  expect(document.querySelector('[aria-label="Large 00500"]')).toBeTruthy()
 })

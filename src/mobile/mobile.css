@@ -136,6 +136,63 @@ html[data-platform='mobile'] #root {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.mobile-note-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.mobile-note-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.mobile-note-title > svg {
+  flex-shrink: 0;
+  color: var(--control-accent);
+}
+.mobile-note-title > span {
+  min-width: 0;
+}
+.mobile-note-copy > .note-list-preview {
+  font-size: 14px;
+  line-height: 20px;
+}
+.mobile-note-copy > .note-list-notebook {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+}
+.mobile-note-copy .note-list-notebook-extra {
+  overflow: visible;
+}
+.mobile-list-modes {
+  border: 0;
+  margin: 0;
+  padding: 8px 0;
+  min-width: 0;
+}
+.mobile-list-modes legend {
+  padding: 0 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.mobile-list-modes label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 16px;
+  font-size: 17px;
+}
+.mobile-list-modes label:active {
+  background: var(--hover);
+}
+.mobile-list-modes input {
+  accent-color: var(--control-accent);
+}
 .mobile-book-label > svg {
   width: 23px;
   height: 23px;

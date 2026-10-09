@@ -207,6 +207,7 @@ export function useAnimatedItems(
   scope: string,
   duration: number,
   automatic = false,
+  virtualized = false,
 ) {
   const previous = useRef(new Map<string, Snapshot>())
   const previousScope = useRef<string | null>(null)
@@ -234,6 +235,14 @@ export function useAnimatedItems(
     if (!sameScope || !active) cleanup()
     const explicit = requested.current
     requested.current = false
+    // Mounting a new scroll window is presentation, not note creation/removal.
+    // Virtual lists only capture and animate explicit domain actions.
+    if (virtualized && !explicit) {
+      cleanup()
+      previous.current.clear()
+      previousScope.current = scope
+      return
+    }
     if (!changed && sameScope) return
     // New rows represent creation/duplication. Search changes are excluded by scope.
     const added = keys.some((key) => !previous.current.has(key))

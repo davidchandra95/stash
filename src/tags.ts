@@ -59,3 +59,52 @@ export function tagFooter(tags: Iterable<string>): string {
   const unique = [...new Set([...tags].filter(Boolean))]
   return unique.length ? `Tags: ${unique.map((tag) => `#${tag}`).join(' ')}` : ''
 }
+
+/** Only explicit marks carry tag identity. Plain hashtags never enter the index. */
+export function tagsFromContent(doc: import('@tiptap/core').JSONContent): string[] {
+  const tags = new Set<string>()
+  const visit = (node: import('@tiptap/core').JSONContent) => {
+    let tag: string | undefined,
+      text = ''
+    const flush = () => {
+      const matches = tagMatches(text)
+      if (
+        tag &&
+        matches.length === 1 &&
+        matches[0].from === 0 &&
+        matches[0].to === text.length &&
+        matches[0].tag === tag
+      )
+        tags.add(tag)
+      tag = undefined
+      text = ''
+    }
+    for (const child of node.content ?? []) {
+      const next =
+        child.type === 'text'
+          ? child.marks?.find((m) => m.type === 'bodyTag')?.attrs?.tag
+          : undefined
+      if (!next || next !== tag) flush()
+      if (next) {
+        tag = next
+        text += child.text ?? ''
+      } else visit(child)
+    }
+    flush()
+  }
+  visit(doc)
+  return [...tags]
+}
+
+export function tagFooterContent(tags: string[]): import('@tiptap/core').JSONContent {
+  return {
+    type: 'paragraph',
+    content: [
+      { type: 'text', text: 'Tags: ' },
+      ...tags.flatMap((tag, index) => [
+        ...(index ? [{ type: 'text', text: ' ' }] : []),
+        { type: 'text', text: `#${tag}`, marks: [{ type: 'bodyTag', attrs: { tag } }] },
+      ]),
+    ],
+  }
+}

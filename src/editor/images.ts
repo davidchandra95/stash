@@ -2,6 +2,7 @@ import { plainPasteEditors } from './clipboard'
 import { Extension, type Editor } from '@tiptap/core'
 import { closeHistory } from '@tiptap/pm/history'
 import { Plugin } from '@tiptap/pm/state'
+import { retainEditorOperation } from './lifecycle'
 export function readImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -17,6 +18,7 @@ export async function insertImages(
 ) {
   const valid = files.filter((f) => /^image\/(png|jpeg|gif|webp|avif|bmp)$/.test(f.type))
   if (!valid.length) throw new Error('Choose a PNG, JPEG, GIF, WebP, AVIF, or BMP image.')
+  const release = retainEditorOperation(editor)
   // Map the insertion point through any edits while file reads are pending.
   let mapped = position
   const track = ({ transaction }: { transaction: import('@tiptap/pm/state').Transaction }) => {
@@ -37,6 +39,7 @@ export async function insertImages(
     }
   } finally {
     editor.off('transaction', track)
+    release()
   }
 }
 export const ImageClipboard = Extension.create({
@@ -45,11 +48,16 @@ export const ImageClipboard = Extension.create({
   addProseMirrorPlugins() {
     const editor = this.editor
     const insert = (files: File[], pos?: number) => {
-      void insertImages(editor, files, pos).catch((error) =>
-        editor.view.dom.dispatchEvent(
-          new CustomEvent('writing-error', { bubbles: true, detail: String(error.message) }),
-        ),
-      )
+      const release = retainEditorOperation(editor)
+      void insertImages(editor, files, pos)
+        .catch(
+          (error) =>
+            !editor.isDestroyed &&
+            editor.view.dom.dispatchEvent(
+              new CustomEvent('writing-error', { bubbles: true, detail: String(error.message) }),
+            ),
+        )
+        .finally(release)
     }
     return [
       new Plugin({

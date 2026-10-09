@@ -9,6 +9,7 @@ import { replaceBodyText } from '../editor/replace'
 import { ArrowDown, ArrowUp, ChevronRight, X } from '../icons'
 import type { Note } from '../model'
 import { getEditor } from '../editor/session'
+import { retainEditorView } from '../editor/lifecycle'
 import { referenceTitle } from '../editor/noteReferences'
 import { resolveMatch, type MatchNavigation } from '../search'
 import {
@@ -54,6 +55,7 @@ export default function NoteTools({
   focusContentsOnOpen?: boolean
 }) {
   const editor = getEditor(note.id, note.content, undefined, !!note.source)
+  useLayoutEffect(() => retainEditorView(editor), [editor])
   useEditorState({
     editor,
     selector: ({ editor }) => editor.state.doc,

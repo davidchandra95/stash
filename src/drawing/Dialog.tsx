@@ -1,17 +1,8 @@
-import {
-  Component,
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react'
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { Editor } from '@tiptap/core'
 import type { Appearance } from '../model'
-import { library } from '../storage/useLibrary'
+import { library, useLibrarySelector, shallowEqual } from '../storage/useLibrary'
 import { platform } from '../platform'
 import { X } from '../icons'
 import { fontFamily } from '../fonts'
@@ -57,7 +48,15 @@ export default function DrawingDialog({
   const escapeHandler = useRef<(() => boolean) | null>(null)
   const lastId = useRef<string | null>(null)
   const generation = useRef(0)
-  const state = useSyncExternalStore(library.subscribe, library.getSnapshot)
+  const state = useLibrarySelector(
+    ({ appearance, status, error, preview }) => ({
+      appearance,
+      preview,
+      status: open ? status : 'saved',
+      error: open ? error : '',
+    }),
+    shallowEqual,
+  )
   const dark = appearance?.dark ?? state.appearance.dark
   useEffect(() => {
     const dom = editor.view.dom

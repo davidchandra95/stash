@@ -3,6 +3,50 @@ import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
 import { parseMarkdown, serializeMarkdown, markdownExtensions, validateMarkdown } from './markdown'
 import { runCommand } from './commands'
+
+describe('Markdown block boundaries', () => {
+  it.each([
+    ['', '', ''],
+    ['', 'last', 'last'],
+    ['first', 'last', 'first\n\nlast'],
+    ['first\n', 'last', 'first\n\nlast'],
+    ['first\n\n', 'last', 'first\n\nlast'],
+    ['first\r\n', 'last', 'first\n\nlast'],
+    ['first\r\n\r\n', 'last', 'first\n\nlast'],
+    ['first\n\n\n', 'last', 'first\n\n\nlast'],
+  ])('preserves spacing between raw blocks %j and %j', (first, last, expected) => {
+    const doc = {
+      type: 'doc',
+      content: [
+        { type: 'rawMarkdown', attrs: { source: first } },
+        { type: 'rawMarkdown', attrs: { source: last } },
+      ],
+    }
+    expect(serializeMarkdown(doc)).toBe(expected)
+    expect(serializeMarkdown(doc, '\r\n')).toBe(expected.replace(/\n/g, '\r\n'))
+  })
+
+  it('keeps separators when an empty block follows an unterminated block', () => {
+    const doc = {
+      type: 'doc',
+      content: ['first', '', 'last', ''].map((source) => ({
+        type: 'rawMarkdown', attrs: { source },
+      })),
+    }
+    expect(serializeMarkdown(doc)).toBe('first\n\nlast\n\n')
+  })
+
+  it('preserves spacing around a lone carriage return', () => {
+    const doc = {
+      type: 'doc',
+      content: ['first\n\n\r', '\n', 'last'].map((source) => ({
+        type: 'rawMarkdown', attrs: { source },
+      })),
+    }
+    expect(serializeMarkdown(doc)).toBe('first\n\n\n\n\nlast')
+  })
+})
+
 describe('file-backed Markdown', () => {
   it('reads rich Markdown including mixed lists, tasks, tables and Mermaid', () => {
     const source =

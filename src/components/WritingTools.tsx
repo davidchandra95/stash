@@ -1,4 +1,5 @@
 import AppTooltip from './AppTooltip'
+import { retainEditorOperation } from '../editor/lifecycle'
 import {
   Link,
   ImagePlus,
@@ -416,6 +417,7 @@ export default function WritingTools({
               accept="image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp"
               multiple
               onChange={async (e) => {
+                const release = retainEditorOperation(editor)
                 try {
                   const files = Array.from(e.target.files ?? [])
                   const images = await Promise.all(
@@ -427,6 +429,8 @@ export default function WritingTools({
                   if (images.length) apply((c) => c.insertContent(images))
                 } catch {
                   setError('The image could not be read. Try another file.')
+                } finally {
+                  release()
                 }
               }}
             />

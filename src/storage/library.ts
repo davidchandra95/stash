@@ -1,3 +1,4 @@
+import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { pdfCitationHref } from '../pdf/citations'
 import { copyDrawingIds, replaceDrawingPreview, type DrawingData } from '../drawing/model'
 import type { PdfDocument } from '../pdf/model'
@@ -11,7 +12,7 @@ import {
   serializeMarkdown,
   markdownExtensions,
 } from '../editor/markdown'
-import { resetSession } from '../editor/session'
+import { evictSession, pruneEditorSessions, resetSession, subscribeSessionRetention } from '../editor/session'
 import type { FileSource, LinkedRoot, View } from '../model'
 import { normalizePdfNotes, normalizeRecentNotes, type WorkspacePreferences } from '../workspace'
 import type { JSONContent } from '@tiptap/core'
@@ -23,14 +24,25 @@ import { notebookDeleteScope } from '../notebooks'
 import { normalizePaneWidths, type PaneWidths } from '../paneLayout'
 import { normalizeContentsWidth } from '../contentsWidth'
 import { SaveQueue, type SaveStatus } from './saveQueue'
-import { tagsFromText } from '../tags'
+import { tagsFromContent } from '../tags'
 import { defaultHeadingStyles, normalizeHeadingStyles } from '../headingStyles'
+import { documentSchema } from '../editor/documentSchema'
 
+// Documents are immutable snapshots. Metadata edits can reuse their confirmed tags.
+const bodyTagCache = new WeakMap<JSONContent, string[]>()
 function withBodyTags(note: Note): Note {
-  const tags = tagsFromText(note.text)
+  let tags = bodyTagCache.get(note.content)
+  if (!tags) {
+    tags = tagsFromContent(note.content)
+    bodyTagCache.set(note.content, tags)
+  }
   return tags.length === note.tags.length && tags.every((tag, index) => tag === note.tags[index])
     ? note
-    : { ...note, tags }
+    : { ...note, tags: [...tags] }
+}
+function withoutMarkdown(source: FileSource): FileSource {
+  const { markdown: _, ...summary } = source
+  return summary
 }
 
 function normalizeWorkspacePreferences(
@@ -42,6 +54,9 @@ function normalizeWorkspacePreferences(
   const { paneWidths: _, contentsWidth: __, ...legacyWorkspace } = workspace
   return {
     ...legacyWorkspace,
+    ...(workspace.noteListMode !== undefined
+      ? { noteListMode: normalizeNoteListMode(workspace.noteListMode) }
+      : {}),
     ...(workspace.pdfNotes ? { pdfNotes: normalizePdfNotes(workspace.pdfNotes) } : {}),
     recentNoteIds: normalizeRecentNotes(workspace.recentNoteIds),
     ...(paneWidths ? { paneWidths } : {}),
@@ -129,6 +144,10 @@ export type LibraryState = {
   conflicts: Record<string, string>
 }
 export class LibraryStore {
+  private bodyCache = new Map<string, number>()
+  private latestBody: string | undefined
+  private cacheTrim?: ReturnType<typeof setTimeout>
+  private unsubscribeSessionRetention?: () => void
   private quitAfterConversion = false
   private folderWork?: Promise<LibraryData>
   private resolutions = new Map<string, { key: string; input: Record<string, unknown> }>()
@@ -138,10 +157,14 @@ export class LibraryStore {
   private revisions = new Map<string, number>()
   private preferencesRevision = 0
   private loading = new Map<string, Promise<void>>()
+  private searchNoteMaps = new WeakMap<Note[], ReadonlyMap<string, Note>>()
   private opening: Promise<void> | undefined
   private queue: SaveQueue
   private state: LibraryState
-  constructor(private transport: Transport | null) {
+  constructor(
+    private transport: Transport | null,
+    private cacheLimits = { maximumNotes: 32, maximumBytes: 32 * 1024 * 1024 },
+  ) {
     this.state = {
       notes: transport ? [] : initialNotes,
       notebooks: transport ? [] : initialNotebooks,
@@ -209,7 +232,7 @@ export class LibraryStore {
       const reloads = await Promise.allSettled(
         data.notes.map(async (n) =>
           n.source
-            ? { ...n, content: this.state.notes.find((old) => old.id === n.id)?.content }
+            ? { ...n, content: loaded.has(n.id) ? this.state.notes.find((old) => old.id === n.id)?.content : undefined }
             : loaded.has(n.id)
               ? await this.transport!.load(n.id)
               : n,
@@ -242,6 +265,7 @@ export class LibraryStore {
         syncStatus: result.status,
         syncGeneration: this.state.syncGeneration + 1,
       })
+      this.reconcileBodyCache()
       if (reloadFailures.length)
         throw Error(
           `Sync completed, but ${reloadFailures.length === 1 ? 'one note could' : `${reloadFailures.length} notes could`} not be reloaded. Retry the note before editing.`,
@@ -254,14 +278,81 @@ export class LibraryStore {
   }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
+    if (this.listeners.size === 1 && this.transport)
+      this.unsubscribeSessionRetention = subscribeSessionRetention(this.scheduleCacheTrim)
     return () => {
       this.listeners.delete(listener)
+      if (!this.listeners.size) {
+        this.unsubscribeSessionRetention?.()
+        this.unsubscribeSessionRetention = undefined
+      }
     }
   }
   getSnapshot = () => this.state
   private publish(patch: Partial<LibraryState>) {
     this.state = { ...this.state, ...patch }
     this.listeners.forEach((f) => f())
+    if (patch.syncing === false || patch.converting === false || patch.quitting === false)
+      this.scheduleCacheTrim()
+  }
+  private scheduleCacheTrim = () => {
+    if (!this.transport || this.cacheTrim !== undefined) return
+    this.cacheTrim = setTimeout(() => {
+      this.cacheTrim = undefined
+      this.trimBodyCache()
+    }, 0)
+  }
+  private rememberBody(note: Pick<Note, 'id' | 'content' | 'source'>) {
+    if (!this.transport) return
+    // Estimate at load/save boundaries, never on each keystroke.
+    const bytes = 2 * (JSON.stringify(note.content).length +
+      (note.source?.markdown?.length ?? 0) + (this.fileBases.get(note.id)?.signature.length ?? 0))
+    this.bodyCache.delete(note.id)
+    this.bodyCache.set(note.id, bytes)
+    this.scheduleCacheTrim()
+  }
+  private reconcileBodyCache() {
+    if (!this.transport) return
+    const notes = new Map(this.state.notes.map((note) => [note.id, note]))
+    const order = new Set([...this.bodyCache.keys(), ...this.state.loaded])
+    this.bodyCache.clear()
+    for (const id of order) {
+      const note = notes.get(id)
+      if (note && this.state.loaded.has(id)) this.rememberBody(note)
+      else this.fileBases.delete(id)
+    }
+    pruneEditorSessions(new Set(notes.keys()))
+    if (this.latestBody && !notes.has(this.latestBody)) this.latestBody = undefined
+  }
+  private trimBodyCache() {
+    if (this.state.syncing || this.state.converting || this.state.quitting || this.folderWork) return
+    let bytes = [...this.bodyCache.values()].reduce((sum, size) => sum + size, 0)
+    if (this.bodyCache.size <= this.cacheLimits.maximumNotes && bytes <= this.cacheLimits.maximumBytes) return
+    const notes = new Map(this.state.notes.map((note) => [note.id, note]))
+    const removed = new Set<string>()
+    for (const [id, size] of this.bodyCache) {
+      if (this.bodyCache.size <= this.cacheLimits.maximumNotes && bytes <= this.cacheLimits.maximumBytes) break
+      const note = notes.get(id)
+      if (id === this.latestBody || this.pendingNotes.has(id) || this.loading.has(id) ||
+        this.state.conflicts[id] || this.resolutions.has(id) || this.state.noteErrors[id] ||
+        note?.source?.unavailable) continue
+      if (note && !evictSession(id, note.content)) continue
+      removed.add(id)
+      this.bodyCache.delete(id)
+      this.fileBases.delete(id)
+      bytes -= size
+    }
+    if (!removed.size) return
+    const loaded = new Set(this.state.loaded)
+    removed.forEach((id) => loaded.delete(id))
+    this.publish({
+      loaded,
+      notes: this.state.notes.map((note) => {
+        if (!removed.has(note.id)) return note
+        return { ...note, content: { type: 'doc', content: [{ type: 'paragraph' }] },
+          ...(note.source ? { source: withoutMarkdown(note.source) } : {}) }
+      }),
+    })
   }
   failStartup = (error: unknown) => this.publish({ startupError: String(error) })
   open = (): Promise<void> => {
@@ -274,12 +365,10 @@ export class LibraryStore {
         this.preferencesRevision = data.preferencesRevision
         data.notes.forEach((n) => this.revisions.set(n.id, n.revision))
         this.publish({
-          notes: data.notes.map((n) =>
-            withBodyTags({
-              ...n,
-              content: { type: 'doc', content: [{ type: 'paragraph' }] },
-            }),
-          ),
+          notes: data.notes.map((n) => ({
+            ...n,
+            content: { type: 'doc', content: [{ type: 'paragraph' }] },
+          })),
           notebooks: data.notebooks,
           roots: data.roots ?? [],
           appearance: {
@@ -346,6 +435,7 @@ export class LibraryStore {
           })
         }
         if (!data.appearance) this.savePreferences()
+        this.reconcileBodyCache()
       })
       .catch((error) => {
         this.publish({ startupError: String(error) })
@@ -356,7 +446,15 @@ export class LibraryStore {
     return this.opening
   }
   load = (id: string, force = false): Promise<void> => {
+    this.latestBody = id
+    const cachedSize = this.bodyCache.get(id)
+    if (cachedSize !== undefined) {
+      this.bodyCache.delete(id)
+      this.bodyCache.set(id, cachedSize)
+      this.scheduleCacheTrim()
+    }
     const existing = this.state.notes.find((n) => n.id === id)
+    if (existing && this.state.loaded.has(id) && cachedSize === undefined) this.rememberBody(existing)
     if (
       !this.transport ||
       (this.state.loaded.has(id) && !force) ||
@@ -365,9 +463,20 @@ export class LibraryStore {
     )
       return Promise.resolve()
     if (this.loading.has(id)) return this.loading.get(id)!
+    const revision = this.revisions.get(id)
+    const generation = this.state.syncGeneration
+    const isCurrent = () => {
+      const current = this.state.notes.find((note) => note.id === id)
+      return !!current && current.content === existing?.content &&
+        current.source?.fingerprint === existing?.source?.fingerprint &&
+        this.revisions.get(id) === revision && this.state.syncGeneration === generation
+    }
+    let invalidated = false
     const request = this.transport
       .load(id)
       .then((note) => {
+        // A folder refresh or conversion can finish while this disk read is pending.
+        if (!isCurrent()) { invalidated = true; return }
         const content =
           note.source?.markdown !== undefined ? parseMarkdown(note.source.markdown) : note.content
         if (!content || note.documentVersion !== 1)
@@ -396,46 +505,74 @@ export class LibraryStore {
           loaded: new Set([...this.state.loaded, id]),
           noteErrors: errors,
         })
+        this.rememberBody({ ...note, content })
       })
-      .catch((error) =>
-        this.publish({ noteErrors: { ...this.state.noteErrors, [id]: String(error) } }),
-      )
-      .finally(() => this.loading.delete(id))
+      .catch((error) => {
+        if (!isCurrent()) { invalidated = true; return }
+        this.publish({ noteErrors: { ...this.state.noteErrors, [id]: String(error) } })
+      })
+      .finally(() => {
+        this.loading.delete(id)
+        if (invalidated && this.state.notes.some((note) => note.id === id)) return this.load(id)
+      })
     this.loading.set(id, request)
     return request
+  }
+  private searchNote(id: string): Note | undefined {
+    const notes = this.state.notes
+    let lookup = this.searchNoteMaps.get(notes)
+    if (!lookup) {
+      lookup = new Map(notes.map((note) => [note.id, note]))
+      this.searchNoteMaps.set(notes, lookup)
+    }
+    return lookup.get(id)
   }
   // Search reads do not mount editors or activate notes. Unsaved/loaded content
   // stays authoritative, and external Markdown is parsed using the editor schema.
   readSearchNote = async (id: string): Promise<Note> => {
-    const current = this.state.notes.find((note) => note.id === id)
+    const current = this.searchNote(id)
     if (!current || current.trashed) throw Error('This note is no longer available.')
-    if (current.source?.unavailable) throw Error(current.source.unavailable)
     if (
-      !this.transport ||
       this.state.loaded.has(id) ||
       this.pendingNotes.has(id) ||
       this.state.conflicts[id]
     )
       return current
-    const saved = await this.transport.load(id)
+    if (current.source?.unavailable) throw Error(current.source.unavailable)
+    if (!this.transport) return current
+    let saved: SavedNote
+    try {
+      saved = await this.transport.load(id)
+    } catch (error) {
+      const latest = this.searchNote(id)
+      if (
+        latest &&
+        !latest.trashed &&
+        (this.state.loaded.has(id) || this.pendingNotes.has(id) || this.state.conflicts[id])
+      )
+        return latest
+      throw error
+    }
+    const latest = this.searchNote(id)
+    if (!latest || latest.trashed) throw Error('This note is no longer available.')
+    // An edit or recovery draft created while the read was in flight wins over
+    // the disk response, including its unavailable/unsupported content state.
+    if (this.state.loaded.has(id) || this.pendingNotes.has(id) || this.state.conflicts[id])
+      return latest
+    if (saved.source?.unavailable) throw Error(saved.source.unavailable)
+    if (latest.source?.unavailable) throw Error(latest.source.unavailable)
     if (saved.documentVersion !== 1) throw Error('Unsupported document format.')
     const content =
       saved.source?.markdown !== undefined ? parseMarkdown(saved.source.markdown) : saved.content
     if (!content) throw Error('This note could not be read.')
-    getSchema(saved.source ? markdownExtensions : writingExtensions)
-      .nodeFromJSON(content)
-      .check()
-    const latest = this.state.notes.find((note) => note.id === id)
-    if (!latest || latest.trashed) throw Error('This note is no longer available.')
-    if (this.state.loaded.has(id) || this.pendingNotes.has(id) || this.state.conflicts[id])
-      return latest
+    documentSchema(!!saved.source).nodeFromJSON(content).check()
     if (
       latest.text !== current.text ||
       latest.updated !== current.updated ||
       latest.source?.fingerprint !== current.source?.fingerprint
     )
       throw Error('This note changed while searching. Search again.')
-    return { ...latest, content }
+    return { ...latest, content, source: saved.source ?? latest.source }
   }
   activate = async (id: string) => {
     if (this.state.converting) return
@@ -454,15 +591,16 @@ export class LibraryStore {
         resetSession(note.id)
         this.fileBases.delete(note.id)
       }
-      return withBodyTags({
+      return {
         ...note,
         content: current?.content ?? { type: 'doc', content: [{ type: 'paragraph' }] },
-      })
+      }
     })
     for (const note of this.state.notes)
       if (!notes.some((n) => n.id === note.id) && this.pendingNotes.has(note.id)) notes.push(note)
     this.preferencesRevision = data.preferencesRevision
     this.publish({ notes, notebooks: data.notebooks, roots: data.roots ?? [], loaded })
+    this.reconcileBodyCache()
   }
   command = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
     if (!this.transport?.command) throw Error('This operation requires the Stash desktop app.')
@@ -482,6 +620,7 @@ export class LibraryStore {
       return await work
     } finally {
       if (this.folderWork === work) this.folderWork = undefined
+      this.scheduleCacheTrim()
     }
   }
   convertNotebook = async (id: string) => {
@@ -573,6 +712,7 @@ export class LibraryStore {
         ),
         syncGeneration: this.state.syncGeneration + 1,
       })
+      this.reconcileBodyCache()
       await this.refreshSyncStatus()
     } finally {
       this.publish({ converting: false, conversionProgress: '' })
@@ -746,6 +886,7 @@ export class LibraryStore {
     }
     this.resolutions.delete(id)
     this.publish({ conflicts, notes, loaded })
+    this.reconcileBodyCache()
   }
 
   private companionWork = new Map<string, Promise<string>>()
@@ -854,137 +995,172 @@ export class LibraryStore {
     if (this.state.syncing || this.state.converting || this.state.quitting) return
     this.applyNotes(change)
   }
+  patchNote = (id: string, patch: Partial<Omit<Note, 'id'>>) => {
+    if (this.state.syncing || this.state.converting || this.state.quitting) return
+    const index = this.state.notes.findIndex((note) => note.id === id)
+    if (index < 0) return
+    const previous = this.applyNotePatch(index, patch)
+    if (previous.source && ['title', 'trashed', 'notebookIds'].some((key) => key in patch))
+      void this.flush().catch(() => {})
+  }
+  private applyNotePatch(index: number, patch: Partial<Omit<Note, 'id'>>) {
+    const previous = this.state.notes[index]!
+    const note = this.normalizeNote({ ...previous, ...patch, id: previous.id }, previous)
+    const notes = this.state.notes.slice()
+    notes[index] = note
+    this.publish({ notes })
+    this.enqueueNote(note, !!previous.source)
+    return previous
+  }
   // Flush participants may finish a derived preview after user editing is frozen.
   // This path cannot change scene content or apply to a different scene revision.
   saveDrawingPreview = (noteId: string, drawingId: string, data: DrawingData) => {
-    const note = this.state.notes.find((note) => note.id === noteId)
+    const index = this.state.notes.findIndex((note) => note.id === noteId)
+    const note = this.state.notes[index]
     if (!note || note.source || !this.state.loaded.has(noteId)) return
     const content = replaceDrawingPreview(note.content, drawingId, data)
     if (content === note.content) return
-    this.applyNotes(this.state.notes.map((current) => current === note ? { ...note, content } : current))
+    this.applyNotePatch(index, { content })
+  }
+  private normalizeNote(note: Note, previous?: Note): Note {
+    if (previous === note) return note
+    const hasContent = this.state.loaded.has(note.id) || !previous
+    if (note.source) return hasContent ? withBodyTags(note) : note
+    const folder = this.state.notebooks.find((b) => b.rootId && note.notebookIds.includes(b.id))
+    const sourceAware = folder
+      ? {
+          ...note,
+          source: {
+            rootId: folder.rootId!,
+            relativePath: [folder.relativePath, `${note.title || 'Untitled'}.md`]
+              .filter(Boolean)
+              .join('/'),
+            fingerprint: '',
+          },
+        }
+      : note
+    return hasContent ? withBodyTags(sourceAware) : sourceAware
   }
   private applyNotes = (change: Note[] | ((old: Note[]) => Note[])) => {
     const old = this.state.notes,
-      next = (typeof change === 'function' ? change(old) : change).map((note) => {
-        if (note.source) return note
-        const folder = this.state.notebooks.find((b) => b.rootId && note.notebookIds.includes(b.id))
-        const sourceAware = folder
-          ? {
-              ...note,
-              source: {
-                rootId: folder.rootId!,
-                relativePath: [folder.relativePath, `${note.title || 'Untitled'}.md`]
-                  .filter(Boolean)
-                  .join('/'),
-                fingerprint: '',
-              },
-            }
-          : note
-        return withBodyTags(sourceAware)
-      })
-    const loaded = new Set(this.state.loaded)
+      previous = new Map(old.map((note) => [note.id, note])),
+      next = (typeof change === 'function' ? change(old) : change).map((note) =>
+        this.normalizeNote(note, previous.get(note.id)),
+      )
+    let added: Set<string> | undefined
     for (const note of next) {
-      if (!old.some((n) => n.id === note.id)) loaded.add(note.id)
-    }
-    this.publish({ notes: next, loaded })
-    if (!this.transport) return
-    for (const note of next) {
-      if (old.find((n) => n.id === note.id) === note) continue
-      this.pendingNotes.add(note.id)
-      const operationId = crypto.randomUUID()
-      let input: Record<string, unknown> | undefined
-      // Capture immutable content now, but obtain the revision when the job runs.
-      const snapshot = {
-        id: note.id,
-        title: note.title,
-        notebookIds: [...note.notebookIds],
-        quickAccess: note.quickAccess,
-        tags: [...note.tags],
-        content: loaded.has(note.id) ? note.content : undefined,
-        text: note.text,
-        pinned: note.pinned,
-        trashed: note.trashed,
+      if (!previous.has(note.id) && !this.state.loaded.has(note.id)) {
+        added ??= new Set(this.state.loaded)
+        added.add(note.id)
       }
-      this.queue.enqueue(note.id, async () => {
-        if (this.state.conflicts[note.id]) {
-          await this.command('preserve_file_conflict', {
-            input: { ...snapshot, expectedRevision: this.revisions.get(note.id) ?? 0, operationId },
-            error: this.state.conflicts[note.id],
+    }
+    this.publish({ notes: next, loaded: added ?? this.state.loaded })
+    for (const note of next) {
+      const previousNote = previous.get(note.id)
+      if (previousNote !== note) this.enqueueNote(note, !!previousNote?.source)
+    }
+  }
+  private enqueueNote(note: Note, hadSource: boolean) {
+    if (!this.transport) return
+    this.pendingNotes.add(note.id)
+    const operationId = crypto.randomUUID()
+    let input: Record<string, unknown> | undefined
+    // Capture immutable content now, but obtain the revision when the job runs.
+    const snapshot = {
+      id: note.id,
+      title: note.title,
+      notebookIds: [...note.notebookIds],
+      quickAccess: note.quickAccess,
+      tags: [...note.tags],
+      content: this.state.loaded.has(note.id) ? note.content : undefined,
+      text: note.text,
+      pinned: note.pinned,
+      trashed: note.trashed,
+    }
+    this.queue.enqueue(note.id, async () => {
+      if (this.state.conflicts[note.id]) {
+        await this.command('preserve_file_conflict', {
+          input: { ...snapshot, expectedRevision: this.revisions.get(note.id) ?? 0, operationId },
+          error: this.state.conflicts[note.id],
+        })
+        return
+      }
+      try {
+        const folder = this.state.notebooks.find(
+          (b) => b.rootId && snapshot.notebookIds.includes(b.id),
+        )
+        if (folder) {
+          const base = this.fileBases.get(note.id)
+          const changed =
+            !base || documentSignature(snapshot.content ?? { type: 'doc' }) !== base.signature
+          input ??= {
+            ...snapshot,
+            markdown:
+              changed && snapshot.content
+                ? serializeMarkdown(
+                    fileReferences(snapshot.content, note, this.state.notes, this.state.roots),
+                    base?.source.markdown,
+                  )
+                : undefined,
+            expectedFingerprint: base?.source.fingerprint ?? note.source?.fingerprint,
+            expectedRevision: this.revisions.get(note.id) ?? 0,
+            operationId,
+          }
+        } else
+          input ??= {
+            ...snapshot,
+            expectedRevision: this.revisions.get(note.id) ?? 0,
+            operationId,
+          }
+        const saved = await this.transport!.saveNote(input)
+        this.revisions.set(note.id, saved.revision)
+        if (saved.note?.source) {
+          const source = saved.note.source
+          const bodyLoaded = this.state.loaded.has(note.id)
+          const canonical =
+            source.markdown !== undefined ? parseMarkdown(source.markdown) : snapshot.content!
+          const current = this.state.notes.find((n) => n.id === note.id)
+          const structural =
+            !hadSource ||
+            source.relativePath !== note.source?.relativePath ||
+            source.rootId !== note.source?.rootId
+          const replaceContent = structural && current?.content === snapshot.content
+          if (replaceContent) resetSession(note.id)
+          this.fileBases.set(note.id, {
+            source,
+            signature: documentSignature(
+              replaceContent ? canonical : (snapshot.content ?? canonical),
+            ),
           })
+          if (!bodyLoaded) this.fileBases.delete(note.id)
+          this.publish({
+            notes: this.state.notes.map((n) =>
+              n.id === note.id
+                ? {
+                    ...n,
+                    source: bodyLoaded ? source : withoutMarkdown(source),
+                    ...(replaceContent ? { content: canonical } : {}),
+                    title: n.title === snapshot.title ? saved.note!.title : n.title,
+                  }
+                : n,
+            ),
+          })
+          if (replaceContent) this.pendingNotes.delete(note.id)
+        }
+        if (this.state.notes.find((n) => n.id === note.id)?.content === note.content) {
+          this.pendingNotes.delete(note.id)
+        }
+        if (!this.pendingNotes.has(note.id) && this.state.loaded.has(note.id))
+          this.rememberBody(this.state.notes.find((n) => n.id === note.id)!)
+      } catch (error) {
+        const message = String(error)
+        if (message.includes('FILE_CONFLICT:') || message.includes('NAME_COLLISION:')) {
+          this.publish({ conflicts: { ...this.state.conflicts, [note.id]: message } })
           return
         }
-        try {
-          const folder = this.state.notebooks.find(
-            (b) => b.rootId && snapshot.notebookIds.includes(b.id),
-          )
-          if (folder) {
-            const base = this.fileBases.get(note.id)
-            const changed =
-              !base || documentSignature(snapshot.content ?? { type: 'doc' }) !== base.signature
-            input ??= {
-              ...snapshot,
-              markdown:
-                changed && snapshot.content
-                  ? serializeMarkdown(
-                      fileReferences(snapshot.content, note, this.state.notes, this.state.roots),
-                      base?.source.markdown,
-                    )
-                  : undefined,
-              expectedFingerprint: base?.source.fingerprint ?? note.source?.fingerprint,
-              expectedRevision: this.revisions.get(note.id) ?? 0,
-              operationId,
-            }
-          } else
-            input ??= {
-              ...snapshot,
-              expectedRevision: this.revisions.get(note.id) ?? 0,
-              operationId,
-            }
-          const saved = await this.transport!.saveNote(input)
-          this.revisions.set(note.id, saved.revision)
-          if (saved.note?.source) {
-            const source = saved.note.source
-            const canonical =
-              source.markdown !== undefined ? parseMarkdown(source.markdown) : snapshot.content!
-            const current = this.state.notes.find((n) => n.id === note.id)
-            const structural =
-              !old.find((n) => n.id === note.id)?.source ||
-              source.relativePath !== note.source?.relativePath ||
-              source.rootId !== note.source?.rootId
-            const replaceContent = structural && current?.content === snapshot.content
-            if (replaceContent) resetSession(note.id)
-            this.fileBases.set(note.id, {
-              source,
-              signature: documentSignature(
-                replaceContent ? canonical : (snapshot.content ?? canonical),
-              ),
-            })
-            this.publish({
-              notes: this.state.notes.map((n) =>
-                n.id === note.id
-                  ? {
-                      ...n,
-                      source,
-                      ...(replaceContent ? { content: canonical } : {}),
-                      title: n.title === snapshot.title ? saved.note!.title : n.title,
-                    }
-                  : n,
-              ),
-            })
-            if (replaceContent) this.pendingNotes.delete(note.id)
-          }
-          if (this.state.notes.find((n) => n.id === note.id)?.content === note.content)
-            this.pendingNotes.delete(note.id)
-        } catch (error) {
-          const message = String(error)
-          if (message.includes('FILE_CONFLICT:') || message.includes('NAME_COLLISION:')) {
-            this.publish({ conflicts: { ...this.state.conflicts, [note.id]: message } })
-            return
-          }
-          throw error
-        }
-      })
-    }
+        throw error
+      }
+    })
   }
   private savePreferences() {
     if (!this.transport) return
@@ -1006,6 +1182,12 @@ export class LibraryStore {
     const noteLists = { ...this.state.workspace.noteLists }
     ids.forEach((id) => delete noteLists[`book:${id}`])
     this.setWorkspace({ ...this.state.workspace, noteLists })
+  }
+  setNoteListMode = (noteListMode: NoteListMode) => {
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      noteListMode: normalizeNoteListMode(noteListMode),
+    })
   }
   setNoteList = (view: string, preferences: NoteListPreferences) => {
     this.setWorkspace({
@@ -1043,6 +1225,9 @@ export class LibraryStore {
     })
   }
   setWorkspace = (workspace: WorkspacePreferences) => {
+    const noteListMode = workspace.noteListMode ?? this.state.workspace?.noteListMode
+    if (noteListMode !== undefined)
+      workspace = { ...workspace, noteListMode: normalizeNoteListMode(noteListMode) }
     if (workspace.sidebarView === undefined && this.state.workspace?.sidebarView !== undefined)
       workspace = { ...workspace, sidebarView: this.state.workspace.sidebarView }
     if (this.state.workspace?.pdfNotes && !workspace.pdfNotes)

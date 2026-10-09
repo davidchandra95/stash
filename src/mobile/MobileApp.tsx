@@ -7,6 +7,16 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
+import AppTooltip from '../components/AppTooltip'
+import NoteListNotebook from '../components/NoteListNotebook'
+import VirtualNoteRows from '../components/VirtualNoteRows'
+import {
+  normalizeNoteListMode,
+  noteListModes,
+  notePreview,
+  noteNotebookContext,
+  type NoteListMode,
+} from '../noteListPresentation'
 import MobileSheet from './MobileSheet'
 import { addPluginListener, invoke, isTauri } from '@tauri-apps/api/core'
 import { platform } from '../platform'
@@ -106,6 +116,27 @@ export default function MobileApp() {
   const note = route.kind === 'note' ? notes.find((n) => n.id === route.id) : undefined
   const active = note && state.loaded.has(note.id) ? note : undefined
   const blocked = busy || state.syncing || state.converting
+  const noteListMode = normalizeNoteListMode(state.workspace?.noteListMode)
+  const listModeScroll = useRef<number | null>(null)
+  const listModeFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (listModeScroll.current !== null && scroll.current) {
+      scroll.current.scrollTop = listModeScroll.current
+      listModeScroll.current = null
+    }
+    if (listModeFocus.current && !overlay) {
+      root.current?.querySelector<HTMLButtonElement>('[aria-label="Page actions"]')?.focus()
+      listModeFocus.current = false
+    }
+  }, [noteListMode, overlay])
+  const changeListMode = (mode: NoteListMode) => {
+    listModeFocus.current = true
+    if (mode !== noteListMode) {
+      listModeScroll.current = scroll.current?.scrollTop ?? null
+      library.setNoteListMode(mode)
+    }
+    setOverlay(null)
+  }
   useMotionPreference(appearance.animationsEnabled)
 
   useEffect(() => {
@@ -593,20 +624,57 @@ export default function MobileApp() {
                 </section>
               )}
               <section aria-label="Notes">
-                {listNotes.map((n) => (
-                  <div className="mobile-note-row" key={n.id}>
-                    <button className="mobile-note-label" onClick={() => openNote(n.id)}>
-                      {n.pinned && <Pin size={15} />}
-                      <span>{n.title || 'Untitled note'}</span>
-                    </button>
-                    <button
-                      aria-label={`Actions for ${n.title || 'Untitled note'}`}
-                      onClick={() => setOverlay({ kind: 'note-actions', id: n.id })}
-                    >
-                      <MoreHorizontal size={20} />
-                    </button>
-                  </div>
-                ))}
+                <VirtualNoteRows
+                  items={listNotes}
+                  scrollRef={scroll}
+                  initialOffset={route.scroll}
+                  retainedIds={[overlay?.kind === 'note-actions' ? overlay.id : undefined]}
+                  estimatedSize={
+                    route.view === 'all'
+                      ? noteListMode === 'preview'
+                        ? 91
+                        : 67
+                      : noteListMode === 'preview'
+                        ? 69
+                        : 58
+                  }
+                  geometryKey={`${noteListMode}:${appearance.uiFont}:${route.view}`}
+                  renderRow={(n) => {
+                    const context =
+                      route.view === 'all' ? noteNotebookContext(n, notebooks) : undefined
+                    const preview = noteListMode === 'preview' ? notePreview(n.text) : undefined
+                    return (
+                      <div className="mobile-note-row" key={n.id} data-note-id={n.id}>
+                        <AppTooltip label={context?.description}>
+                          <button
+                            className="mobile-note-label"
+                            aria-label={n.title || 'Untitled note'}
+                            aria-description={
+                              [preview, context?.description].filter(Boolean).join('. ') ||
+                              undefined
+                            }
+                            onClick={() => openNote(n.id)}
+                          >
+                            <span className="mobile-note-copy">
+                              <span className="mobile-note-title">
+                                {n.pinned && <Pin size={15} aria-hidden="true" />}
+                                <span>{n.title || 'Untitled note'}</span>
+                              </span>
+                              {preview && <span className="note-list-preview">{preview}</span>}
+                              {context && <NoteListNotebook context={context} />}
+                            </span>
+                          </button>
+                        </AppTooltip>
+                        <button
+                          aria-label={`Actions for ${n.title || 'Untitled note'}`}
+                          onClick={() => setOverlay({ kind: 'note-actions', id: n.id })}
+                        >
+                          <MoreHorizontal size={20} />
+                        </button>
+                      </div>
+                    )
+                  }}
+                />
               </section>
               {!listNotes.length && (
                 <div className="mobile-empty">
@@ -854,6 +922,21 @@ export default function MobileApp() {
                     >
                       Sort by {route.kind === 'list' && route.sortTitle ? 'last updated' : 'title'}
                     </button>
+                    <fieldset className="mobile-list-modes" disabled={blocked || state.quitting}>
+                      <legend>Note list view</legend>
+                      {(Object.keys(noteListModes) as NoteListMode[]).map((mode) => (
+                        <label key={mode}>
+                          <input
+                            type="radio"
+                            name="note-list-mode"
+                            value={mode}
+                            checked={noteListMode === mode}
+                            onChange={() => changeListMode(mode)}
+                          />
+                          {noteListModes[mode]}
+                        </label>
+                      ))}
+                    </fieldset>
                     <button
                       onClick={() => {
                         setOverlay(null)

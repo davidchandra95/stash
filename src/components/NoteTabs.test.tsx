@@ -71,6 +71,8 @@ async function mount(props: Partial<ComponentProps<typeof NoteTabs>> = {}) {
     onSelectTab: vi.fn(),
     onCloseTab: vi.fn(),
     onKeepOpenTab: vi.fn(),
+    onReorderTab: vi.fn(),
+    onPinTab: vi.fn(),
     ...props,
   }
   const render = (next: Partial<ComponentProps<typeof NoteTabs>> = {}) =>
@@ -283,4 +285,94 @@ it('keeps the active tab visible when its pane is resized and stops observing em
   expect(scroll).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
   await render({ tabs: [], activeTabId: null })
   expect(disconnect).toHaveBeenCalledOnce()
+})
+
+it('reorders the focused tab by keyboard without selecting it, and announces its position', async () => {
+  const { host, onReorderTab, onSelectTab } = await mount({
+    tabs: [
+      { id: 'first', noteId: 'a' },
+      { id: 'second', noteId: 'b' },
+    ],
+  })
+  const second = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]
+  second.focus()
+  await press('ArrowLeft', { ctrlKey: true, shiftKey: true }, second)
+  expect(onReorderTab).toHaveBeenCalledWith('second', 0)
+  expect(onSelectTab).not.toHaveBeenCalled()
+  expect(document.activeElement).toBe(second)
+  expect(host.querySelector('[role="status"]')?.textContent).toContain('position 1 of 2')
+  await press('ArrowRight', { ctrlKey: true, shiftKey: true }, second)
+  expect(onReorderTab).toHaveBeenCalledTimes(1)
+})
+
+it('commits pointer moves only after the threshold and cancels interrupted drags', async () => {
+  const { host, render, onReorderTab, onSelectTab } = await mount({
+    tabs: [
+      { id: 'first', noteId: 'a', preview: true },
+      { id: 'second', noteId: 'b' },
+    ],
+  })
+  const strip = host.querySelector<HTMLElement>('.note-tabs')!
+  const button = strip.querySelector<HTMLElement>('[role="tab"]')!
+  const rect = (left: number, width: number) =>
+    ({ left, right: left + width, top: 0, bottom: 32, width, height: 32 }) as DOMRect
+  strip.getBoundingClientRect = () => rect(0, 300)
+  Object.defineProperties(strip, { scrollWidth: { value: 300 }, clientWidth: { value: 300 } })
+  strip.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el, i) => {
+    el.getBoundingClientRect = () => rect(i * 150, 150)
+  })
+  const pointer = async (type: string, x: number, y = 16, target: EventTarget = window) => {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+    })
+    Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true } })
+    await act(() => target.dispatchEvent(event))
+  }
+  await pointer('pointerdown', 30, 16, button)
+  await pointer('pointermove', 34)
+  expect(strip.classList.contains('is-reordering')).toBe(false)
+  await pointer('pointerup', 34)
+  expect(onReorderTab).not.toHaveBeenCalled()
+  for (const cancellation of ['Escape', 'blur', 'pointercancel', 'outside', 'disabled']) {
+    await pointer('pointerdown', 30, 16, button)
+    await pointer('pointermove', 260)
+    expect(strip.classList.contains('is-reordering')).toBe(true)
+    if (cancellation === 'Escape') await press('Escape', {}, window)
+    else if (cancellation === 'outside') await pointer('pointerup', 260, 80)
+    else if (cancellation === 'disabled') await render({ disabled: true })
+    else await act(() => window.dispatchEvent(new Event(cancellation)))
+    await pointer('pointerup', 260)
+    expect(onReorderTab).not.toHaveBeenCalled()
+    await render()
+  }
+  const current = strip.querySelector<HTMLElement>('[role="tab"]')!
+  await pointer('pointerdown', 30, 16, current)
+  await pointer('pointermove', 260)
+  await pointer('pointerup', 260)
+  expect(onReorderTab).toHaveBeenCalledWith('first', 1)
+  await act(() => current.click())
+  expect(onSelectTab).not.toHaveBeenCalled()
+})
+
+it('unpins with the trailing control without closing or selecting, and blocks movement across groups', async () => {
+  const { host, render, onPinTab, onCloseTab, onSelectTab, onReorderTab } = await mount({
+    tabs: [{ id: 'first', noteId: 'a', pinned: true }, { id: 'second', noteId: 'b' }],
+    activeTabId: 'second',
+  })
+  const pin = host.querySelector<HTMLButtonElement>('[aria-label="Unpin ALPHA"]')!
+  await act(() => pin.click())
+  expect(onPinTab).toHaveBeenCalledWith('first', false)
+  expect(onCloseTab).not.toHaveBeenCalled()
+  expect(onSelectTab).not.toHaveBeenCalled()
+  const tab = host.querySelector('[role="tab"]')!
+  await press('ArrowRight', { ctrlKey: true, shiftKey: true }, tab)
+  expect(onReorderTab).not.toHaveBeenCalled()
+  await render({ disabled: true })
+  vi.mocked(onPinTab).mockClear()
+  await act(() => pin.click())
+  expect(onPinTab).not.toHaveBeenCalled()
 })

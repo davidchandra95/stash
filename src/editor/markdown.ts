@@ -1,3 +1,5 @@
+import { readTagSpan } from './tagMark'
+import { retainEditorOperation } from './lifecycle'
 import { Extension, Node, getSchema, type JSONContent, type MarkdownToken } from '@tiptap/core'
 import { attachDomTooltip } from '../components/AppTooltip'
 import { MarkdownManager } from '@tiptap/markdown'
@@ -194,6 +196,7 @@ const SourceAttributes = Extension.create({
   },
 })
 async function insertMarkdownImages(editor: import('@tiptap/core').Editor, files: File[]) {
+  const release = retainEditorOperation(editor)
   try {
     const context = markdownContexts.get(editor)
     if (!context) throw Error('This note is not ready for images yet.')
@@ -206,6 +209,8 @@ async function insertMarkdownImages(editor: import('@tiptap/core').Editor, files
     editor.view.dom.dispatchEvent(
       new CustomEvent('writing-error', { bubbles: true, detail: String(error) }),
     )
+  } finally {
+    release()
   }
 }
 const MarkdownImage = Image.configure({ inline: true, allowBase64: true }).extend({
@@ -350,6 +355,19 @@ export const markdownExtensions = [
   SourceAttributes,
 ]
 const lexer = new Marked({ gfm: true, breaks: false })
+lexer.use({
+  extensions: [
+    {
+      name: 'bodyTag',
+      level: 'inline',
+      start: (source: string) => source.indexOf('<span data-confirmed-tag="'),
+      tokenizer(source: string) {
+        const match = readTagSpan(source)
+        return match ? { type: 'bodyTag', ...match } : undefined
+      },
+    },
+  ],
+})
 const manager = new MarkdownManager({
   extensions: markdownExtensions,
   markedOptions: { gfm: true, breaks: false },
@@ -484,7 +502,7 @@ const nodeNames = new Set([
   'noteReference',
   'rawMarkdown',
 ])
-const markNames = new Set(['bold', 'italic', 'strike', 'code', 'link'])
+const markNames = new Set(['bold', 'italic', 'strike', 'code', 'link', 'bodyTag'])
 export function validateMarkdown(doc: JSONContent) {
   const visit = (n: JSONContent) => {
     if (
@@ -531,7 +549,14 @@ export function validateMarkdown(doc: JSONContent) {
 }
 export function serializeMarkdown(doc: JSONContent, original = ''): string {
   validateMarkdown(doc)
-  let result = ''
+  const chunks: string[] = []
+  let tail = ''
+  // Check only a short suffix so each block does not read the growing output.
+  const append = (part: string) => {
+    if (!part) return
+    chunks.push(part)
+    tail = (tail + part.slice(-4)).slice(-4)
+  }
   for (const node of doc.content ?? []) {
     const preserved =
       node.attrs?.originalMarkdown != null && node.attrs.originalJSON === documentSignature(node)
@@ -540,10 +565,10 @@ export function serializeMarkdown(doc: JSONContent, original = ''): string {
       : node.type === 'rawMarkdown'
         ? String(node.attrs?.source ?? '')
         : manager.serialize({ type: 'doc', content: [node] })
-    if (result && !result.endsWith('\n\n') && !result.endsWith('\r\n\r\n'))
-      result += result.endsWith('\n') ? '\n' : '\n\n'
-    result += part
+    if (chunks.length && !tail.endsWith('\n\n') && !tail.endsWith('\r\n\r\n'))
+      append(tail.endsWith('\n') ? '\n' : '\n\n')
+    append(part)
   }
   const newline = original.includes('\r\n') ? '\r\n' : '\n'
-  return result.replace(/\r?\n/g, newline)
+  return chunks.join('').replace(/\r?\n/g, newline)
 }

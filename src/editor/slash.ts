@@ -263,7 +263,7 @@ export const Slash = Extension.create({
             return false
           },
         },
-        view: () => {
+        view: (view) => {
           menu = document.createElement('div')
           menu.className = 'slash-menu'
           menu.setAttribute('role', 'listbox')
@@ -274,7 +274,7 @@ export const Slash = Extension.create({
             active = false
             if (menu) hideMenu(menu)
           }
-          editor.view.dom.addEventListener('writing-deactivate', deactivate)
+          view.dom.addEventListener('writing-deactivate', deactivate)
           window.addEventListener('resize', position)
           document.addEventListener('scroll', position, true)
           return {
@@ -284,7 +284,7 @@ export const Slash = Extension.create({
               render()
             },
             destroy: () => {
-              editor.view.dom.removeEventListener('writing-deactivate', deactivate)
+              view.dom.removeEventListener('writing-deactivate', deactivate)
               window.removeEventListener('resize', position)
               document.removeEventListener('scroll', position, true)
               menu?.remove()

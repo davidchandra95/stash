@@ -5,7 +5,7 @@ import { generateText } from '@tiptap/core'
 import { normalizeContent } from './editor/clipboard'
 import { writingExtensions } from './editor/extensions'
 import type { CursorSettings } from './editor/cursor'
-import { tagFooter, tagsFromText } from './tags'
+import { tagFooterContent, tagsFromContent } from './tags'
 import type { HeadingStyles } from './headingStyles'
 
 export type {
@@ -121,17 +121,15 @@ const sample = (
   pinned = false,
   days = 0,
 ): Note => {
-  const normalized = normalizeContent(
-    tags.length ? `${content}<p>${tagFooter(tags)}</p>` : content,
-    writingExtensions,
-  )
+  const normalized = normalizeContent(content, writingExtensions)
+  if (tags.length) normalized.content!.push(tagFooterContent(tags))
   const text = generateText(normalized, writingExtensions)
   return {
     id,
     title,
     notebookIds: notebook ? [notebook] : [],
     quickAccess: false,
-    tags: tagsFromText(text),
+    tags: tagsFromContent(normalized),
     content: normalized,
     pinned,
     trashed: false,
@@ -203,10 +201,11 @@ export const initialNotes: Note[] = [
     4,
   ),
 ]
-export function hasTasks(note: Note): boolean {
+export function hasTasks(note: Pick<Note, 'hasTasks'> & Partial<Pick<Note, 'content'>>): boolean {
   return note.hasTasks ?? /"kind":"task"|"type":"inlineCheckbox"/.test(JSON.stringify(note.content))
 }
-export function matchesView(note: Note, view: View): boolean {
+export type NoteViewFields = Pick<Note, 'trashed' | 'pinned' | 'quickAccess' | 'notebookIds' | 'tags' | 'updated' | 'hasTasks'> & Partial<Pick<Note, 'content'>>
+export function matchesView(note: NoteViewFields, view: View): boolean {
   if (view === 'trash') return note.trashed
   if (note.trashed) return false
   if (view === 'pinned') return note.pinned

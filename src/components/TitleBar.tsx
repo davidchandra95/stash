@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import { PanelLeft, PanelLeftClose, Columns2, ArrowLeft, ArrowRight } from '../icons'
 import type { Appearance, Note, Notebook } from '../model'
+import { useLibrarySelector } from '../storage/useLibrary'
+const emptyNotes: Note[] = []
 import QuickOpen from './QuickOpen'
 import ContentSearch from './ContentSearch'
 import type { MatchNavigation, ReadSearchNote } from '../search'
 
 export default function TitleBar({
-  notes,
+  notes: suppliedNotes,
   notebooks,
   appearance,
   sidebarVisible,
@@ -27,7 +29,7 @@ export default function TitleBar({
   readSearchNote,
   onSelectMatch,
 }: {
-  notes: Note[]
+  notes?: Note[]
   notebooks: Notebook[]
   appearance: Appearance
   sidebarVisible: boolean
@@ -46,10 +48,19 @@ export default function TitleBar({
   onSelectMatch: (request: MatchNavigation, newTab?: boolean) => void
 }) {
   const [searchMode, setSearchMode] = useState<'quick' | 'content' | null>(null)
+  const liveNotes = useLibrarySelector((state) =>
+    !suppliedNotes && searchMode ? state.notes : emptyNotes,
+  )
+  const notes = suppliedNotes ?? liveNotes
+  const [contentQuery, setContentQuery] = useState('')
+  const openContentSearch = (query = '') => {
+    setContentQuery(query)
+    setSearchMode('content')
+  }
   const native = isTauri()
   const shortcutLabel = useShortcutLabel()
   useShortcutActions(
-    { 'quick-open': () => setSearchMode('quick'), search: () => setSearchMode('content') },
+    { 'quick-open': () => setSearchMode('quick'), search: () => openContentSearch() },
     disabled,
   )
   useEffect(() => {
@@ -135,12 +146,15 @@ export default function TitleBar({
             disabled={disabled}
             recentNoteIds={recentNoteIds}
             onSelect={onSelect}
+            onSearchContent={openContentSearch}
           />
           <ContentSearch
             open={searchMode === 'content'}
-            onOpenChange={(open) =>
-              setSearchMode((mode) => (open ? 'content' : mode === 'content' ? null : mode))
-            }
+            onOpenChange={(open) => {
+              if (open) openContentSearch()
+              else setSearchMode((mode) => (mode === 'content' ? null : mode))
+            }}
+            initialQuery={contentQuery}
             onQuickOpen={() => setSearchMode('quick')}
             notes={notes}
             notebooks={notebooks}

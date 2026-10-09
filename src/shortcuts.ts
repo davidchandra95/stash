@@ -22,8 +22,18 @@ const group = (
 export const shortcutCommands: ShortcutCommand[] = [
   ...group('Application', [
     ['new-note', 'New note', 'Create a note in the current location.', 'Mod+n'],
-    ['quick-open', 'Find notes', 'Find notes by title across notebooks.', 'Mod+p'],
-    ['search', 'Search note content', 'Search note bodies across notebooks.', 'Mod+Shift+f'],
+    [
+      'quick-open',
+      'Find note titles',
+      'Find note titles across all notebooks, excluding Trash.',
+      'Mod+p',
+    ],
+    [
+      'search',
+      'Search note bodies',
+      'Search body text across all notebooks, excluding Trash.',
+      'Mod+Shift+f',
+    ],
     ['settings', 'Open Settings', 'Customize Stash.', 'Mod+,'],
   ]),
   ...group('Navigation', [

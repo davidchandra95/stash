@@ -5,7 +5,7 @@ export type MoveIntent = { noteId: string; destination: string; source: string |
 export type MembershipChange = MoveIntent & { addedDestination: boolean }
 export type MoveTarget = { id: string; allowed: boolean; hint: string }
 
-export function moveSource(note: Note, view: View): string | null | undefined {
+export function moveSource(note: Pick<Note, 'notebookIds'>, view: View): string | null | undefined {
   if (view.startsWith('book:')) return view.slice(5)
   return note.notebookIds.length > 1 ? undefined : (note.notebookIds[0] ?? null)
 }

@@ -387,7 +387,7 @@ fn validate_native(node: &Value) -> Result<()> {
         for mark in marks.as_array().ok_or("Invalid converted marks.")? {
             if !matches!(
                 mark["type"].as_str(),
-                Some("bold" | "italic" | "strike" | "code" | "link")
+                Some("bold" | "italic" | "strike" | "code" | "link" | "bodyTag")
             ) {
                 return Err("Unsupported converted text formatting.".into());
             }

@@ -11,13 +11,14 @@ import { InlineCheckbox, ContainerColors, SessionImage, ReadableColor } from './
 import { ImageClipboard } from './images'
 import { ShortcutStarterKit as StarterKit } from './shortcuts'
 import { TableKit } from '@tiptap/extension-table'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { CodeBlock } from './codeBlock'
 import Placeholder from '@tiptap/extension-placeholder'
 import Highlight from '@tiptap/extension-highlight'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
 import { Typing } from './typing'
 import { NoteReference } from './noteReferences'
+import { BodyTagMark } from './tagMark'
 import { BodyTags } from './bodyTags'
 import { Slash } from './slash'
 import { Clipboard } from './clipboard'
@@ -43,7 +44,7 @@ export const writingExtensions = [
     link: { openOnClick: false, protocols: ['file', 'upnote2'] },
   }),
   TableKit.configure({ table: { resizable: true } }),
-  CodeBlockLowlight.configure({
+  CodeBlock.configure({
     lowlight: createLowlight(common),
     defaultLanguage: 'plaintext',
     exitOnTripleEnter: false,
@@ -68,6 +69,7 @@ export const writingExtensions = [
   Highlight.extend({ addKeyboardShortcuts: () => ({}) }).configure({ multicolor: true }),
   Typography,
   Typing,
+  BodyTagMark,
   BodyTags,
   Slash,
   NoteReference,

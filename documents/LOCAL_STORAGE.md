@@ -28,6 +28,8 @@ The native app opens `~/Library/Application Support/local.upnote2.prototype/libr
 
 React/Tiptap owns immediate editing, selection and session undo. The TypeScript library controller holds pending changes and loads full documents on demand. Rust owns SQLite access, schema migration, transaction boundaries and revision checks. Note summaries include derived text and task flags so navigation does not load all rich documents. Indexed search remains phase 4.
 
+Saved full bodies use a least-recently-used cache of 32 notes or 32 MiB of estimated serialized body data, whichever is reached first. Estimates run at load/save boundaries. Current or mounted notes, pending saves, conflicts, recovery errors and undo/redo sessions stay protected, so this budget can be exceeded. Eviction releases linked Markdown and comparison snapshots together with clean editor resources; summaries and compact navigation state remain. Reloads check the current content generation before applying a disk response. Browser-preview bodies are never evicted because they are the only copy. Edited-session undo remains in memory until the session ends, with no total history-memory limit. See [editor retention](EDITOR_RETENTION.md).
+
 SQLite runs in WAL mode with `synchronous=FULL`, foreign keys and a three-second busy timeout. Blocking database work runs outside the UI thread. A process-held file lock protects the library, and the Tauri single-instance plugin focuses the running app on a second launch.
 
 The original schema version 1 stores:

@@ -588,15 +588,21 @@ export default function Appearance({
       id: 'Space at the bottom of the editor',
       category: 'editor',
       group: 'Writing',
-      search: 'Space at the bottom of the editor ',
+      search: 'Space at the bottom of the editor Extra space below the note ',
       content: (
         <>
           <label className="setting-row">
             <span>
-              Space at the bottom of the editor<small>{value.editorBottomSpace} px</small>
+              {mobile ? 'Space at the bottom of the editor' : 'Extra space below the note'}
+              <small>
+                {value.editorBottomSpace} px
+                {!mobile && ' extra. Half the editor height is already included for scrolling.'}
+              </small>
             </span>
             <input
-              aria-label="Space at the bottom of the editor"
+              aria-label={
+                mobile ? 'Space at the bottom of the editor' : 'Extra space below the note'
+              }
               type="range"
               min="0"
               max="400"

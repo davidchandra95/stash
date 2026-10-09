@@ -1,6 +1,9 @@
-import type { Note, Notebook, View } from './model'
+import type { Note } from './model'
+export type WorkspaceNote = Pick<Note, 'id' | 'trashed' | 'tags' | 'pinned' | 'updated'>
+import type { Notebook, View } from './model'
 import type { NoteListPreferences } from './noteOrder'
 import type { PaneWidths } from './paneLayout'
+import type { NoteListMode } from './noteListPresentation'
 
 export type PdfNotesPreferences = {
   open: boolean
@@ -40,6 +43,7 @@ export function normalizePdfNotes(value: unknown): Record<string, PdfNotesPrefer
   )
 }
 export type WorkspacePreferences = {
+  noteListMode?: NoteListMode
   sidebarView?: View
   pdfNotes?: Record<string, PdfNotesPreferences>
   recentNoteIds?: string[]
@@ -49,7 +53,7 @@ export type WorkspacePreferences = {
   tabs: SavedTab[]
   activeTabId: string | null
 }
-export function restoreSidebarView(value: unknown, notebooks: Notebook[], notes: Note[]): View {
+export function restoreSidebarView(value: unknown, notebooks: Notebook[], notes: WorkspaceNote[]): View {
   if (typeof value !== 'string') return 'all'
   if (value.startsWith('book:'))
     return notebooks.some((book) => book.id === value.slice(5)) ? (value as View) : 'all'
@@ -87,23 +91,29 @@ export type PdfLocation = {
   scroll?: never
 }
 export type Location = NoteLocation | PdfLocation
-export type SavedTab = { id: string; preview?: boolean } & (
+export type SavedTab = { id: string; pinned?: boolean; preview?: boolean } & (
   | { kind?: 'note'; noteId: string; documentId?: never }
   | { kind: 'pdf'; documentId: string; noteId?: never }
 )
 const targetKey = (target: { kind?: string; noteId?: string; documentId?: string }) =>
   target.kind === 'pdf' ? `pdf:${target.documentId}` : `note:${target.noteId}`
-const available = (location: Location, notes: Note[], documents: { id: string }[]) =>
+const available = (location: Location, notes: WorkspaceNote[], documents: { id: string }[]) =>
   location.kind === 'pdf'
     ? documents.some((d) => d.id === location.documentId)
     : notes.some((n) => n.id === location.noteId && (!n.trashed || location.view === 'trash'))
-export type WorkspaceTab = { id: string; entries: Location[]; index: number; preview?: boolean }
+export type WorkspaceTab = {
+  id: string
+  entries: Location[]
+  index: number
+  pinned?: boolean
+  preview?: boolean
+}
 export type Workspace = { tabs: WorkspaceTab[]; activeTabId: string | null }
 export const currentLocation = (tab: WorkspaceTab) => tab.entries[tab.index]
 export const activeTab = (state: Workspace) => state.tabs.find((t) => t.id === state.activeTabId)
 export function restoreWorkspace(
   saved: WorkspacePreferences | null,
-  notes: Note[],
+  notes: WorkspaceNote[],
   documents: { id: string }[] = [],
 ): Workspace {
   const tabs: WorkspaceTab[] = (
@@ -129,8 +139,10 @@ export function restoreWorkspace(
           : { noteId: t.noteId, view: 'all' as View, query: '', scroll: 0 },
       ],
       index: 0,
-      ...(t.preview && t.kind !== 'pdf' ? { preview: true } : {}),
+      ...(t.pinned === true ? { pinned: true } : {}),
+      ...(!t.pinned && t.preview && t.kind !== 'pdf' ? { preview: true } : {}),
     }))
+  tabs.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned))
   // Only one tab can own the preview slot, including after reading saved preferences.
   const firstPreview = tabs.findIndex((tab) => tab.preview)
   if (firstPreview >= 0) for (let i = firstPreview + 1; i < tabs.length; i++) delete tabs[i].preview
@@ -144,8 +156,18 @@ export function workspacePreferences(state: Workspace): WorkspacePreferences {
     tabs: state.tabs.map((t): SavedTab => {
       const location = currentLocation(t)
       return location.kind === 'pdf'
-        ? { id: t.id, kind: 'pdf', documentId: location.documentId }
-        : { id: t.id, noteId: location.noteId, ...(t.preview ? { preview: true } : {}) }
+        ? {
+            id: t.id,
+            ...(t.pinned ? { pinned: true } : {}),
+            kind: 'pdf',
+            documentId: location.documentId,
+          }
+        : {
+            id: t.id,
+            ...(t.pinned ? { pinned: true } : {}),
+            noteId: location.noteId,
+            ...(t.preview ? { preview: true } : {}),
+          }
     }),
     activeTabId: state.activeTabId,
   }
@@ -191,7 +213,7 @@ export function openNote(state: Workspace, location: NoteLocation, newTab = fals
       }),
     }
   const tab = activeTab(state)
-  if (newTab || !tab || currentLocation(tab).kind === 'pdf') {
+  if (newTab || !tab || tab.pinned || currentLocation(tab).kind === 'pdf') {
     const id = crypto.randomUUID()
     return { tabs: [...state.tabs, { id, entries: [location], index: 0 }], activeTabId: id }
   }
@@ -244,6 +266,49 @@ export function keepTabOpen(state: Workspace, id: string): Workspace {
     }),
   }
 }
+export function constrainTabIndex(
+  tabs: { id: string; pinned?: boolean }[],
+  id: string,
+  target: number,
+): number {
+  const tab = tabs.find((tab) => tab.id === id)
+  if (!tab) return target
+  const count = tabs.filter((tab) => tab.pinned).length
+  return Math.max(
+    tab.pinned ? 0 : count,
+    Math.min(tab.pinned ? count - 1 : tabs.length - 1, target),
+  )
+}
+
+export function setTabPinned(state: Workspace, id: string, pinned: boolean): Workspace {
+  const tab = state.tabs.find((tab) => tab.id === id)
+  if (!tab || !!tab.pinned === pinned) return state
+  const { preview: _, pinned: __, ...permanent } = tab
+  const tabs = state.tabs.filter((tab) => tab.id !== id)
+  const boundary = tabs.filter((tab) => tab.pinned).length
+  tabs.splice(boundary, 0, { ...permanent, ...(pinned ? { pinned: true } : {}) })
+  return { ...state, tabs }
+}
+
+export function reorderTab(state: Workspace, id: string, targetIndex: number): Workspace {
+  const index = state.tabs.findIndex((tab) => tab.id === id)
+  if (
+    index < 0 ||
+    !Number.isInteger(targetIndex) ||
+    targetIndex < 0 ||
+    targetIndex >= state.tabs.length ||
+    index === targetIndex
+  )
+    return state
+  targetIndex = constrainTabIndex(state.tabs, id, targetIndex)
+  if (index === targetIndex) return state
+  const tabs = [...state.tabs]
+  const [tab] = tabs.splice(index, 1)
+  const { preview: _, ...kept } = tab
+  tabs.splice(targetIndex, 0, tab.preview ? kept : tab)
+  return { ...state, tabs }
+}
+
 export function closeTab(state: Workspace, id: string): Workspace {
   const index = state.tabs.findIndex((t) => t.id === id)
   const tabs = state.tabs.filter((t) => t.id !== id)
@@ -256,7 +321,7 @@ export function closeTab(state: Workspace, id: string): Workspace {
 export function historyIndex(
   tab: WorkspaceTab | undefined,
   direction: number,
-  notes: Note[],
+  notes: WorkspaceNote[],
   documents: { id: string }[] = [],
 ): number | undefined {
   if (!tab) return undefined
@@ -268,7 +333,7 @@ export function historyIndex(
 export function moveHistory(
   state: Workspace,
   direction: number,
-  notes: Note[],
+  notes: WorkspaceNote[],
   documents: { id: string }[] = [],
 ): Workspace {
   const index = historyIndex(activeTab(state), direction, notes, documents)
@@ -278,7 +343,7 @@ export function moveHistory(
 }
 export function pruneWorkspace(
   state: Workspace,
-  notes: Note[],
+  notes: WorkspaceNote[],
   documents: { id: string }[] = [],
 ): Workspace {
   return state.tabs.reduce((result, t) => {
@@ -287,7 +352,7 @@ export function pruneWorkspace(
   }, state)
 }
 
-export function normalizeRecentNotes(value: unknown, notes?: Note[]): string[] {
+export function normalizeRecentNotes(value: unknown, notes?: WorkspaceNote[]): string[] {
   if (!Array.isArray(value)) return []
   const available = notes && new Set(notes.filter((note) => !note.trashed).map((note) => note.id))
   return [

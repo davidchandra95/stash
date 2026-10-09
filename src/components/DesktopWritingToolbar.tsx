@@ -9,6 +9,7 @@ import { captureLinkTarget, mapLinkTarget, type LinkTarget } from '../editor/lin
 import { AlignLeft, Check, MoreHorizontal, Quote, X } from '../icons'
 import { commands, runCommand } from '../editor/commands'
 import { readImage } from '../editor/images'
+import { retainEditorOperation } from '../editor/lifecycle'
 import { ShortcutContext, useShortcutLabel } from '../useShortcuts'
 import { bindingFor } from '../shortcuts'
 import {
@@ -30,6 +31,7 @@ import {
 } from './writingToolbar'
 import WritingPickerContent from './WritingPickerContent'
 import { writingMenuActions } from './writingMenuActions'
+import { canRunWritingCommand, samePresentation, toolbarPresentation } from './editorPresentation'
 const pickerLabels: Record<WritingPicker, string> = {
   color: 'Text color',
   highlight: 'Highlight',
@@ -51,7 +53,11 @@ export default function DesktopWritingToolbar({
   readOnly: boolean
   appearance?: Appearance
 }) {
-  useEditorState({ editor, selector: ({ editor: current }) => current.state })
+  useEditorState({
+    editor,
+    selector: ({ editor: current }) => toolbarPresentation(current),
+    equalityFn: samePresentation,
+  })
   const shortcutLabel = useShortcutLabel()
   const shortcuts = useContext(ShortcutContext)
   const native = usesNativeContextMenu()
@@ -97,14 +103,7 @@ export default function DesktopWritingToolbar({
       fontFamily: fontFamily(appearance.uiFont),
     } as CSSProperties,
   }
-  const canRun = (id: string) => {
-    const command = commands.find((command) => command.id === id)
-    if (!command) return false
-    if (!['bullet', 'number', 'task'].includes(id)) return command.run(editor.can().chain()).run()
-    // Custom list commands inspect earlier changes in their chain.
-    // A real isolated transaction models those changes without dispatching them.
-    return command.run(new CommandManager({ editor }).createChain(editor.state.tr)).run()
-  }
+  const canRun = (id: string) => canRunWritingCommand(editor, id)
   const disabled = (tool: ToolbarTool) => {
     if (readOnly || !editor.isEditable) return true
     if (tool.picker) return false
@@ -293,6 +292,7 @@ export default function DesktopWritingToolbar({
 
   const insertImageFiles = async (files: File[]) => {
     if (!files.length || blocked.current) return
+    const release = retainEditorOperation(editor)
     const version = generation.current
     try {
       const images = await Promise.all(
@@ -304,6 +304,8 @@ export default function DesktopWritingToolbar({
       if (version === generation.current) apply((chain) => chain.insertContent(images))
     } catch {
       if (version === generation.current) setError('The image could not be read. Try another file.')
+    } finally {
+      release()
     }
   }
 

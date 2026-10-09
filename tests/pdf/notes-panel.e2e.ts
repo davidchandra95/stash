@@ -51,7 +51,7 @@ for (const viewport of [
         )
         const list = page.locator('#note-list')
         const rows = page.locator('.note-rows')
-        const search = page.getByRole('textbox', { name: 'Search notes', exact: true })
+        const search = page.getByRole('textbox', { name: 'Filter this view', exact: true })
         await search.fill('Panel')
         await rows.evaluate((element) => {
           element.scrollTop = 130
@@ -70,7 +70,7 @@ for (const viewport of [
         await expect(list).toBeHidden()
         await expect(list).toHaveAttribute('inert', '')
         await expect(list).toHaveAttribute('aria-hidden', 'true')
-        await expect(page.getByRole('textbox', { name: 'Search notes', exact: true })).toHaveCount(
+        await expect(page.getByRole('textbox', { name: 'Filter this view', exact: true })).toHaveCount(
           0,
         )
         await expect(page.locator('.pane-resizer--noteList')).toHaveCount(0)

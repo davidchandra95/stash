@@ -7,9 +7,10 @@ export const sortLabels: Record<NoteSortMode, string> = {
   title: 'Title',
   custom: 'Custom',
 }
-export function sortNotes(notes: Note[], preferences?: NoteListPreferences): Note[] {
+type SortableNote = Pick<Note, 'id' | 'pinned' | 'title' | 'updated'>
+export function noteComparator(preferences?: NoteListPreferences) {
   const rank = new Map((preferences?.order ?? []).map((id, index) => [id, index]))
-  return [...notes].sort((a, b) => {
+  return (a: SortableNote, b: SortableNote) => {
     const pinned = Number(b.pinned) - Number(a.pinned)
     if (pinned) return pinned
     if (preferences?.mode === 'title')
@@ -20,7 +21,10 @@ export function sortNotes(notes: Note[], preferences?: NoteListPreferences): Not
       if (ar !== undefined || br !== undefined) return (ar ?? -1) - (br ?? -1)
     }
     return b.updated - a.updated || a.id.localeCompare(b.id)
-  })
+  }
+}
+export function sortNotes<T extends SortableNote>(notes: T[], preferences?: NoteListPreferences): T[] {
+  return [...notes].sort(noteComparator(preferences))
 }
 /** Retain absent IDs in their saved slots, while updating the visible sequence. */
 export function retainAbsent(order: string[], current: string[]): string[] {
@@ -31,7 +35,7 @@ export function retainAbsent(order: string[], current: string[]): string[] {
   })
   return [...new Set(result)]
 }
-export function moveNote(visible: Note[], id: string, target: string): Note[] {
+export function moveNote<T extends Pick<Note, 'id' | 'pinned'>>(visible: T[], id: string, target: string): T[] {
   const from = visible.findIndex((n) => n.id === id),
     to = visible.findIndex((n) => n.id === target)
   if (from < 0 || to < 0 || visible[from].pinned !== visible[to].pinned) return visible
@@ -39,7 +43,7 @@ export function moveNote(visible: Note[], id: string, target: string): Note[] {
   next.splice(to, 0, ...next.splice(from, 1))
   return next
 }
-export function reorderSlots(all: Note[], visible: Note[], previous: string[] = []): string[] {
+export function reorderSlots<T extends Pick<Note, 'id'>>(all: T[], visible: T[], previous: string[] = []): string[] {
   const ids = new Set(visible.map((n) => n.id))
   let index = 0
   return retainAbsent(

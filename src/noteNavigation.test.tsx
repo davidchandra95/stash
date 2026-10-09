@@ -76,9 +76,9 @@ it('opens links across filters, restores source selection and scroll, and explai
     await act(async () => host.querySelector<HTMLElement>('.note-reference')!.click())
     expect(selectedSection()).toBe('Work')
     expect(title()).toBe('Target')
-    await act(async () => button('Search note content').click())
+    await act(async () => button('Search note bodies').click())
     const search = document.querySelector<HTMLInputElement>(
-      'input[aria-label="Search note content"]',
+      'input[aria-label="Search note bodies"]',
     )!
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
@@ -87,6 +87,15 @@ it('opens links across filters, restores source selection and scroll, and explai
       )
       search.dispatchEvent(new Event('input', { bubbles: true }))
     })
+    const deadline = performance.now() + 2000
+    while (
+      document.querySelector('.content-search-results')?.getAttribute('aria-busy') !== 'false' &&
+      performance.now() < deadline
+    )
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      })
+    expect(document.querySelector('.content-search-results')?.getAttribute('aria-busy')).toBe('false')
     const targetResult = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
       (result) =>
         result.closest('.content-search-group')?.querySelector('strong')?.textContent === 'Target',

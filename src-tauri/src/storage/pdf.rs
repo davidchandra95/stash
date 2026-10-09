@@ -487,7 +487,7 @@ mod tests {
                 .conn
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            9
+            10
         );
         assert!(store.list_pdfs().unwrap().is_empty());
         let backup = fs::read_dir(library.path().join("backups"))

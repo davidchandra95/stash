@@ -362,7 +362,7 @@ fn missing_files_are_read_only_and_assets_cannot_escape_the_root() {
 }
 
 #[test]
-fn version_seven_moves_linked_legacy_tags_into_markdown_and_retries_when_the_file_returns() {
+fn old_linked_tags_are_cleared_without_rewriting_files() {
     let (library, folder, store, note) = setup();
     store
         .conn
@@ -385,17 +385,17 @@ fn version_seven_moves_linked_legacy_tags_into_markdown_and_retries_when_the_fil
     let mut store = Store::open(library.path()).unwrap();
     store.open_linked_library().unwrap();
     let unavailable = store.note(&note.id, false).unwrap();
-    assert_eq!(unavailable.tags, vec!["My Project"]);
+    assert!(unavailable.tags.is_empty());
     assert!(unavailable.source.unwrap().unavailable.is_some());
 
     fs::write(folder.path().join("a.md"), "# Original\n\nKeep this.\n").unwrap();
     store.open_linked_library().unwrap();
     assert_eq!(
         fs::read_to_string(folder.path().join("a.md")).unwrap(),
-        "# Original\n\nKeep this.\n\nTags: #my-project\n"
+        "# Original\n\nKeep this.\n"
     );
     let migrated = store.note(&note.id, true).unwrap();
-    assert_eq!(migrated.tags, vec!["my-project"]);
+    assert!(migrated.tags.is_empty());
     assert_eq!(
         store
             .conn
@@ -411,7 +411,7 @@ fn version_seven_moves_linked_legacy_tags_into_markdown_and_retries_when_the_fil
     store.open_linked_library().unwrap();
     assert_eq!(
         fs::read_to_string(folder.path().join("a.md")).unwrap(),
-        "# Original\n\nKeep this.\n\nTags: #my-project\n"
+        "# Original\n\nKeep this.\n"
     );
     assert_eq!(store.note(&note.id, false).unwrap().revision, revision);
 }
@@ -656,4 +656,22 @@ fn directory_permission_failure_leaves_original_bytes_and_can_retry() {
     assert_eq!(fs::read(&path).unwrap(), before);
     store.save_note(&edit).unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), "New bytes");
+}
+
+#[test]
+fn confirmed_markdown_tags_survive_indexing_metadata_saves_and_external_changes() {
+    let (_library, folder, mut store, initial) = setup();
+    let markdown = "<span data-confirmed-tag=\"tutorial\">#Tutorial</span> #abcdef #plain\n";
+    fs::write(folder.path().join("a.md"), markdown).unwrap();
+    store.open_linked_library().unwrap();
+    let loaded = store.load_note(&initial.id).unwrap();
+    assert_eq!(loaded.tags, vec!["tutorial"]);
+    let mut input = input(&loaded);
+    input.pinned = true;
+    input.markdown = None;
+    input.content = None;
+    store.save_note(&input).unwrap();
+    assert_eq!(store.note(&initial.id, false).unwrap().tags, vec!["tutorial"]);
+    fs::write(folder.path().join("a.md"), "#Tutorial #abcdef\n").unwrap();
+    assert!(store.load_note(&initial.id).unwrap().tags.is_empty());
 }

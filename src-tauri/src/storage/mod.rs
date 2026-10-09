@@ -3,6 +3,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -18,102 +19,14 @@ fn now() -> i64 {
         .unwrap_or_default()
         .as_millis() as i64
 }
-fn tag_word(value: char) -> bool {
-    value.is_alphanumeric() || value == '_'
-}
 fn terminal_tag_punctuation(value: char) -> bool {
     matches!(
         value,
         '.' | ',' | '!' | '?' | ';' | ':' | ')' | ']' | '}' | '>' | '"' | '\'' | '”' | '’'
     )
 }
-pub(crate) fn body_tags(text: &str) -> Vec<String> {
-    let chars: Vec<(usize, char)> = text.char_indices().collect();
-    let mut result = Vec::new();
-    for (index, (start, value)) in chars.iter().enumerate() {
-        if *value != '#' {
-            continue;
-        }
-        if let Some((_, previous)) = index.checked_sub(1).and_then(|n| chars.get(n)) {
-            if tag_word(*previous) || *previous == '#' {
-                continue;
-            }
-        }
-        let content_start = *start + value.len_utf8();
-        let mut end = text.len();
-        for (next_start, next) in chars.iter().skip(index + 1) {
-            if next.is_whitespace() {
-                end = *next_start;
-                break;
-            }
-        }
-        let raw = text[content_start..end].trim_end_matches(terminal_tag_punctuation);
-        if raw.is_empty() || raw.starts_with('#') {
-            continue;
-        }
-        let tag = raw.to_lowercase();
-        if !result.contains(&tag) {
-            result.push(tag);
-        }
-    }
-    result
-}
-pub(crate) fn legacy_tag_name(value: &str) -> Option<String> {
-    let source = value.trim().trim_start_matches('#').trim().to_lowercase();
-    if source.is_empty() {
-        return None;
-    }
-    let mut result = String::new();
-    let mut separator = false;
-    for value in source.chars() {
-        if value.is_alphanumeric() || matches!(value, '_' | '-') {
-            result.push(value);
-            separator = false;
-        } else if !result.is_empty() && !separator {
-            result.push('-');
-            separator = true;
-        }
-    }
-    let result = result.trim_matches('-').to_string();
-    if !result.is_empty() {
-        return Some(result);
-    }
-    Some(format!(
-        "tag-{}",
-        source
-            .as_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    ))
-}
-pub(crate) fn tag_footer(tags: &[String]) -> String {
-    format!(
-        "Tags: {}",
-        tags.iter()
-            .map(|tag| format!("#{tag}"))
-            .collect::<Vec<_>>()
-            .join(" ")
-    )
-}
-pub(crate) fn append_markdown_tag_footer(markdown: &str, tags: &[String]) -> String {
-    let newline = if markdown.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let mut result = markdown.to_string();
-    let separator = format!("{newline}{newline}");
-    if !result.is_empty() && !result.ends_with(&separator) {
-        if !result.ends_with(newline) {
-            result.push_str(newline);
-        }
-        result.push_str(newline);
-    }
-    result.push_str(&tag_footer(tags));
-    result.push_str(newline);
-    result
-}
+mod confirmed_tags;
+use confirmed_tags::{document_tags, markdown_tags};
 fn default_notebook_icon() -> String {
     "notebook".into()
 }
@@ -182,6 +95,38 @@ pub struct Note {
     pub has_tasks: bool,
     pub source: Option<linked::FileSource>,
 }
+impl Note {
+    fn from_summary_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        let trashed_at: Option<i64> = row.get(5)?;
+        Ok(Self {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            notebook_ids: vec![],
+            quick_access: row.get(2)?,
+            tags: vec![],
+            content: None,
+            text: row.get(3)?,
+            pinned: row.get(4)?,
+            trashed: trashed_at.is_some(),
+            trashed_at,
+            created: row.get(6)?,
+            updated: row.get(7)?,
+            revision: row.get(8)?,
+            document_version: row.get(9)?,
+            has_tasks: row.get(10)?,
+            source: None,
+        })
+    }
+
+    fn validate_document_version(&self) -> Result<()> {
+        if self.document_version != 1 {
+            return Err(
+                "This note needs a newer document format. Its content has not been changed.".into(),
+            );
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveNote {
@@ -213,6 +158,8 @@ pub struct WorkspaceTab {
     pub document_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
 }
 fn note_tab_kind() -> String { "note".into() }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -232,6 +179,8 @@ pub struct PdfNotesPreferences {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacePreferences {
+    #[serde(default)]
+    pub note_list_mode: NoteListMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sidebar_view: Option<String>,
     #[serde(default)]
@@ -244,6 +193,13 @@ pub struct WorkspacePreferences {
     pub note_lists: std::collections::BTreeMap<String, NoteListPreferences>,
     pub tabs: Vec<WorkspaceTab>,
     pub active_tab_id: Option<String>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NoteListMode {
+    #[default]
+    Compact,
+    Preview,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -322,13 +278,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 9 {
+        if version > 10 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 9 {
+        if version > 0 && version < 10 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -423,20 +379,11 @@ impl Store {
             conversion: None,
             path,
         };
-        if version < 7 {
-            store.migrate_ordinary_tags()?;
+        if version < 10 {
+            store.migrate_confirmed_tags()?;
         }
         store.recover_pdf_imports()?;
         Ok(store)
-    }
-    fn stored_tags(&self, id: &str) -> Result<Vec<String>> {
-        self.conn
-            .prepare("SELECT tag FROM note_tags WHERE note_id=? ORDER BY tag")
-            .map_err(db_err)?
-            .query_map([id], |row| row.get(0))
-            .map_err(db_err)?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(db_err)
     }
     pub(crate) fn tags_migrated(&self, id: &str) -> Result<bool> {
         self.conn
@@ -470,71 +417,30 @@ impl Store {
         }
         Ok(())
     }
-    fn migrate_ordinary_tags(&mut self) -> Result<()> {
-        let rows: Vec<(String, String, String)> = self
-            .conn
-            .prepare(
-                "SELECT id,body,plain_text FROM notes WHERE id NOT IN(SELECT note_id FROM linked_notes)",
-            )
-            .map_err(db_err)?
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-            .map_err(db_err)?
-            .collect::<std::result::Result<_, _>>()
-            .map_err(db_err)?;
+    fn migrate_confirmed_tags(&mut self) -> Result<()> {
+        let rows: Vec<(String, String, Option<String>)> = self.conn
+            .prepare("SELECT n.id,n.body,l.markdown FROM notes n LEFT JOIN linked_notes l ON l.note_id=n.id")
+            .map_err(db_err)?.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(db_err)?.collect::<std::result::Result<_, _>>().map_err(db_err)?;
         let tx = self.conn.transaction().map_err(db_err)?;
-        for (id, body, text) in rows {
-            let legacy: Vec<String> = tx
-                .prepare("SELECT tag FROM note_tags WHERE note_id=? ORDER BY tag")
-                .map_err(db_err)?
-                .query_map([&id], |row| row.get(0))
-                .map_err(db_err)?
-                .collect::<std::result::Result<_, _>>()
-                .map_err(db_err)?;
-            let mut tags = body_tags(&text);
-            let missing: Vec<String> = legacy
-                .iter()
-                .filter_map(|tag| legacy_tag_name(tag))
-                .filter(|tag| !tags.contains(tag))
-                .collect();
-            if !missing.is_empty() {
-                tags.extend(missing.iter().cloned());
-                let footer = tag_footer(&missing);
-                let mut document: Value = serde_json::from_str(&body).map_err(db_err)?;
-                let content = document
-                    .get_mut("content")
-                    .and_then(Value::as_array_mut)
-                    .ok_or("The note body is missing document content.")?;
-                content.push(serde_json::json!({
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": footer}],
-                }));
-                validate_document(&document)?;
-                let next_text = if text.is_empty() {
-                    footer
-                } else {
-                    format!("{text}\n{footer}")
-                };
-                tx.execute(
-                    "UPDATE notes SET body=?,plain_text=?,has_tasks=?,updated=?,revision=revision+1,last_op='tag-body-migration' WHERE id=?",
-                    params![document.to_string(), next_text, has_tasks(&document), now(), id],
-                )
-                .map_err(db_err)?;
-            }
-            tx.execute("DELETE FROM note_tags WHERE note_id=?", [&id])
-                .map_err(db_err)?;
+        tx.execute("DELETE FROM note_tags", []).map_err(db_err)?;
+        for (id, body, markdown) in rows {
+            let tags = match markdown {
+                Some(markdown) => markdown_tags(&markdown),
+                None => document_tags(&serde_json::from_str::<Value>(&body).map_err(db_err)?),
+            };
             for tag in tags {
                 tx.execute(
-                    "INSERT OR IGNORE INTO note_tags(note_id,tag) VALUES(?,?)",
+                    "INSERT OR IGNORE INTO note_tags VALUES(?,?)",
                     params![id, tag],
                 )
                 .map_err(db_err)?;
             }
-            tx.execute(
-                "INSERT OR IGNORE INTO tag_body_migrations(note_id) VALUES(?)",
-                [&id],
-            )
-            .map_err(db_err)?;
+            tx.execute("INSERT OR IGNORE INTO tag_body_migrations VALUES(?)", [&id])
+                .map_err(db_err)?;
         }
+        tx.execute_batch("PRAGMA user_version=10;")
+            .map_err(db_err)?;
         tx.commit().map_err(db_err)
     }
     pub fn notebooks(&self) -> Result<Vec<Notebook>> {
@@ -557,19 +463,7 @@ impl Store {
         result
     }
     pub fn library(&self) -> Result<Library> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id FROM notes ORDER BY updated DESC")
-            .map_err(db_err)?;
-        let ids = stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .map_err(db_err)?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(db_err)?;
-        let notes = ids
-            .iter()
-            .map(|id| self.note(id, false))
-            .collect::<Result<Vec<_>>>()?;
+        let notes = self.note_summaries()?;
         let notebooks = self.notebooks()?;
         let prefs: Option<(String, i64, Option<String>)> = self
             .conn
@@ -606,16 +500,94 @@ impl Store {
             conflicts: self.pending_conflicts()?,
         })
     }
-    pub fn note(&self, id: &str, body: bool) -> Result<Note> {
-        let mut note = self.conn.query_row("SELECT id,title,quick_access,plain_text,pinned,trashed_at,created,updated,revision,document_version,has_tasks FROM notes WHERE id=?", [id], |r| {
-   let trashed_at:Option<i64>=r.get(5)?;
-   Ok(Note{id:r.get(0)?,title:r.get(1)?,notebook_ids:vec![],quick_access:r.get(2)?,text:r.get(3)?,pinned:r.get(4)?,trashed:trashed_at.is_some(),trashed_at,created:r.get(6)?,updated:r.get(7)?,revision:r.get(8)?,document_version:r.get(9)?,has_tasks:r.get(10)?,content:None,tags:vec![],source:None})
-  }).map_err(db_err)?;
-        if note.document_version != 1 {
-            return Err(
-                "This note needs a newer document format. Its content has not been changed.".into(),
-            );
+    fn note_summaries(&self) -> Result<Vec<Note>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id,title,quick_access,plain_text,pinned,trashed_at,created,updated,revision,document_version,has_tasks
+             FROM notes ORDER BY updated DESC,rowid ASC",
+        ).map_err(db_err)?;
+        let rows = stmt.query_map([], Note::from_summary_row).map_err(db_err)?;
+        let mut notes = Vec::new();
+        for row in rows {
+            let note = row.map_err(db_err)?;
+            note.validate_document_version()?;
+            notes.push(note);
         }
+        let positions: HashMap<_, _> = notes
+            .iter()
+            .enumerate()
+            .map(|(index, note)| (note.id.clone(), index))
+            .collect();
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT t.note_id,t.tag FROM note_tags t JOIN notes n ON n.id=t.note_id
+             ORDER BY t.note_id,t.tag",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(db_err)?;
+        for row in rows {
+            let (id, tag) = row.map_err(db_err)?;
+            if let Some(&index) = positions.get(&id) {
+                notes[index].tags.push(tag);
+            }
+        }
+
+        // A global rowid scan also preserves each note's membership order.
+        let mut stmt = self.conn.prepare(
+            "SELECT m.note_id,m.notebook_id FROM note_notebooks m JOIN notes n ON n.id=m.note_id
+             ORDER BY m.rowid",
+        ).map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(db_err)?;
+        for row in rows {
+            let (id, notebook_id) = row.map_err(db_err)?;
+            if let Some(&index) = positions.get(&id) {
+                notes[index].notebook_ids.push(notebook_id);
+            }
+        }
+
+        let mut stmt = self.conn.prepare(
+            "SELECT l.note_id,l.root_id,l.relative_path,l.fingerprint,l.unavailable,l.trash_path
+             FROM linked_notes l JOIN notes n ON n.id=l.note_id",
+        ).map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    linked::FileSource {
+                        root_id: row.get(1)?,
+                        relative_path: row.get(2)?,
+                        fingerprint: row.get(3)?,
+                        unavailable: row.get(4)?,
+                        trash_path: row.get(5)?,
+                        markdown: None,
+                    },
+                ))
+            })
+            .map_err(db_err)?;
+        for row in rows {
+            let (id, source) = row.map_err(db_err)?;
+            if let Some(&index) = positions.get(&id) {
+                notes[index].source = Some(source);
+            }
+        }
+        Ok(notes)
+    }
+    pub fn note(&self, id: &str, body: bool) -> Result<Note> {
+        let mut note = self.conn.query_row(
+            "SELECT id,title,quick_access,plain_text,pinned,trashed_at,created,updated,revision,document_version,has_tasks FROM notes WHERE id=?",
+            [id],
+            Note::from_summary_row,
+        ).map_err(db_err)?;
+        note.validate_document_version()?;
         if body {
             let json: String = self
                 .conn
@@ -706,7 +678,27 @@ impl Store {
         }
         tx.execute("DELETE FROM note_tags WHERE note_id=?", [&input.id])
             .map_err(db_err)?;
-        for tag in body_tags(&input.text) {
+        let tags = if let Some(markdown) = &input.markdown {
+            markdown_tags(markdown)
+        } else if let Some(markdown) = tx
+            .query_row(
+                "SELECT markdown FROM linked_notes WHERE note_id=?",
+                [&input.id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(db_err)?
+        {
+            markdown_tags(&markdown)
+        } else {
+            let body: String = tx
+                .query_row("SELECT body FROM notes WHERE id=?", [&input.id], |row| {
+                    row.get(0)
+                })
+                .map_err(db_err)?;
+            document_tags(&serde_json::from_str::<Value>(&body).map_err(db_err)?)
+        };
+        for tag in tags {
             tx.execute(
                 "INSERT OR IGNORE INTO note_tags(note_id,tag) VALUES(?,?)",
                 params![input.id, tag],
@@ -783,7 +775,7 @@ impl Store {
             if workspace
                 .tabs
                 .iter()
-                .any(|tab| tab.id.is_empty() || !ids.insert(&tab.id) || match tab.kind.as_str() {
+                .any(|tab| tab.id.is_empty() || (tab.pinned == Some(true) && tab.preview == Some(true)) || !ids.insert(&tab.id) || match tab.kind.as_str() {
                     "note" => tab.note_id.is_empty() || tab.document_id.is_some(),
                     "pdf" => !tab.note_id.is_empty() || tab.document_id.as_ref().is_none_or(|id| id.is_empty()) || tab.preview == Some(true),
                     _ => true,

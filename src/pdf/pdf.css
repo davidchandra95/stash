@@ -202,7 +202,7 @@
   pointer-events: none;
   z-index: 5;
 }
-.pdf-writing-pane .note-article {
+.pdf-workspace.paired .pdf-writing-pane .note-article {
   max-width: 100%;
 }
 

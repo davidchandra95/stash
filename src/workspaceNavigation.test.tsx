@@ -84,10 +84,123 @@ async function type(label: string, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+async function waitForBodySearch() {
+  const results = () => document.querySelector('.content-search-results')
+  const deadline = performance.now() + 2000
+  while (results()?.getAttribute('aria-busy') !== 'false' && performance.now() < deadline)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    })
+  expect(results()?.getAttribute('aria-busy')).toBe('false')
+}
+async function openSearchResult(method: string, noteTitle: string, ctrlKey = false) {
+  if (method === 'body click') {
+    await act(async () => button('Search note bodies').click())
+    await type('Search note bodies', 'heading')
+    await waitForBodySearch()
+    const result = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
+      (element) =>
+        element.closest('.content-search-group')?.querySelector('strong')?.textContent === noteTitle,
+    )
+    expect(result).toBeTruthy()
+    await act(async () =>
+      result!.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
+    )
+  } else {
+    await type('Find note titles', noteTitle)
+    if (method === 'title click')
+      await act(async () =>
+        document
+          .querySelector<HTMLElement>('.quick-open-result')!
+          .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
+      )
+    else
+      await act(async () =>
+        host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+            cancelable: true,
+            ctrlKey,
+          }),
+        ),
+      )
+  }
+}
+it.each(['title click', 'title Enter', 'body click'])(
+  'keeps a restored permanent tab when opening a search result with %s',
+  async (method) => {
+    await mount()
+    host.querySelector('.note-scroll')!.scrollTop = 123
+    await openSearchResult(method, 'Beta')
+    expect(title()).toBe('Beta')
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
+    expect(library.getSnapshot().workspace?.tabs[0]).toEqual({ id: 'initial', noteId: 'alpha' })
+    const previewId = library.getSnapshot().workspace?.activeTabId
+    await openSearchResult(method, 'Alpha')
+    expect(title()).toBe('Alpha')
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
+    expect(host.querySelector('.note-scroll')?.scrollTop).toBe(123)
+    await openSearchResult(method, 'Gamma')
+    expect(title()).toBe('Gamma')
+    expect(library.getSnapshot().workspace?.activeTabId).toBe(previewId)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
+    await openSearchResult(method, 'Gamma', true)
+    expect(host.querySelector('.note-tab.preview')).toBeNull()
+    await openSearchResult(method, 'Beta')
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3)
+    expect(library.getSnapshot().workspace?.tabs.map((tab) => tab.noteId)).toEqual([
+      'alpha',
+      'gamma',
+      'beta',
+    ])
+    await openSearchResult(method, 'Beta', true)
+    expect(host.querySelector('.note-tab.preview')).toBeNull()
+    await openSearchResult(method, 'Gamma', true)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3)
+  },
+)
+it('widens an empty view filter to all notes without losing the query or opening a note', async () => {
+  const books: Notebook[] = [
+    { id: 'work', name: 'Work', color: '', icon: 'briefcase' },
+    { id: 'learning', name: 'Learning', color: '', icon: 'notebook' },
+  ]
+  const testNotes = notes.map((note, i) => ({
+    ...note,
+    title: i === 1 ? 'A garden journal' : note.title,
+    notebookIds: [i === 1 ? 'learning' : 'work'],
+  }))
+  await mount(testNotes, books)
+  await act(async () => navItem('Work').click())
+  await type('Filter this view', 'garden')
+  expect(host.querySelectorAll('.note-row')).toHaveLength(0)
+  expect(host.querySelector('.list-empty')?.textContent).toContain('No matches in this view')
+  const openTitle = title()
+  const searchAll = host.querySelector<HTMLButtonElement>('.list-empty button')!
+  expect(searchAll.textContent).toContain('Search all notes')
+  await act(async () => searchAll.click())
+  expect(selectedSection()).toBe('All notes')
+  expect(row('A garden journal')).toBeTruthy()
+  expect(host.querySelectorAll('.note-row')).toHaveLength(1)
+  const filter = host.querySelector<HTMLInputElement>('[aria-label="Filter this view"]')!
+  expect(filter.value).toBe('garden')
+  expect(document.activeElement).toBe(filter)
+  expect(title()).toBe(openTitle)
+  expect(library.getSnapshot().workspace?.sidebarView).toBe('all')
+  await type('Filter this view', 'no matching title')
+  expect(host.querySelector('.list-empty button')).toBeNull()
+  await type('Filter this view', '')
+  expect(host.querySelectorAll('.note-row')).toHaveLength(3)
+})
 it.each(['book:work', 'book:empty', 'tag:project', 'pinned', 'trash'] as const)(
   'restores the selected sidebar view %s independently of open tabs',
   async (view) => {
-    const testNotes = notes.map((note) => ({ ...note, text: `${note.text} #project` }))
+    const testNotes = notes.map((note) => ({ ...note, text: `${note.text} #project`,
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [
+        { type: 'text', text: `${note.text} ` },
+        { type: 'text', text: '#project', marks: [{ type: 'bodyTag', attrs: { tag: 'project' } }] },
+      ] }] },
+    }))
     const books: Notebook[] = [
       { id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' },
       { id: 'empty', name: 'Empty', color: '#888888', icon: 'briefcase' },
@@ -246,9 +359,9 @@ it('shows the filtered note count beside the desktop heading and hides zero', as
     library.setNotes(notes.map((note, index) => ({ ...note, pinned: index === 0 }))),
   )
   expect(headingCount()).toBe('1')
-  await type('Search notes', 'no matching note')
+  await type('Filter this view', 'no matching note')
   expect(headingCount()).toBeUndefined()
-  await type('Search notes', '')
+  await type('Filter this view', '')
   expect(headingCount()).toBe('1')
 })
 it('collapses sidebar sections independently and keeps their actions available', async () => {
@@ -290,7 +403,7 @@ it('collapses sidebar sections independently and keeps their actions available',
 it('toggles Notes independently and preserves its mounted search, scroll and preferred width', async () => {
   await mount()
   const preferredWidths = library.getSnapshot().workspace?.paneWidths
-  await type('Search notes', 'Alpha')
+  await type('Filter this view', 'Alpha')
   const list = host.querySelector<HTMLElement>('.note-list')!
   const rows = host.querySelector<HTMLElement>('.note-rows')!
   rows.scrollTop = 87
@@ -309,7 +422,9 @@ it('toggles Notes independently and preserves its mounted search, scroll and pre
   expect(host.querySelector('.app')?.classList.contains('no-sidebar')).toBe(true)
   expect(host.querySelector('.note-rows')).toBe(rows)
   expect(rows.scrollTop).toBe(87)
-  expect(host.querySelector<HTMLInputElement>('[aria-label="Search notes"]')?.value).toBe('Alpha')
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Filter this view"]')?.value).toBe(
+    'Alpha',
+  )
   expect(library.getSnapshot().workspace?.paneWidths).toEqual(preferredWidths)
   await act(() => button('Show sidebar').click())
   expect(button('Hide notes list').getAttribute('aria-expanded')).toBe('true')
@@ -326,7 +441,7 @@ it('reopens Notes for every sidebar note view, including repeated and empty note
         text: '#design',
         content: {
           type: 'doc',
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '#design' }] }],
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '#design', marks: [{ type: 'bodyTag', attrs: { tag: 'design' } }] }] }],
         },
       },
     ],
@@ -422,7 +537,7 @@ it('does not reopen Notes when switching tabs or navigating history and resets v
   expect(button('Hide notes list')).not.toBeNull()
   expect(button('Hide sidebar')).not.toBeNull()
 })
-it('shows only local update date and 24-hour time in desktop note rows', async () => {
+it('formats local update date and 24-hour time in desktop note rows', async () => {
   const today = new Date()
   const updatedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 21, 18)
   const scopedNotes = [
@@ -443,15 +558,15 @@ it('shows only local update date and 24-hour time in desktop note rows', async (
     month: 'short',
     day: 'numeric',
   }).format(updatedToday)
-  expect(row('Alpha').querySelector('.note-row-meta')?.textContent).toBe(`${todayDate}, 21:18`)
-  expect(row('Beta').querySelector('.note-row-meta')?.textContent).toBe('Sep 9, 21:18')
-  expect(row('Gamma').querySelector('.note-row-meta')?.textContent).toBe('Sep 12, 00:05')
+  expect(row('Alpha').querySelector('.note-row-date')?.textContent).toBe(`${todayDate}, 21:18`)
+  expect(row('Beta').querySelector('.note-row-date')?.textContent).toBe('Sep 9, 21:18')
+  expect(row('Gamma').querySelector('.note-row-date')?.textContent).toBe('Sep 12, 00:05')
   expect(host.querySelector('.breadcrumb')?.textContent).toContain('Work')
 })
 it('keeps edited tabs, editor state, and filters while previewing and closing notes', async () => {
   await mount()
   expect(
-    document.querySelector('[aria-label="Search notes"]')?.classList.contains('text-field'),
+    document.querySelector('[aria-label="Filter this view"]')?.classList.contains('text-field'),
   ).toBe(true)
   expect(document.querySelector('.search-box')?.classList.contains('text-field-shell')).toBe(true)
   expect(host.querySelector('.note-title')?.classList.contains('text-field')).toBe(false)
@@ -473,7 +588,7 @@ it('keeps edited tabs, editor state, and filters while previewing and closing no
     row('Gamma').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })),
   )
   expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3)
-  await type('Search notes', 'not found')
+  await type('Filter this view', 'not found')
   expect(title()).toBe('Gamma')
   await act(async () => button('Close Gamma').click())
   expect(title()).toBe('Beta')
@@ -641,7 +756,7 @@ it('creates in the selected notebook while preserving the list search', async ()
     [{ id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' }],
   )
   await act(async () => navItem('Work').click())
-  await type('Search notes', 'Alpha')
+  await type('Filter this view', 'Alpha')
   const count = library.getSnapshot().notes.length
   await act(async () => button('New note').click())
   const created = library.getSnapshot().notes[0]
@@ -650,7 +765,7 @@ it('creates in the selected notebook while preserving the list search', async ()
   expect(created.title).toBe('')
   expect(selectedSection()).toBe('Work')
   expect(button('New note').closest('.list-heading')).not.toBeNull()
-  expect(document.querySelector<HTMLInputElement>('[aria-label="Search notes"]')?.value).toBe(
+  expect(document.querySelector<HTMLInputElement>('[aria-label="Filter this view"]')?.value).toBe(
     'Alpha',
   )
   expect(host.querySelectorAll('.note-row')).toHaveLength(1)
@@ -838,8 +953,9 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
     },
   }
   await mount([notes[0], target])
-  await act(async () => button('Search note content').click())
-  await type('Search note content', 'fix')
+  await act(async () => button('Search note bodies').click())
+  await type('Search note bodies', 'fix')
+  await waitForBodySearch()
   expect(document.querySelectorAll('.content-search-group')).toHaveLength(1)
   expect(document.querySelectorAll('.content-search-match')).toHaveLength(3)
   await act(async () => document.querySelectorAll<HTMLElement>('.content-search-match')[1].click())
@@ -859,6 +975,6 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
     target.updated,
   )
   expect(library.getSnapshot().workspace?.recentNoteIds?.slice(0, 2)).toEqual(['beta', 'alpha'])
-  await act(async () => button('Back to previous note').click())
+  await act(async () => host.querySelector<HTMLButtonElement>('[role="tab"]')!.click())
   expect(library.getSnapshot().workspace?.recentNoteIds?.[0]).toBe('alpha')
 })

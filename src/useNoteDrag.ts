@@ -9,7 +9,8 @@ import type { Note } from './model'
 import { moveNote } from './noteOrder'
 import type { MoveTarget } from './notebookMove'
 
-type Session = {
+type DragNote = Pick<Note, 'id' | 'pinned'>
+type Session<T extends DragNote> = {
   id: string
   pointerId: number
   pointerType: string
@@ -26,10 +27,10 @@ type Session = {
   offsetX: number
   offsetY: number
   frame: number
-  original: Note[]
-  preview: Note[]
+  original: T[]
+  preview: T[]
 }
-export function useNoteDrag({
+export function useNoteDrag<T extends DragNote>({
   rows,
   notes,
   identity,
@@ -38,23 +39,25 @@ export function useNoteDrag({
   commit,
   resolveTarget,
   dropNotebook,
+  resolveRow,
 }: {
   rows: RefObject<HTMLDivElement | null>
-  notes: Note[]
+  notes: T[]
   identity: string
   disabled: boolean
   animate: () => void
-  commit: (notes: Note[]) => void
+  commit: (notes: T[]) => void
   resolveTarget?: (noteId: string, notebookId: string) => MoveTarget
   dropNotebook?: (noteId: string, notebookId: string) => void
+  resolveRow?: (clientY: number) => string | undefined
 }) {
-  const [preview, setPreview] = useState<Note[] | null>(null)
+  const [preview, setPreview] = useState<T[] | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [target, setTarget] = useState<MoveTarget | null>(null)
-  const session = useRef<Session | null>(null)
+  const session = useRef<Session<T> | null>(null)
   const suppressClick = useRef(false)
-  const latest = useRef({ notes, animate, commit, resolveTarget, dropNotebook })
-  latest.current = { notes, animate, commit, resolveTarget, dropNotebook }
+  const latest = useRef({ notes, animate, commit, resolveTarget, dropNotebook, resolveRow })
+  latest.current = { notes, animate, commit, resolveTarget, dropNotebook, resolveRow }
   useEffect(() => {
     const finish = (accept = false, notebook?: MoveTarget) => {
       const s = session.current
@@ -123,13 +126,13 @@ export function useNoteDrag({
               ? Math.min(12, (s.y - rect.bottom + edge) / 3)
               : 0
         container.scrollTop += speed
-        const cards = [...container.querySelectorAll<HTMLElement>('[data-note-id]')]
-        // Layout offsets do not change during presentation animations.
-        const candidate = cards.find((card) => {
-          const top = rect.top + card.offsetTop - container.scrollTop
-          return s.y >= top && s.y < top + card.offsetHeight
-        })
-        const target = candidate?.dataset.noteId
+        const target = latest.current.resolveRow
+          ? latest.current.resolveRow(s.y)
+          : [...container.querySelectorAll<HTMLElement>('[data-note-id]')].find((card) => {
+              // Non-virtual consumers retain their existing layout offsets.
+              const top = rect.top + card.offsetTop - container.scrollTop
+              return s.y >= top && s.y < top + card.offsetHeight
+            })?.dataset.noteId
         if (target && target !== s.id) {
           const next = moveNote(s.preview, s.id, target)
           if (next !== s.preview) {

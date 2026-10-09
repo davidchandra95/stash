@@ -23,7 +23,7 @@ const note = (id: string): Note => ({
   text: 'Body #existing',
   content: {
     type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body #existing' }] }],
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body ' }, { type: 'text', text: '#existing', marks: [{ type: 'bodyTag', attrs: { tag: 'existing' } }] }] }],
   },
 })
 let cleanup: (() => Promise<void>) | undefined
@@ -322,7 +322,7 @@ it('uses an inline picker to add memberships immediately, creates notebooks, and
   await click('Move')
   expect(matchesView(target(), 'uncategorized')).toBe(true)
 })
-it('derives sidebar tags from body text and seeds a new note created in a tag view', async () => {
+it('derives sidebar tags from confirmed content and seeds a new note created in a tag view', async () => {
   await mount()
   const tag = [...document.querySelectorAll<HTMLButtonElement>('.tag-list button')].find(
     (button) => button.textContent === '#existing',
@@ -352,9 +352,7 @@ it('derives sidebar tags from body text and seeds a new note created in a tag vi
         : note,
     ),
   )
-  expect(library.getSnapshot().notes.find((note) => note.id === created.id)?.tags).toEqual([
-    'fresh',
-  ])
+  expect(library.getSnapshot().notes.find((note) => note.id === created.id)?.tags).toEqual([])
 })
 it('duplicates full content and exposes retry for clipboard failures', async () => {
   await mount()

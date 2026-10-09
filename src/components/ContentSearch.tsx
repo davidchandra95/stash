@@ -9,13 +9,15 @@ import { useMotionEnabled } from '../motion'
 import { ShortcutContext, useShortcutLabel } from '../useShortcuts'
 import { bindingFor, matchesBinding } from '../shortcuts'
 import { useContentSearch } from '../useContentSearch'
+import { useContentMatches } from '../useContentMatches'
+import ContentSearchResults, { resultId } from './ContentSearchResults'
 import {
-  matchSnippet,
-  notebookContext,
-  searchContent,
-  type MatchNavigation,
-  type ReadSearchNote,
-} from '../search'
+  ContentResultIndex,
+  matchAnchor,
+  type MatchAnchor,
+  type ResultRow,
+} from '../search/contentResults'
+import { type MatchNavigation, type ReadSearchNote } from '../search'
 
 export default function ContentSearch({
   open,
@@ -27,6 +29,7 @@ export default function ContentSearch({
   disabled,
   readNote,
   onSelectMatch,
+  initialQuery = '',
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -37,9 +40,13 @@ export default function ContentSearch({
   disabled: boolean
   readNote: ReadSearchNote
   onSelectMatch: (request: MatchNavigation, newTab?: boolean) => void
+  initialQuery?: string
 }) {
   const [query, setQuery] = useState(''),
-    [index, setIndex] = useState(0)
+    [selection, setSelection] = useState<{ anchor: MatchAnchor | null; index: number }>({
+      anchor: null,
+      index: 0,
+    })
   const trigger = useRef<HTMLButtonElement>(null),
     input = useRef<HTMLInputElement>(null)
   const skipFocusReturn = useRef(false),
@@ -47,23 +54,34 @@ export default function ContentSearch({
   const shortcutLabel = useShortcutLabel(),
     overrides = useContext(ShortcutContext)
   const motionActive = useMotionEnabled()
-  const { documents, loading, failures } = useContentSearch(open, notes, readNote)
-  const groups = useMemo(() => searchContent(documents, query, notes), [documents, query, notes])
-  const rows = groups.flatMap((group) => group.matches.map((match) => ({ group, match })))
-  const selectedIndex = Math.min(index, Math.max(0, rows.length - 1)),
-    selected = rows[selectedIndex]
+  const { documents, loading, failures, read, total } = useContentSearch(open, notes, readNote)
+  const { groups, searching, failure } = useContentMatches(open, documents, query, notes)
+  const index = useMemo(() => new ContentResultIndex(groups), [groups])
+  const selectedIndex =
+    (selection.anchor ? index.locate(selection.anchor) : undefined) ??
+    Math.min(selection.index, Math.max(0, index.matches - 1))
+  const selected = index.match(selectedIndex)
+  const busy = loading || searching
   useEffect(() => {
-    if (!open) {
-      setQuery('')
-      setIndex(0)
-    }
-  }, [open])
+    setQuery(open ? initialQuery : '')
+    setSelection({ anchor: null, index: 0 })
+  }, [open, initialQuery])
   useEffect(() => {
-    if (open)
-      document.getElementById(`${listId}-${selectedIndex}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, selectedIndex, listId, query])
-  const choose = (row: (typeof rows)[number], newTab = false) => {
-    if (disabled) return
+    if (!selected?.match) return
+    const anchor = matchAnchor(selected.group, selected.match)
+    setSelection((current) =>
+      current.index === selectedIndex &&
+      current.anchor?.doc === anchor.doc &&
+      current.anchor.noteId === anchor.noteId &&
+      current.anchor.from === anchor.from &&
+      current.anchor.offset === anchor.offset &&
+      current.anchor.text === anchor.text
+        ? current
+        : { anchor, index: selectedIndex },
+    )
+  }, [selectedIndex, index])
+  const choose = (row: ResultRow, newTab = false) => {
+    if (disabled || !row.match) return
     skipFocusReturn.current = true
     onOpenChange(false)
     onSelectMatch(
@@ -71,12 +89,11 @@ export default function ContentSearch({
       newTab,
     )
   }
-  let rowIndex = 0
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <AppTooltip
         instant
-        label="Search note content"
+        label="Search note bodies across all notebooks"
         shortcut={shortcutLabel('search')}
         disabled={disabled}
       >
@@ -85,7 +102,7 @@ export default function ContentSearch({
             ref={trigger}
             className="icon-button content-search-trigger"
             disabled={disabled}
-            aria-label="Search note content"
+            aria-label="Search note bodies"
           >
             <FileSearch size={16} />
           </button>
@@ -121,9 +138,10 @@ export default function ContentSearch({
               }
             }}
           >
-            <Dialog.Title>Search note content</Dialog.Title>
+            <Dialog.Title>Search note bodies</Dialog.Title>
             <Dialog.Description className="global-search-description muted">
-              Search note text across your notebooks.
+              Search body text across all notebooks. Excludes Trash. Use Find note titles for
+              titles.
             </Dialog.Description>
             <Dialog.Close className="icon-button global-search-close" aria-label="Close search">
               <X size={18} />
@@ -131,28 +149,30 @@ export default function ContentSearch({
             <input
               ref={input}
               className="global-search-input text-field"
-              aria-label="Search note content"
-              placeholder="Search note content…"
+              aria-label="Search note bodies"
+              placeholder="Search note bodies…"
               role="combobox"
               aria-expanded="true"
               aria-controls={listId}
               aria-autocomplete="list"
-              aria-activedescendant={selected ? `${listId}-${selectedIndex}` : undefined}
+              aria-activedescendant={selected ? resultId(listId, selected) : undefined}
               disabled={disabled}
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
-                setIndex(0)
+                setSelection({ anchor: null, index: 0 })
               }}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing) return
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                   event.preventDefault()
-                  if (rows.length)
-                    setIndex(
-                      (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) %
-                        rows.length,
-                    )
+                  if (index.matches) {
+                    const next =
+                      (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + index.matches) %
+                      index.matches
+                    const row = index.match(next)!
+                    setSelection({ anchor: matchAnchor(row.group, row.match!), index: next })
+                  }
                 } else if (event.key === 'Enter' && selected) {
                   event.preventDefault()
                   choose(selected, event.metaKey || event.ctrlKey)
@@ -160,74 +180,39 @@ export default function ContentSearch({
               }}
             />
             <p className="content-search-status muted" role="status">
-              {loading
-                ? 'Reading notes…'
-                : query.trim()
-                  ? `${rows.length} ${rows.length === 1 ? 'match' : 'matches'} in ${groups.length} ${groups.length === 1 ? 'note' : 'notes'}`
-                  : 'Type to search note content.'}
+              {query.trim()
+                ? `${index.matches} ${index.matches === 1 ? 'match' : 'matches'} in ${groups.length} ${groups.length === 1 ? 'note' : 'notes'}${busy ? ` · Searching… (${read} of ${total} notes read)` : ''}`
+                : loading
+                  ? `Reading notes… (${read} of ${total})`
+                  : 'Type to search note bodies.'}
             </p>
-            {!!failures.length && (
+            {(!!failures.length || !!failure) && (
               <div className="content-search-errors" role="status">
                 <p>Some notes could not be searched. Results may be incomplete.</p>
-                <details>
-                  <summary>
-                    {failures.length} unreadable {failures.length === 1 ? 'note' : 'notes'}
-                  </summary>
-                  {failures.map((error) => (
-                    <p key={error}>{error}</p>
-                  ))}
-                </details>
+                {failure && <p>Search could not finish: {failure}</p>}
+                {!!failures.length && (
+                  <details>
+                    <summary>
+                      {failures.length} unreadable {failures.length === 1 ? 'note' : 'notes'}
+                    </summary>
+                    {failures.map((error) => (
+                      <p key={error}>{error}</p>
+                    ))}
+                  </details>
+                )}
               </div>
             )}
-            <div
-              className="global-search-results"
-              id={listId}
-              role="listbox"
-              aria-label="Matching content"
-              aria-busy={loading}
-            >
-              {groups.map((group) => (
-                <div
-                  key={group.note.id}
-                  className="content-search-group"
-                  role="group"
-                  aria-label={`${group.note.title || 'Untitled note'}, ${group.matches.length} matches`}
-                >
-                  <div className="content-search-heading">
-                    <strong>{group.note.title || 'Untitled note'}</strong>
-                    <small>{notebookContext(group.note, notebooks)}</small>
-                    <span>{group.matches.length}</span>
-                  </div>
-                  {group.matches.map((match) => {
-                    const i = rowIndex++
-                    return (
-                      <div
-                        key={`${match.from}-${match.offset}`}
-                        id={`${listId}-${i}`}
-                        className="global-search-result content-search-match"
-                        role="option"
-                        aria-selected={i === selectedIndex}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={(event) =>
-                          choose({ group, match }, event.metaKey || event.ctrlKey)
-                        }
-                      >
-                        {matchSnippet(match, query.trim()).map((part, j) =>
-                          part.highlighted ? (
-                            <mark key={j} className={part.target ? 'target-match' : undefined}>
-                              {part.text}
-                            </mark>
-                          ) : (
-                            <span key={j}>{part.text}</span>
-                          ),
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-            {!loading && !!query.trim() && !rows.length && (
+            <ContentSearchResults
+              key={query.trim()}
+              index={index}
+              selectedIndex={selectedIndex}
+              listId={listId}
+              query={query.trim()}
+              notebooks={notebooks}
+              busy={busy}
+              onChoose={choose}
+            />
+            {!busy && !failure && !!query.trim() && !index.matches && (
               <p className="global-search-empty">No matches found.</p>
             )}
           </Dialog.Content>

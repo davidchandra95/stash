@@ -65,14 +65,27 @@ export default function AppTooltip({
   side,
   instant = false,
   disabled = false,
+  suppressed,
   children,
-}: TooltipLabel & { instant?: boolean; disabled?: boolean; children: ReactElement }) {
+}: TooltipLabel & {
+  instant?: boolean
+  disabled?: boolean
+  suppressed?: boolean
+  children: ReactElement
+}) {
   const [trigger, setTrigger] = useState<HTMLElement | null>(null)
+  const [open, setOpen] = useState(false)
+  useLayoutEffect(() => {
+    if (suppressed) setOpen(false)
+  }, [suppressed])
   if (!label) return children
   return (
     // Keep timing local so an instant icon cannot skip another hint's delay.
     <Tooltip.Provider delayDuration={instant ? 0 : 700} skipDelayDuration={0}>
-      <Tooltip.Root>
+      <Tooltip.Root
+        open={suppressed === undefined ? undefined : open && !suppressed}
+        onOpenChange={suppressed === undefined ? undefined : setOpen}
+      >
         <Tooltip.Trigger
           asChild
           ref={setTrigger}

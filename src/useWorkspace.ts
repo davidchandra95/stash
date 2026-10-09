@@ -1,6 +1,7 @@
+import type { WorkspaceNote } from './workspace'
 import { noteScrollPositions } from './editor/session'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { Note, View } from './model'
+import type { View } from './model'
 import {
   activeTab,
   captureLocation,
@@ -8,6 +9,8 @@ import {
   currentLocation,
   historyIndex,
   keepTabOpen,
+  reorderTab,
+  setTabPinned,
   moveHistory,
   openNote,
   openPdf,
@@ -22,6 +25,7 @@ import {
 
 export function useWorkspace({
   notes,
+  initialNotes,
   documents = [],
   ready,
   saved,
@@ -31,7 +35,8 @@ export function useWorkspace({
   onActivate,
   disabled,
 }: {
-  notes: Note[]
+  notes: WorkspaceNote[]
+  initialNotes?: () => WorkspaceNote[]
   documents?: { id: string }[]
   ready: boolean
   saved: WorkspacePreferences | null
@@ -42,7 +47,7 @@ export function useWorkspace({
   disabled: boolean
 }) {
   const [state, setState] = useState<Workspace>(() =>
-    ready ? restoreWorkspace(saved, notes, documents) : { tabs: [], activeTabId: null },
+    ready ? restoreWorkspace(saved, initialNotes?.() ?? notes, documents) : { tabs: [], activeTabId: null },
   )
   const [activation, setActivation] = useState(0)
   const latest = useRef(state)
@@ -65,7 +70,7 @@ export function useWorkspace({
     if (!ready) return
     if (!initialized.current) {
       initialized.current = true
-      commit(restoreWorkspace(saved, notes, documents))
+      commit(restoreWorkspace(saved, initialNotes?.() ?? notes, documents))
     } else {
       const next = pruneWorkspace(latest.current, notes, documents)
       if (next !== latest.current) commit(next)
@@ -157,6 +162,26 @@ export function useWorkspace({
     },
     open,
     preview,
+    reorderTab: (id: string, targetIndex: number) => {
+      if (disabled) return
+      const next = reorderTab(latest.current, id, targetIndex)
+      if (next === latest.current) return
+      latest.current = next
+      setState(next)
+      save(workspacePreferences(next))
+    },
+    setPinned: (id: string, pinned: boolean) => {
+      if (disabled) return
+      const next = setTabPinned(latest.current, id, pinned)
+      if (next === latest.current) return
+      latest.current = next
+      setState(next)
+      save(workspacePreferences(next))
+    },
+    closeActive: () => {
+      const tab = activeTab(latest.current)
+      if (tab && !tab.pinned) close(tab.id)
+    },
     keepOpen,
     keepNoteOpen,
     select,

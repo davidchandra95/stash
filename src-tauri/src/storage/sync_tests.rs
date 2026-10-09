@@ -378,3 +378,22 @@ fn notebook_deletions_follow_note_changes_in_outbox() {
     assert_eq!(op.kind, "notebook");
     assert!(op.deleted);
 }
+
+#[test]
+fn synced_tags_come_from_confirmed_content_not_plain_text_or_old_indexes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    identity(&store);
+    store.save_note_record(&note("tags", "#abcdef #old", 0)).unwrap();
+    let mut entity = incoming(&store, "tags", 1);
+    entity.data["tags"] = json!(["abcdef", "old"]);
+    entity.data["content"] = json!({"type":"doc","content":[{"type":"paragraph","content":[
+        {"type":"text","text":"#confirmed","marks":[{"type":"bodyTag","attrs":{"tag":"confirmed"}}]},
+        {"type":"text","text":" #abcdef #old"}
+    ]}]});
+    clear(&store);
+    store.prepare_sync().unwrap();
+    store.stage_page(Page { library_id: "test".into(), changes: vec![entity], cursor: 1, target: 1 }).unwrap();
+    store.finish_sync().unwrap();
+    assert_eq!(store.note("tags", true).unwrap().tags, vec!["confirmed"]);
+}

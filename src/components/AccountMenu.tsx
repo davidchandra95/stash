@@ -17,7 +17,7 @@ export default function AccountMenu({
   onTrash,
   onSettings,
 }: {
-  state: LibraryState
+  state: Pick<LibraryState, 'quitting' | 'syncing' | 'converting' | 'preview'>
   trashCount: number
   trashSelected: boolean
   dark: boolean

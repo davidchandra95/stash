@@ -350,7 +350,7 @@ export const NoteReference = Node.create({
             },
           },
         },
-        view: () => {
+        view: (view) => {
           menu = document.createElement('div')
           menu.className = 'slash-menu note-link-menu'
           menu.id = `note-links-${crypto.randomUUID()}`
@@ -362,8 +362,8 @@ export const NoteReference = Node.create({
             active = false
             hide()
           }
-          editor.view.dom.addEventListener('writing-deactivate', deactivate)
-          editor.view.dom.addEventListener('writing-references-changed', render)
+          view.dom.addEventListener('writing-deactivate', deactivate)
+          view.dom.addEventListener('writing-references-changed', render)
           window.addEventListener('resize', position)
           document.addEventListener('scroll', position, true)
           return {
@@ -377,8 +377,8 @@ export const NoteReference = Node.create({
               render()
             },
             destroy: () => {
-              editor.view.dom.removeEventListener('writing-deactivate', deactivate)
-              editor.view.dom.removeEventListener('writing-references-changed', render)
+              view.dom.removeEventListener('writing-deactivate', deactivate)
+              view.dom.removeEventListener('writing-references-changed', render)
               window.removeEventListener('resize', position)
               document.removeEventListener('scroll', position, true)
               menu?.remove()
