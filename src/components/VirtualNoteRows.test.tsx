@@ -61,14 +61,7 @@ async function mount(
         initialOffset={options.initialOffset}
         renderRow={(item, _index, { onMenuTrackingChange }) =>
           options.nativeMenu ? (
-            <NoteContextMenu
-              actions={[]}
-              dark={false}
-              palette="classic"
-              style={{}}
-              disabled={false}
-              onTrackingChange={onMenuTrackingChange}
-            >
+            <NoteContextMenu actions={[]} disabled={false} onTrackingChange={onMenuTrackingChange}>
               <button aria-label={item.id}>{item.id}</button>
             </NoteContextMenu>
           ) : (

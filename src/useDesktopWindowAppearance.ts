@@ -6,17 +6,19 @@ export function useDesktopWindowAppearance(
   surface: RefObject<HTMLDivElement | null>,
   ready: boolean,
   dark: boolean,
-  palette: string,
+  /** Changes whenever the surface color can change, such as the accent or color mode. */
+  appearanceKey: string,
+  vibrancy = false,
 ) {
   useLayoutEffect(() => {
     if (!ready || !surface.current || platform.mobile) return
-    const background = getComputedStyle(surface.current).getPropertyValue('--surface-app').trim()
+    const background = getComputedStyle(surface.current).getPropertyValue('--bg-content').trim()
     document.documentElement.style.setProperty('--desktop-window-background', background)
     let cancelled = false
     if (isTauri()) {
       void (async () => {
         try {
-          await invoke('set_window_appearance', { dark, background })
+          await invoke('set_window_appearance', { dark, background, vibrancy })
         } catch (error) {
           console.error('Could not update the window appearance', error)
         }
@@ -29,5 +31,5 @@ export function useDesktopWindowAppearance(
       cancelled = true
       document.documentElement.style.removeProperty('--desktop-window-background')
     }
-  }, [surface, ready, dark, palette])
+  }, [surface, ready, dark, appearanceKey, vibrancy])
 }

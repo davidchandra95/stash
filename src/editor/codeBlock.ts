@@ -46,7 +46,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
         const style = getComputedStyle(editor.view.dom)
         return [
           style.fontFamily,
-          ...['--text', '--code', '--muted', '--link'].map((token) =>
+          ...['--text', '--bg-code', '--text-3', '--link'].map((token) =>
             style.getPropertyValue(token),
           ),
           editor.view.dom.closest('[data-theme]')?.getAttribute('data-theme'),
@@ -82,7 +82,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
           )
             observer.observe(parent, {
               attributes: true,
-              attributeFilter: ['data-theme', 'data-palette', 'style', 'class'],
+              attributeFilter: ['data-theme', 'style', 'class'],
             })
           if (!source.trim()) return
           try {

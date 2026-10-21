@@ -2,7 +2,7 @@ import AppTooltip from './AppTooltip'
 import { useEffect, useRef, useState } from 'react'
 import { BookPlus, Search, X } from '../icons'
 import NotebookPopover, { type NotebookPopoverPosition } from './NotebookPopover'
-import type { Appearance, Note, Notebook, View } from '../model'
+import type { Note, Notebook, View } from '../model'
 import { moveSource, moveUnavailable, type MoveIntent } from '../notebookMove'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { NotebookIconGlyph } from '../notebookIcons'
@@ -12,7 +12,6 @@ export default function MoveNoteDialog({
   launcher,
   note,
   notebooks,
-  appearance,
   view,
   destination: droppedDestination,
   move,
@@ -22,7 +21,6 @@ export default function MoveNoteDialog({
 }: NotebookPopoverPosition & {
   note: Note
   notebooks: Notebook[]
-  appearance: Appearance
   view: View
   destination?: string
   move: (intent: MoveIntent) => boolean
@@ -54,33 +52,32 @@ export default function MoveNoteDialog({
       anchor={anchor}
       launcher={launcher}
       noteId={note.id}
-      appearance={appearance}
       close={close}
       title={
         droppedDestination !== undefined ? 'Move from which notebook?' : 'Move to another notebook'
       }
       className="move-notebooks-popover"
     >
-      <div className="add-notebooks-heading">
-        <h2>
+      <div className="picker-header">
+        <h2 className="popover-title">
           {droppedDestination !== undefined ? 'Move from which notebook?' : 'Move to notebook'}
         </h2>
         {droppedDestination === undefined && (
           <button
             type="button"
-            className="add-notebooks-create-trigger"
+            className="icon-btn icon-btn-sm"
             aria-label={creating ? 'Cancel creation' : 'New notebook'}
             disabled={disabled}
             onClick={() => setCreating(!creating)}
           >
-            {creating ? <X size={14} /> : <BookPlus size={15} />}
+            {creating ? <X aria-hidden="true" /> : <BookPlus aria-hidden="true" />}
           </button>
         )}
       </div>
-      <div className="move-notebooks-fields">
-        <div className="move-notebooks-body">
+      <div className="picker-body">
+        <div className="picker-scroll">
           <fieldset disabled={disabled}>
-            <p className="muted move-notebooks-description">
+            <p className="picker-note">
               {note.title || 'Untitled note'}. Other notebook memberships will be kept.
             </p>
             {droppedDestination !== undefined ? (
@@ -90,9 +87,9 @@ export default function MoveNoteDialog({
             ) : (
               <>
                 {creating && (
-                  <div className="add-notebooks-create">
+                  <div className="picker-create">
                     <input
-                      className="text-field"
+                      className="field"
                       ref={nameInput}
                       aria-label="New notebook name"
                       placeholder="Notebook name"
@@ -102,7 +99,7 @@ export default function MoveNoteDialog({
                     />
                     <button
                       type="button"
-                      className="primary-button"
+                      className="btn btn-primary"
                       disabled={!name.trim()}
                       onClick={() => {
                         const id = crypto.randomUUID()
@@ -122,17 +119,16 @@ export default function MoveNoteDialog({
                     </button>
                   </div>
                 )}
-                <div className="add-notebooks-search text-field-shell">
-                  <Search size={15} aria-hidden="true" />
+                <div className="field-shell picker-search">
+                  <Search aria-hidden="true" />
                   <input
-                    className="text-field"
                     aria-label="Search notebooks"
                     placeholder="Search notebooks"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
                 </div>
-                <div className="add-notebooks-options move-notebooks-options">
+                <div className="picker-list">
                   <label>
                     <span>Uncategorized</span>
                     <input
@@ -144,7 +140,7 @@ export default function MoveNoteDialog({
                   </label>
                   {!orderedNotebooks(notebooks).some((book) =>
                     notebookPath(book, notebooks).toLowerCase().includes(query.toLowerCase()),
-                  ) && <p className="muted">No notebooks found.</p>}
+                  ) && <p className="picker-empty">No notebooks found.</p>}
                   {orderedNotebooks(notebooks)
                     .filter((b) =>
                       notebookPath(b, notebooks).toLowerCase().includes(query.toLowerCase()),
@@ -159,8 +155,8 @@ export default function MoveNoteDialog({
                         key={book.id}
                       >
                         <label>
-                          <span className="notebook-swatch" style={{ color: book.color }}>
-                            <NotebookIconGlyph icon={book.icon} color={book.color} size={16} />
+                          <span className="picker-icon" style={{ color: book.color }}>
+                            <NotebookIconGlyph icon={book.icon} color={book.color} />
                           </span>
                           <span>
                             {notebookPath(book, notebooks)}
@@ -180,7 +176,7 @@ export default function MoveNoteDialog({
               </>
             )}
             {chooseSource && (
-              <fieldset className="move-source-options">
+              <fieldset className="picker-sources">
                 <legend>Move from which notebook?</legend>
                 {note.notebookIds.map((id) => (
                   <label key={id}>
@@ -197,13 +193,13 @@ export default function MoveNoteDialog({
               </fieldset>
             )}
             {destination === '' && (
-              <p className="muted">
+              <p className="picker-note">
                 Remove only the selected source membership. The note becomes uncategorized only when
                 no memberships remain.
               </p>
             )}
             {destination && note.notebookIds.includes(destination) && (
-              <p className="muted">
+              <p className="picker-note">
                 Already in {bookName(destination)}. Moving removes only the chosen source
                 membership.
               </p>
@@ -215,12 +211,12 @@ export default function MoveNoteDialog({
             )}
           </fieldset>
         </div>
-        <div className="move-notebooks-footer">
-          <button type="button" className="quiet-button" onClick={close}>
+        <div className="picker-footer">
+          <button type="button" className="btn" onClick={close}>
             Cancel
           </button>
           <button
-            className="primary-button"
+            className="btn btn-primary"
             disabled={
               disabled ||
               destination === null ||

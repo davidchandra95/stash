@@ -97,7 +97,7 @@ it('scrolls overflowing tabs with vertical wheel input, normalizes units, and cl
     tabs: [{ id: 'first', noteId: 'a' }],
     activeTabId: 'first',
   })
-  const strip = host.querySelector<HTMLElement>('.note-tabs')!
+  const strip = host.querySelector<HTMLElement>('[role="tablist"]')!
   Object.defineProperties(strip, {
     clientWidth: { value: 200 },
     scrollWidth: { value: 1000 },
@@ -127,7 +127,7 @@ it('scrolls overflowing tabs with vertical wheel input, normalizes units, and cl
 
 it('leaves horizontal input, zoom gestures, and non-overflowing tabs native', async () => {
   const { host } = await mount()
-  const strip = host.querySelector<HTMLElement>('.note-tabs')!
+  const strip = host.querySelector<HTMLElement>('[role="tablist"]')!
   Object.defineProperties(strip, {
     clientWidth: { value: 200, configurable: true },
     scrollWidth: { value: 1000 },
@@ -277,9 +277,12 @@ it('keeps the active tab visible when its pane is resized and stops observing em
     },
   )
   const { host, render } = await mount()
-  const strip = host.querySelector('.note-tabs')!
+  const strip = host.querySelector('[role="tablist"]')!
   expect(observe).toHaveBeenCalledWith(strip)
-  const scroll = vi.spyOn(strip.querySelector('.active')!, 'scrollIntoView')
+  const scroll = vi.spyOn(
+    strip.querySelector('[aria-selected="true"]')!.closest('[data-tab-id]')!,
+    'scrollIntoView',
+  )
   scroll.mockClear()
   resize()
   expect(scroll).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
@@ -312,7 +315,7 @@ it('commits pointer moves only after the threshold and cancels interrupted drags
       { id: 'second', noteId: 'b' },
     ],
   })
-  const strip = host.querySelector<HTMLElement>('.note-tabs')!
+  const strip = host.querySelector<HTMLElement>('[role="tablist"]')!
   const button = strip.querySelector<HTMLElement>('[role="tab"]')!
   const rect = (left: number, width: number) =>
     ({ left, right: left + width, top: 0, bottom: 32, width, height: 32 }) as DOMRect

@@ -1,0 +1,415 @@
+/* ───────── Buttons ───────── */
+
+/* Push button: the default for text actions. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control);
+  padding: 2px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-control) 92%, var(--text));
+}
+.btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-control) 86%, var(--text));
+}
+.btn:disabled {
+  color: var(--text-4);
+}
+.btn .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--accent) 70%, black),
+    0 1px 1.5px rgba(0, 0, 0, 0.1);
+}
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 90%, black);
+}
+.btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 80%, black);
+}
+.btn-primary:disabled {
+  background: var(--fill-2);
+  color: var(--text-4);
+  box-shadow: none;
+}
+
+.btn-danger {
+  background: var(--danger-fill);
+  color: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger-fill) 90%, black);
+}
+
+/* Borderless text button for secondary actions inside panes and notices. */
+.btn-plain {
+  background: none;
+  box-shadow: none;
+  color: var(--text-2);
+  padding: 2px 6px;
+}
+.btn-plain:hover:not(:disabled) {
+  background: var(--fill-1);
+  color: var(--text);
+}
+.btn-plain:active:not(:disabled) {
+  background: var(--fill-2);
+}
+
+.btn-link {
+  background: none;
+  box-shadow: none;
+  min-height: 0;
+  padding: 0;
+  color: var(--link);
+}
+.btn-link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.btn-sm {
+  min-height: var(--control-sm);
+  padding: 1px 8px;
+  font-size: var(--text-sm);
+}
+
+/* Icon-only toolbar button. */
+.icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--control);
+  height: var(--control);
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--fill-1);
+  color: var(--text);
+}
+.icon-btn:active:not(:disabled),
+.icon-btn[aria-pressed='true'],
+.icon-btn[aria-haspopup][aria-expanded='true'] {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.icon-btn:disabled {
+  color: var(--text-4);
+}
+.icon-btn-sm {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border-radius: var(--radius-sm);
+}
+.icon-btn-sm .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.icon-btn.is-active {
+  color: var(--accent);
+}
+
+/* ───────── Text fields ───────── */
+
+.field {
+  width: 100%;
+  min-height: var(--control);
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  outline: none;
+  transition: box-shadow var(--fast) var(--ease);
+}
+.field::placeholder {
+  color: var(--text-3);
+}
+.field:focus,
+.field:focus-visible,
+.field-shell:focus-within {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.field:disabled {
+  color: var(--text-3);
+}
+.field[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+textarea.field {
+  resize: vertical;
+}
+
+/* A field with leading icon or trailing controls; the shell owns the border. */
+.field-shell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  padding: 0 4px 0 7px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  color: var(--text-3);
+  transition: box-shadow var(--fast) var(--ease);
+}
+.field-shell > .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.field-shell > input {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--control) - 2px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  outline: none;
+}
+.field-shell > input::placeholder {
+  color: var(--text-3);
+}
+.field-shell .icon-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.field-shell .icon-btn .ui-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.field-label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.field-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+.field-help {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+/* ───────── Switch, segmented control, select ───────── */
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 17px;
+  border-radius: 9px;
+  background: var(--fill-3);
+  transition: background var(--fast) var(--ease);
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  transition: transform var(--fast) var(--ease);
+}
+.switch[aria-checked='true'] {
+  background: var(--accent);
+}
+.switch[aria-checked='true']::after {
+  transform: translateX(13px);
+}
+.switch:disabled {
+  opacity: 0.45;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--fill-2);
+}
+.segmented > button {
+  min-height: 20px;
+  padding: 1px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.segmented > button:hover:not(:disabled):not([aria-checked='true']):not([aria-pressed='true']) {
+  color: var(--text);
+}
+.segmented > button[aria-checked='true'],
+.segmented > button[aria-pressed='true'],
+.segmented > button[data-state='on'] {
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+  color: var(--text);
+}
+:root[data-theme='dark'] .segmented > button[aria-checked='true'],
+:root[data-theme='dark'] .segmented > button[aria-pressed='true'],
+:root[data-theme='dark'] .segmented > button[data-state='on'] {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+/* Pop-up button, used as a select trigger. */
+.select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 1px 4px 1px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+  color: var(--text);
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+.select > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.select > .ui-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-2);
+}
+.select[aria-expanded='true'],
+.select:active:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-control) 90%, var(--text));
+}
+.select:disabled {
+  color: var(--text-4);
+}
+
+/* Native range slider tinted with the accent. */
+.slider {
+  accent-color: var(--accent);
+  width: 100%;
+  margin: 0;
+}
+
+.checkbox {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+/* ───────── Small pieces ───────── */
+
+.count {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+kbd,
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--fill-1);
+  color: var(--text-3);
+  font: var(--text-xs) / 1 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+  max-width: 100%;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--fill-1);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+button.chip:hover:not(:disabled) {
+  background: var(--fill-2);
+  color: var(--text);
+}
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 3px;
+  background: var(--swatch, var(--text-3));
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  animation: spin 0.8s linear infinite;
+  color: var(--text-3);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.divider {
+  height: 1px;
+  margin: var(--space-3) 0;
+  background: var(--line);
+}
+
+/* Inline status lines inside panes (errors, progress, hints). */
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.status-line[role='alert'] {
+  color: var(--danger);
+}

@@ -1,0 +1,191 @@
+.note-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background: var(--bg-content);
+}
+.window.no-note-list .note-list {
+  border-right: 0;
+}
+
+.list-bar {
+  gap: var(--space-1);
+  padding-left: var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+.list-bar:has(.window-controls-space) {
+  padding-left: var(--space-4);
+}
+.list-title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.list-title > .ui-icon {
+  width: 15px;
+  height: 15px;
+}
+.list-title .count {
+  font-weight: 400;
+}
+
+.list-filter {
+  flex: none;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.note-rows {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px var(--space-4) var(--space-5);
+}
+.virtual-note-rows {
+  position: relative;
+  width: 100%;
+}
+.virtual-note-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/* ───────── Rows ───────── */
+
+.note-row {
+  position: relative;
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 6px var(--space-4) 7px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  text-align: left;
+}
+.note-row.has-divider::after {
+  content: '';
+  position: absolute;
+  right: var(--space-4);
+  bottom: 0;
+  left: var(--space-4);
+  height: 1px;
+  background: var(--line);
+}
+.note-row:hover:not(.is-selected) {
+  background: var(--fill-1);
+}
+.note-row:hover::after {
+  opacity: 0;
+}
+.note-row:focus-visible {
+  outline-offset: -2px;
+}
+.note-row-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: 600;
+}
+.note-row-pin {
+  width: 11px;
+  height: 11px;
+  color: var(--text-3);
+}
+.note-row-meta {
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 14px;
+  white-space: nowrap;
+}
+.note-row-date {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.note-list-notebook {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text-3);
+}
+.note-list-notebook > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-row-preview {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-row.is-selected {
+  background: var(--fill-3);
+}
+.window[data-active-pane='list']:not(.is-inactive) .note-row.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.window[data-active-pane='list']:not(.is-inactive)
+  .note-row.is-selected
+  :is(.note-row-meta, .note-list-notebook, .note-row-preview, .note-row-pin) {
+  color: color-mix(in srgb, var(--on-accent) 80%, transparent);
+}
+/* A row whose context menu is open gets the macOS accent outline. */
+.note-row[data-state='open']:not(.is-selected) {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.note-row.is-drag-placeholder {
+  opacity: 0.35;
+}
+.note-drag-ghost {
+  position: fixed;
+  z-index: 950;
+  pointer-events: none;
+  background: var(--bg-elevated-solid);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+}
+.note-drag-ghost::after {
+  display: none;
+}
+.note-drag-ghost.note-drag-unavailable {
+  opacity: 0.6;
+}
+.note-drag-hint {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.list-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: 48px var(--space-6) 0;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.list-empty-title {
+  color: var(--text-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.list-empty .btn {
+  margin-top: var(--space-4);
+}

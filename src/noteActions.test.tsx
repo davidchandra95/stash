@@ -118,8 +118,7 @@ async function openNoteActions() {
     ),
   )
 }
-const notebooksTrigger = () =>
-  document.querySelector<HTMLElement>('.note-meta .note-organization-button')!
+const notebooksTrigger = () => document.querySelector<HTMLElement>('.note-chips .chip-add')!
 async function notebooksMenu(item: 'Add to notebooks' | 'Move to another notebook') {
   const trigger = notebooksTrigger()
   expect(trigger, 'Notebooks').toBeTruthy()
@@ -159,7 +158,7 @@ it('marks only the note whose context menu is open, including keyboard opening',
 
   await context('a', true)
   expect(activeRow.dataset.state).toBe('open')
-  expect(activeRow.classList.contains('selected')).toBe(true)
+  expect(activeRow.classList.contains('is-selected')).toBe(true)
   await closeMenu()
   expect(activeRow.dataset.state).toBe('closed')
 })
@@ -186,11 +185,13 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     'Move up',
     'Move down',
   ])
+  const items = [...document.querySelectorAll<HTMLElement>('.menu [role="menuitem"]')]
+  expect(items).toHaveLength(10)
   expect(
-    [...document.querySelectorAll<HTMLElement>('.note-actions-menu [role="menuitem"]')].every(
+    items.every(
       (item) =>
-        !!item.querySelector('svg.menu-action-icon[aria-hidden="true"]') &&
-        !!item.querySelector('.menu-action-label'),
+        !!item.querySelector('svg.menu-icon[aria-hidden="true"]') &&
+        !!item.querySelector('.menu-text'),
     ),
   ).toBe(true)
   await click('Pin to top', 'menuitem')
@@ -211,14 +212,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
   expect(target().trashed).toBe(true)
   expect(matchesView(target(), 'quickAccess')).toBe(false)
   await act(async () =>
-    document
-      .querySelector<HTMLButtonElement>('.account-trigger')!
-      .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })),
-  )
-  await act(async () =>
-    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-      .find((item) => item.textContent?.startsWith('Trash'))!
-      .click(),
+    document.querySelector<HTMLButtonElement>('.sidebar-footer [aria-label="Trash"]')!.click(),
   )
   await context()
   expect(
@@ -245,14 +239,20 @@ it('uses the shared compact menu shell for note list, editor, and note-link acti
   await mount(true)
 
   await context()
-  expect(document.querySelector('.workspace-action-menu.note-actions-menu')).toBeTruthy()
+  expect(document.querySelector('[role="menu"].menu')).toBeTruthy()
   await closeMenu()
+  expect(document.querySelector('[role="menu"]')).toBeNull()
 
   await openNoteActions()
-  expect(document.querySelector('.workspace-action-menu.note-actions-menu')).toBeTruthy()
+  const menu = document.querySelector<HTMLElement>('[role="menu"].menu')
+  expect(menu).toBeTruthy()
+  const items = [...menu!.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+  expect(items.length).toBeGreaterThan(0)
   expect(
-    [...document.querySelectorAll<HTMLElement>('.note-actions-menu [role="menuitem"]')].every(
-      (item) => !!item.querySelector('svg.menu-action-icon[aria-hidden="true"]'),
+    items.every(
+      (item) =>
+        !!item.querySelector('svg.menu-icon[aria-hidden="true"]') &&
+        !!item.querySelector('.menu-text'),
     ),
   ).toBe(true)
   await closeMenu()
@@ -269,7 +269,11 @@ it('uses the shared compact menu shell for note list, editor, and note-link acti
       }),
     ),
   )
-  expect(document.querySelector('.workspace-action-menu.note-context-menu')).toBeTruthy()
+  const linkMenu = document.querySelector<HTMLElement>('.menu.note-link-context[role="menu"]')
+  expect(linkMenu).toBeTruthy()
+  expect(linkMenu!.querySelector('.menu-item[role="menuitem"]')?.textContent).toBe(
+    'Open in new tab',
+  )
 })
 it('uses an inline picker to add memberships immediately, creates notebooks, and moves notes', async () => {
   await mount()
@@ -278,7 +282,9 @@ it('uses an inline picker to add memberships immediately, creates notebooks, and
   expect(document.querySelector('.add-notebooks-popover')).toBeTruthy()
   expect(document.querySelector('.dialog-overlay')).toBeNull()
   expect(
-    document.querySelector('[aria-label="Search notebooks"]')?.classList.contains('text-field'),
+    document
+      .querySelector('[aria-label="Search notebooks"]')
+      ?.parentElement?.classList.contains('field-shell'),
   ).toBe(true)
   await input('Search notebooks', 'personal')
   expect(
@@ -298,7 +304,7 @@ it('uses an inline picker to add memberships immediately, creates notebooks, and
   ).toBe(false)
   await click('New notebook')
   expect(
-    document.querySelector('[aria-label="New notebook name"]')?.classList.contains('text-field'),
+    document.querySelector('[aria-label="New notebook name"]')?.classList.contains('field'),
   ).toBe(true)
   await input('New notebook name', 'New collection')
   await click('Create')
@@ -347,11 +353,12 @@ it('uses an inline picker to add memberships immediately, creates notebooks, and
 })
 it('derives sidebar tags from confirmed content and seeds a new note created in a tag view', async () => {
   await mount()
-  const tag = [...document.querySelectorAll<HTMLButtonElement>('.tag-list button')].find(
+  const tag = [...document.querySelectorAll<HTMLButtonElement>('.side-tags button.chip')].find(
     (button) => button.textContent === '#existing',
   )!
   await act(async () => tag.click())
-  expect(tag.classList.contains('selected')).toBe(true)
+  expect(tag.classList.contains('is-selected')).toBe(true)
+  expect(tag.getAttribute('aria-current')).toBe('page')
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="New note"]')!.click(),
   )
@@ -403,20 +410,31 @@ it('moves by keyboard menu without changing the editor and restores custom order
     [...document.querySelectorAll<HTMLElement>('.note-row[data-note-id]')].map(
       (row) => row.dataset.noteId,
     )
-  const changeSort = async (mode: string) => {
-    await act(async () =>
-      find('Change note sorting').dispatchEvent(
+  const openListMenu = async () =>
+    act(async () =>
+      find('Sort and view options').dispatchEvent(
         new MouseEvent('pointerdown', { bubbles: true, button: 0 }),
       ),
     )
+  const changeSort = async (mode: string) => {
+    await openListMenu()
     await click(mode, 'menuitemradio')
+  }
+  const currentSort = async () => {
+    await openListMenu()
+    const checked = document
+      .querySelector('[role="group"][aria-label="Change note sorting"]')
+      ?.querySelector('[role="menuitemradio"][aria-checked="true"]')
+      ?.textContent?.trim()
+    await closeMenu()
+    return checked
   }
   await changeSort('Title')
   expect(order()).toEqual(['a', 'b'])
   await context('b', true)
   await click('Move up', 'menuitem')
   expect(order()).toEqual(['b', 'a'])
-  expect(find('Change note sorting').textContent).toBe('Custom')
+  expect(await currentSort()).toBe('Custom')
   expect(document.querySelector<HTMLInputElement>('.note-title')?.value).toBe('a')
   await changeSort('Title')
   expect(order()).toEqual(['a', 'b'])
@@ -426,7 +444,7 @@ it('moves by keyboard menu without changing the editor and restores custom order
   await context('b', true)
   await click('Move up', 'menuitem')
   expect(order()).toEqual(['b', 'a'])
-  expect(find('Change note sorting').textContent).toBe('Custom')
+  expect(await currentSort()).toBe('Custom')
 })
 
 it.each([true, false])(
@@ -468,10 +486,8 @@ it('switches directly between pickers and restores focus for Escape and Cancel',
   const trigger = notebooksTrigger()
   // One Notebooks menu replaces the separate Add to notebooks and Move buttons.
   expect(
-    [...document.querySelectorAll('.note-meta .note-organization-button')].map((el) =>
-      el.textContent?.trim(),
-    ),
-  ).toEqual(['Notebooks'])
+    [...document.querySelectorAll('.note-chips .chip-add')].map((el) => el.textContent?.trim()),
+  ).toEqual(['Notebook'])
   expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
   for (const item of [
     'Add to notebooks',
@@ -514,7 +530,7 @@ it('searches Move destinations and creates a selected notebook without moving un
   expect(book).toBeTruthy()
   expect(library.getSnapshot().notes[0].notebookIds).toEqual(['work'])
   const selected = document.querySelector<HTMLInputElement>(
-    '.move-notebooks-options input:checked',
+    '.move-notebooks-popover .picker-list input:checked',
   )!
   expect(selected.closest('label')?.textContent).toContain('Destination')
   await click('Move')

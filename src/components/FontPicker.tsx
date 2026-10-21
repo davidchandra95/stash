@@ -14,8 +14,6 @@ type FontPickerProps = {
   inheritedFont?: string
   presetOptions: FontOption[]
   installed: string[]
-  dark: boolean
-  palette: string
   onChange: (value: string) => void
 }
 
@@ -32,8 +30,6 @@ export default function FontPicker({
   inheritedFont,
   presetOptions,
   installed,
-  dark,
-  palette,
   onChange,
 }: FontPickerProps) {
   const [open, setOpen] = useState(false)
@@ -85,7 +81,7 @@ export default function FontPicker({
       <Dropdown.Root open={open} onOpenChange={changeOpen}>
         <Dropdown.Trigger
           ref={triggerRef}
-          className="font-picker-trigger"
+          className="select font-picker-trigger"
           aria-label={label}
           style={{ fontFamily: previewFont(value) }}
         >
@@ -94,10 +90,7 @@ export default function FontPicker({
         </Dropdown.Trigger>
         <Dropdown.Portal>
           <Dropdown.Content
-            className="dropdown font-picker-dropdown"
-            data-theme={dark ? 'dark' : 'light'}
-            data-palette={palette}
-            style={{ fontFamily: previewFont(value) }}
+            className="menu font-picker-dropdown"
             sideOffset={5}
             align="end"
             collisionPadding={8}
@@ -106,11 +99,10 @@ export default function FontPicker({
               triggerRef.current?.focus()
             }}
           >
-            <div className="font-picker-search text-field-shell">
+            <div className="font-picker-search field-shell">
               <Search aria-hidden="true" />
               <input
                 ref={searchRef}
-                className="text-field"
                 aria-label={`Search ${label}`}
                 placeholder="Search fonts…"
                 value={query}
@@ -137,22 +129,22 @@ export default function FontPicker({
                 >
                   {visibleGroups.map((group) => (
                     <Dropdown.Group className="font-picker-group" key={group.label}>
-                      <Dropdown.Label className="font-picker-group-label">
-                        {group.label}
-                      </Dropdown.Label>
+                      <Dropdown.Label className="menu-label indented">{group.label}</Dropdown.Label>
                       {group.options.map((option) => (
                         <Dropdown.RadioItem
-                          className="font-picker-option"
+                          className="menu-item font-picker-option"
                           key={option.value}
                           value={option.value}
                           textValue={option.label}
                           data-font-value={option.value}
                         >
-                          <Dropdown.ItemIndicator className="font-picker-option-indicator">
-                            <Check aria-hidden="true" />
-                          </Dropdown.ItemIndicator>
+                          <span className="menu-check">
+                            <Dropdown.ItemIndicator>
+                              <Check aria-hidden="true" />
+                            </Dropdown.ItemIndicator>
+                          </span>
                           <span
-                            className="font-picker-option-label"
+                            className="menu-text font-picker-option-label"
                             style={{ fontFamily: previewFont(option.value) }}
                           >
                             {option.label}
@@ -163,7 +155,7 @@ export default function FontPicker({
                   ))}
                 </Dropdown.RadioGroup>
               ) : (
-                <div className="font-picker-empty" role="status">
+                <div className="menu-empty" role="status">
                   No fonts found.
                 </div>
               )}

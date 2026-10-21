@@ -2,7 +2,7 @@
 import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import Appearance from './components/Appearance'
+import Settings from './app/Settings'
 import { defaultAppearance } from './storage/library'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -14,7 +14,13 @@ function Harness() {
   return (
     <>
       <button onClick={() => setOpen(true)}>Open settings</button>
-      <Appearance open={open} onOpenChange={setOpen} value={value} onChange={setValue} />
+      <Settings
+        open={open}
+        onOpenChange={setOpen}
+        value={value}
+        onChange={setValue}
+        onSync={() => {}}
+      />
     </>
   )
 }
@@ -30,6 +36,18 @@ afterEach(async () => {
 })
 const control = (label: string) =>
   document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement
+const modeGroup = () => document.querySelector('[role="radiogroup"][aria-label="Appearance"]')
+const checked = (label: string) => control(label).getAttribute('aria-checked')
+const radio = (group: string, name: string) =>
+  [
+    ...document.querySelectorAll<HTMLButtonElement>(
+      `[role="radiogroup"][aria-label="${group}"] [role="radio"]`,
+    ),
+  ].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === name)!
+const categoryButton = (name: string) =>
+  [
+    ...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="Settings categories"] button'),
+  ].find((button) => button.textContent === name)
 async function category(name: string) {
   const button = [
     ...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="Settings categories"] button'),
@@ -47,63 +65,45 @@ async function search(value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-it('selects Aster independently of color mode and fonts, including portaled previews', async () => {
+it('changes color mode independently of fonts and keeps it across reopening', async () => {
   await category('Typography')
   await openFontPicker('Note title font')
   await act(() => document.querySelector<HTMLElement>('[data-font-value="palatino"]')!.click())
   await category('Appearance')
-  await act(() => {
-    const select = control('Theme')
-    select.value = 'aster'
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-  })
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
   expect(host.contains(dialog)).toBe(false)
-  expect(dialog.dataset.palette).toBe('aster')
-  for (const mode of ['light', 'dark']) {
-    await act(() =>
-      document.querySelector<HTMLButtonElement>(`.${mode}-preview`)!.closest('button')!.click(),
-    )
-    expect(dialog.dataset.theme).toBe(mode)
-    expect(control('Theme').value).toBe('aster')
-    expect(document.querySelector('.light-preview')?.getAttribute('data-palette')).toBe('aster')
-    expect(document.querySelector('.dark-preview')?.getAttribute('data-palette')).toBe('aster')
+  expect(radio('Appearance', 'Auto').getAttribute('aria-checked')).toBe('true')
+  for (const mode of ['Light', 'Dark']) {
+    await act(() => radio('Appearance', mode).click())
+    expect(radio('Appearance', mode).getAttribute('aria-checked')).toBe('true')
+    expect([
+      ...document.querySelectorAll(
+        '[role="radiogroup"][aria-label="Appearance"] [aria-checked="true"]',
+      ),
+    ]).toHaveLength(1)
+    // Portaled settings follow the document theme rather than carrying their own.
+    expect(dialog.hasAttribute('data-theme')).toBe(false)
+    expect(dialog.hasAttribute('data-palette')).toBe(false)
   }
   await category('Typography')
   expect(control('Note title font').textContent).toContain('Palatino')
-  expect(control('Note font').textContent).toContain('Georgia')
-  expect(document.querySelector('.zen-fonts')).toBeNull()
+  expect(control('Note font').textContent).toContain('System')
   await act(() => control('Close settings').click())
   await act(() => host.querySelector('button')!.click())
-  expect(control('Theme').value).toBe('aster')
+  expect(radio('Appearance', 'Dark').getAttribute('aria-checked')).toBe('true')
 })
 it('shows one category and preserves changed controls across category switches and reopening', async () => {
-  expect(control('Search settings').classList.contains('text-field')).toBe(true)
-  expect(control('Search settings').parentElement?.classList.contains('text-field-shell')).toBe(
-    true,
-  )
-  expect(control('Theme')).not.toBeNull()
+  expect(control('Search settings').closest('.field-shell')).not.toBeNull()
+  expect(document.activeElement).toBe(control('Search settings'))
+  expect(document.querySelector('.settings-title')?.textContent).toBe('Appearance')
+  expect(modeGroup()).not.toBeNull()
   expect(control('Cursor style')).toBeNull()
-  expect(
-    [
-      ...document.querySelectorAll<HTMLButtonElement>(
-        'nav[aria-label="Settings categories"] button',
-      ),
-    ]
-      .find((button) => button.textContent === 'Appearance')
-      ?.getAttribute('aria-current'),
-  ).toBe('page')
+  expect(categoryButton('Appearance')?.getAttribute('aria-current')).toBe('page')
   await category('Editor')
-  expect(control('Theme')).toBeNull()
-  expect(
-    [
-      ...document.querySelectorAll<HTMLButtonElement>(
-        'nav[aria-label="Settings categories"] button',
-      ),
-    ]
-      .find((button) => button.textContent === 'Editor')
-      ?.getAttribute('aria-current'),
-  ).toBe('page')
+  expect(document.querySelector('.settings-title')?.textContent).toBe('Editor')
+  expect(modeGroup()).toBeNull()
+  expect(categoryButton('Editor')?.getAttribute('aria-current')).toBe('page')
+  expect(categoryButton('Appearance')?.hasAttribute('aria-current')).toBe(false)
   const select = control('Cursor style')
   await act(() => {
     select.value = 'underline'
@@ -117,7 +117,7 @@ it('shows one category and preserves changed controls across category switches a
   expect(control('Cursor style').value).toBe('underline')
   await act(() => control('Close settings').click())
   await act(() => host.querySelector('button')!.click())
-  expect(control('Theme')).not.toBeNull()
+  expect(modeGroup()).not.toBeNull()
   await category('Editor')
   expect(control('Cursor style').value).toBe('underline')
 })
@@ -128,7 +128,7 @@ it('keeps the note title font separate from the note-body font', async () => {
   await openFontPicker('Note title font')
   await act(() => document.querySelector<HTMLElement>('[data-font-value="palatino"]')!.click())
   expect(titleFont.textContent).toContain('Palatino')
-  expect(noteFont.textContent).toContain('Georgia')
+  expect(noteFont.textContent).toContain('System')
   await category('Editor')
   await category('Typography')
   expect(
@@ -136,15 +136,14 @@ it('keeps the note title font separate from the note-body font', async () => {
   ).toContain('Palatino')
   expect(
     document.querySelector<HTMLButtonElement>('[aria-label="Note font"]')!.textContent,
-  ).toContain('Georgia')
+  ).toContain('System')
 })
 it('searches font options before choosing one', async () => {
   await category('Typography')
   const noteFont = document.querySelector<HTMLButtonElement>('[aria-label="Note font"]')!
   await openFontPicker('Note font')
   const searchInput = document.querySelector<HTMLInputElement>('[aria-label="Search Note font"]')!
-  expect(searchInput.classList.contains('text-field')).toBe(true)
-  expect(searchInput.parentElement?.classList.contains('text-field-shell')).toBe(true)
+  expect(searchInput.closest('.field-shell')).not.toBeNull()
   await act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
       searchInput,
@@ -169,7 +168,7 @@ it('customizes and resets each heading style without changing the note font', as
   await openFontPicker('Heading 2 font')
   await act(() => document.querySelector<HTMLElement>('[data-font-value="palatino"]')!.click())
   expect(h2Font.textContent).toContain('Palatino')
-  expect(noteFont.textContent).toContain('Georgia')
+  expect(noteFont.textContent).toContain('System')
 
   const weight = document.querySelector<HTMLSelectElement>('[aria-label="Heading 2 weight"]')!
   await act(() => {
@@ -205,31 +204,42 @@ it('customizes and resets each heading style without changing the note font', as
 it('searches labels and descriptions across categories and restores the selected category', async () => {
   await category('Typography')
   await search('  CURSOR  ')
-  expect(control('Enable animations')).not.toBeNull()
+  expect(document.querySelector('.settings-title')?.textContent).toBe('Search results')
+  expect(categoryButton('Typography')?.hasAttribute('aria-current')).toBe(false)
+  // "Animations" matches through its search terms (the writing cursor).
+  expect(control('Animations')).not.toBeNull()
   expect(control('Cursor style')).not.toBeNull()
-  expect(control('Theme')).toBeNull()
-  await search('navigation')
-  expect(control('Interface font')).not.toBeNull()
+  expect(modeGroup()).toBeNull()
+  expect(
+    [...document.querySelectorAll('.settings-section-title')].map((h) => h.textContent),
+  ).toEqual(['Appearance', 'Editor'])
+  await search('vibrancy')
+  expect(control('Translucent sidebar')).not.toBeNull()
   await search('nothing-matches-this')
-  expect(document.querySelector('[role="status"]')?.textContent).toContain('No settings found')
+  expect(document.querySelector('.settings-empty[role="status"]')?.textContent).toContain(
+    'No results for “nothing-matches-this”',
+  )
   await act(() => control('Clear settings search').click())
+  expect(control('Search settings').value).toBe('')
+  expect(document.activeElement).toBe(control('Search settings'))
   expect(control('Note font')).not.toBeNull()
   expect(control('Cursor style')).toBeNull()
 })
 it('keeps search results editable and resets search when reopening', async () => {
   await search('animations')
-  const toggle = control('Enable animations')
+  const toggle = control('Animations')
   expect(toggle.getAttribute('role')).toBe('switch')
+  expect(checked('Animations')).toBe(String(defaultAppearance.animationsEnabled))
   await act(() => toggle.click())
-  expect(control('Enable animations').checked).toBe(!defaultAppearance.animationsEnabled)
+  expect(checked('Animations')).toBe(String(!defaultAppearance.animationsEnabled))
   await act(() => control('Close settings').click())
   await act(() => host.querySelector('button')!.click())
   expect(control('Search settings').value).toBe('')
-  expect(control('Enable animations').checked).toBe(!defaultAppearance.animationsEnabled)
+  expect(checked('Animations')).toBe(String(!defaultAppearance.animationsEnabled))
 })
 
 it('records, validates, clears and resets shortcuts without changing appearance', async () => {
-  await category('Keyboard shortcuts')
+  await category('Shortcuts')
   await act(() => control('Edit New note shortcut').click())
   const record = () =>
     document.querySelector<HTMLElement>('[aria-label="Record New note shortcut"]')!
@@ -259,7 +269,7 @@ it('records, validates, clears and resets shortcuts without changing appearance'
   await act(() => control('Clear New note shortcut').click())
   await act(() =>
     [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find((b) => b.textContent === 'Reset all to defaults')!
+      .find((b) => b.textContent === 'Reset all…')!
       .click(),
   )
   expect(row().querySelector('kbd')?.textContent).toBe('Unassigned')
@@ -274,13 +284,13 @@ it('records, validates, clears and resets shortcuts without changing appearance'
   expect(record()).toBeNull()
   expect(document.querySelector('[role="dialog"]')).not.toBeNull()
   await category('Appearance')
-  expect(control('Theme').value).toBe(defaultAppearance.theme)
+  expect(radio('Appearance', 'Auto').getAttribute('aria-checked')).toBe('true')
 })
 it('pins the formatting toolbar from the Editor category', async () => {
   await category('Editor')
   const toggle = control('Always show formatting toolbar')
   expect(toggle.getAttribute('role')).toBe('switch')
-  expect(toggle.checked).toBe(false)
+  expect(checked('Always show formatting toolbar')).toBe('false')
   await act(() => toggle.click())
-  expect(control('Always show formatting toolbar').checked).toBe(true)
+  expect(checked('Always show formatting toolbar')).toBe('true')
 })

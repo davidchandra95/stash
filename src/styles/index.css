@@ -1,0 +1,14 @@
+/* Desktop stylesheet entry. Order matters: tokens, base, shared parts, then areas. */
+@import './tokens.css';
+@import './base.css';
+@import './controls.css';
+@import './floating.css';
+@import './shell.css';
+@import './sidebar.css';
+@import './notelist.css';
+@import './editor.css';
+@import './document.css';
+@import './writing.css';
+@import './palette.css';
+@import './settings.css';
+@import './dialogs.css';

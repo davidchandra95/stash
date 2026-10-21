@@ -2,11 +2,10 @@ import AppTooltip from './AppTooltip'
 import { useEffect, useState, type ReactNode } from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import {
-  ChevronDown,
+  BookPlus,
   ChevronRight,
   FilePlus2,
   FolderOpen,
-  BookPlus,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -19,6 +18,9 @@ import { notebookPath } from '../notebooks'
 import MenuActionContent from './MenuActionContent'
 import { showNativeContextMenu, usesNativeContextMenu } from '../nativeContextMenu'
 import type { NoteAction } from './NoteContextMenu'
+
+const folderDeleteReason = 'Folder-linked notebooks cannot be deleted.'
+
 export default function NotebookTree({
   books,
   active,
@@ -33,15 +35,11 @@ export default function NotebookTree({
   reselect,
   convert,
   disabled,
-  dark,
-  palette,
   dropTarget,
 }: {
   dropTarget?: { id: string; allowed: boolean; hint: string } | null
   books: Notebook[]
   active: string
-  dark: boolean
-  palette: string
   renderBook: (book: Notebook) => ReactNode
   createNote: (book: Notebook) => void
   edit: (book: Notebook) => void
@@ -56,6 +54,8 @@ export default function NotebookTree({
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [openBookId, setOpenBookId] = useState<string | null>(null)
+
+  // Reveal the selected notebook by expanding its ancestors.
   useEffect(() => {
     let book = books.find((b) => `book:${b.id}` === active)
     const ancestors = new Set<string>()
@@ -65,6 +65,8 @@ export default function NotebookTree({
     }
     setCollapsed((old) => new Set([...old].filter((id) => !ancestors.has(id))))
   }, [active, books])
+
+  // Hovering a dragged note over a collapsed notebook opens it.
   useEffect(() => {
     if (!dropTarget || !collapsed.has(dropTarget.id)) return
     const timer = window.setTimeout(
@@ -78,10 +80,11 @@ export default function NotebookTree({
     )
     return () => window.clearTimeout(timer)
   }, [dropTarget?.id, collapsed])
-  const openMenu = (book: Notebook, launcher: HTMLElement, point: { x: number; y: number }) => {
-    if (disabled) return
-    setOpenBookId(book.id)
-    if (!usesNativeContextMenu()) return
+
+  const cannotDelete = (book: Notebook) => deleteDisabled?.(book) ?? !!book.rootId
+  const deleteReason = (book: Notebook) => deleteDisabledReason?.(book) ?? folderDeleteReason
+
+  const menuActions = (book: Notebook): NoteAction[] => {
     const actions: NoteAction[] = [
       { label: 'New note', icon: FilePlus2, run: () => createNote(book) },
       { label: 'Edit', icon: Pencil, run: () => edit(book) },
@@ -101,82 +104,93 @@ export default function NotebookTree({
         run: () => reselect(book.rootId!),
       })
     }
-    const cannotDelete = deleteDisabled?.(book) ?? !!book.rootId
     actions.push({
       label: 'Delete notebook',
       icon: Trash2,
       separator: true,
-      disabled: cannotDelete,
+      disabled: cannotDelete(book),
       run: () => deleteNotebook(book),
     })
-    if (cannotDelete)
-      actions.push({
-        label: deleteDisabledReason?.(book) ?? 'Folder-linked notebooks cannot be deleted.',
-        icon: Trash2,
-        disabled: true,
-        run: () => {},
-      })
-    void showNativeContextMenu(actions, launcher, point)
+    if (cannotDelete(book))
+      actions.push({ label: deleteReason(book), icon: Trash2, disabled: true, run: () => {} })
+    return actions
+  }
+
+  const openNativeMenu = (
+    book: Notebook,
+    launcher: HTMLElement,
+    point: { x: number; y: number },
+  ) => {
+    if (disabled) return
+    setOpenBookId(book.id)
+    if (!usesNativeContextMenu()) return
+    void showNativeContextMenu(menuActions(book), launcher, point)
       .catch((error) => {
         console.error('Native notebook menu failed', error)
         window.alert('Could not open the context menu. Please try again.')
       })
       .finally(() => setOpenBookId(null))
   }
+
+  const toggle = (id: string, expanded: boolean) =>
+    setCollapsed((old) => {
+      const next = new Set(old)
+      if (expanded) next.add(id)
+      else next.delete(id)
+      return next
+    })
+
   const branch = (parent: string | null, depth = 0): ReactNode =>
     books
       .filter((b) => (b.parentId ?? null) === parent)
       .map((book) => {
-        const children = books.some((b) => b.parentId === book.id),
-          expanded = !collapsed.has(book.id),
-          selected = active === `book:${book.id}`
+        const children = books.some((b) => b.parentId === book.id)
+        const expanded = !collapsed.has(book.id)
+        const selected = active === `book:${book.id}`
+        const drop = dropTarget?.id === book.id ? dropTarget : null
         return (
-          <div key={book.id} className="notebook-branch">
-            <AppTooltip
-              label={dropTarget?.id === book.id ? dropTarget.hint : notebookPath(book, books)}
-            >
+          <div key={book.id} role="none">
+            <AppTooltip label={drop ? drop.hint : notebookPath(book, books)}>
               <div
-                className={`notebook-tree-row ${selected ? 'selected' : ''} ${
-                  openBookId === book.id ? 'menu-open' : ''
-                } ${dropTarget?.id === book.id ? (dropTarget.allowed ? 'notebook-drop-target' : 'notebook-drop-unavailable') : ''}`}
+                className={[
+                  'side-row',
+                  'has-actions',
+                  selected && 'is-selected',
+                  openBookId === book.id && 'menu-open',
+                  drop && (drop.allowed ? 'is-drop-target' : 'is-drop-blocked'),
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 data-notebook-drop-id={book.id}
-                style={{ paddingLeft: depth * 14 }}
-
+                style={{ '--depth': depth } as React.CSSProperties}
                 onContextMenu={(event) => {
                   event.preventDefault()
-                  openMenu(book, event.currentTarget, { x: event.clientX, y: event.clientY })
+                  openNativeMenu(book, event.currentTarget, { x: event.clientX, y: event.clientY })
                 }}
               >
                 {children ? (
                   <button
-                    className="notebook-disclosure"
+                    className="side-disclosure"
                     aria-label={`${expanded ? 'Collapse' : 'Expand'} ${book.name}`}
                     aria-expanded={expanded}
-                    onClick={() =>
-                      setCollapsed((old) => {
-                        const next = new Set(old)
-                        if (expanded) next.add(book.id)
-                        else next.delete(book.id)
-                        return next
-                      })
-                    }
+                    onClick={() => toggle(book.id, expanded)}
                   >
-                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <ChevronRight size={12} aria-hidden="true" />
                   </button>
                 ) : (
-                  <span className="notebook-disclosure" />
+                  <span className="side-disclosure" aria-hidden="true" />
                 )}
                 {renderBook(book)}
-                <div className="notebook-row-actions">
+                <span className="side-actions">
                   <AppTooltip instant label={`New note in ${book.name}`} disabled={disabled}>
                     <button
                       type="button"
-                      className="icon-button notebook-row-action notebook-new-note"
+                      className="icon-btn icon-btn-sm"
                       aria-label={`New note in ${book.name}`}
                       disabled={disabled}
                       onClick={() => createNote(book)}
                     >
-                      <SquarePen size={16} aria-hidden="true" />
+                      <SquarePen aria-hidden="true" />
                     </button>
                   </AppTooltip>
                   <Dropdown.Root
@@ -192,89 +206,50 @@ export default function NotebookTree({
                       )
                       if (launcher) {
                         const rect = launcher.getBoundingClientRect()
-                        openMenu(book, launcher, { x: rect.left, y: rect.bottom })
+                        openNativeMenu(book, launcher, { x: rect.left, y: rect.bottom })
                       }
                     }}
                   >
                     <Dropdown.Trigger
-                      className="icon-button notebook-row-action notebook-options"
+                      className="icon-btn icon-btn-sm notebook-options"
                       aria-label={`Actions for ${book.name}`}
                       data-notebook-id={book.id}
                       disabled={disabled}
                     >
-                      <MoreHorizontal size={16} />
+                      <MoreHorizontal aria-hidden="true" />
                     </Dropdown.Trigger>
                     <Dropdown.Portal>
-                      <Dropdown.Content
-                        className="workspace-action-menu"
-                        data-theme={dark ? 'dark' : 'light'}
-                        data-palette={palette}
-                        sideOffset={4}
-                      >
-                        <Dropdown.Item disabled={disabled} onSelect={() => createNote(book)}>
-                          <MenuActionContent icon={FilePlus2} label="New note" />
-                        </Dropdown.Item>
-                        <Dropdown.Item disabled={disabled} onSelect={() => edit(book)}>
-                          <MenuActionContent icon={Pencil} label="Edit" />
-                        </Dropdown.Item>
-                        <Dropdown.Item disabled={disabled} onSelect={() => createChild(book)}>
-                          <MenuActionContent icon={BookPlus} label="New sub-notebook" />
-                        </Dropdown.Item>
-                        {book.rootId && (
-                          <>
-                            <Dropdown.Item
-                              disabled={disabled}
-                              onSelect={() => refresh(book.rootId!)}
-                            >
-                              <MenuActionContent icon={RefreshCw} label="Refresh folder" />
-                            </Dropdown.Item>
-                            {book.relativePath === '' && convert && (
-                              <Dropdown.Item disabled={disabled} onSelect={() => convert(book)}>
-                                <MenuActionContent
-                                  icon={Unlink2}
-                                  label="Convert to Stash notebook…"
-                                />
+                      <Dropdown.Content className="menu" sideOffset={4} align="start">
+                        {menuActions(book).map((action) =>
+                          action.disabled && action.label === deleteReason(book) ? (
+                            <Dropdown.Label key={action.label} className="menu-label">
+                              {action.label}
+                            </Dropdown.Label>
+                          ) : (
+                            <div key={action.label} role="none">
+                              {action.separator && (
+                                <Dropdown.Separator className="menu-separator" />
+                              )}
+                              <Dropdown.Item
+                                className="menu-item"
+                                disabled={disabled || action.disabled}
+                                onSelect={() => action.run()}
+                              >
+                                <MenuActionContent icon={action.icon} label={action.label} />
                               </Dropdown.Item>
-                            )}
-                            <Dropdown.Item
-                              disabled={disabled}
-                              onSelect={() => reselect(book.rootId!)}
-                            >
-                              <MenuActionContent icon={FolderOpen} label="Locate linked folder…" />
-                            </Dropdown.Item>
-                          </>
-                        )}
-                        <Dropdown.Separator />
-                        <AppTooltip
-                          label={
-                            disabled || (deleteDisabled?.(book) ?? !!book.rootId)
-                              ? (deleteDisabledReason?.(book) ??
-                                'Folder-linked notebooks cannot be deleted.')
-                              : undefined
-                          }
-                        >
-                          <Dropdown.Item
-                            disabled={disabled || (deleteDisabled?.(book) ?? !!book.rootId)}
-                            onSelect={() => deleteNotebook(book)}
-                          >
-                            <MenuActionContent icon={Trash2} label="Delete notebook" />
-                          </Dropdown.Item>
-                        </AppTooltip>
-                        {(deleteDisabled?.(book) ?? !!book.rootId) && !disabled && (
-                          <Dropdown.Label className="notebook-menu-hint">
-                            {deleteDisabledReason?.(book) ??
-                              'Folder-linked notebooks cannot be deleted.'}
-                          </Dropdown.Label>
+                            </div>
+                          ),
                         )}
                       </Dropdown.Content>
                     </Dropdown.Portal>
                   </Dropdown.Root>
-                </div>
+                </span>
               </div>
             </AppTooltip>
             {children && expanded && branch(book.id, depth + 1)}
           </div>
         )
       })
+
   return <nav aria-label="Notebooks">{branch(null)}</nav>
 }

@@ -7,8 +7,17 @@ let nextId = 0
 function diagramTheme(element: HTMLElement): MermaidConfig {
   const style = getComputedStyle(element)
   const context = document.createElement('canvas').getContext('2d')
+  if (context) {
+    context.fillStyle = '#ffffff'
+    context.fillStyle = style.getPropertyValue('--bg-content').trim() || '#ffffff'
+  }
+  const base = context?.fillStyle ?? '#ffffff'
   const color = (token: string, fallback: string) => {
     if (!context) return fallback
+    // v2 roles are often translucent; composite over the opaque page surface.
+    context.clearRect(0, 0, 1, 1)
+    context.fillStyle = base
+    context.fillRect(0, 0, 1, 1)
     context.fillStyle = fallback
     context.fillStyle = style.getPropertyValue(token).trim() || fallback
     context.fillRect(0, 0, 1, 1)
@@ -21,8 +30,8 @@ function diagramTheme(element: HTMLElement): MermaidConfig {
     )
   }
   const text = color('--text', '#333333')
-  const surface = color('--code', '#f4f4f4')
-  const line = color('--muted', '#777777')
+  const surface = color('--bg-code', '#f4f4f4')
+  const line = color('--text-3', '#777777')
   const accent = color('--link', '#666666')
   const fontFamily = style.fontFamily || 'sans-serif'
   return {

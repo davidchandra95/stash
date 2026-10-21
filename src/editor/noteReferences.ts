@@ -252,10 +252,6 @@ export const NoteReference = Node.create({
       selected = Math.max(0, Math.min(selected, rows.length - 1))
       menu.replaceChildren()
       menu.hidden = false
-      menu.dataset.theme =
-        editor.view.dom.closest('[data-theme]')?.getAttribute('data-theme') ?? 'dark'
-      menu.dataset.palette =
-        editor.view.dom.closest('[data-palette]')?.getAttribute('data-palette') ?? 'classic'
       if (!rows.length) {
         const empty = document.createElement('div')
         empty.className = 'note-link-empty'

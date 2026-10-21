@@ -2,7 +2,7 @@ import { notebookPath, orderedNotebooks } from '../notebooks'
 import { useState } from 'react'
 import { Search } from '../icons'
 import NotebookPopover, { type NotebookPopoverPosition } from './NotebookPopover'
-import type { Appearance, Note, Notebook } from '../model'
+import type { Note, Notebook } from '../model'
 import { NotebookIconGlyph } from '../notebookIcons'
 
 export default function NoteOrganization({
@@ -11,7 +11,6 @@ export default function NoteOrganization({
   note,
   notes,
   notebooks,
-  appearance,
   update,
   close,
   disabled,
@@ -19,7 +18,6 @@ export default function NoteOrganization({
   note: Note
   notes: Note[]
   notebooks: Notebook[]
-  appearance: Appearance
   update: (patch: Partial<Note>) => void
   close: () => void
   disabled: boolean
@@ -38,30 +36,28 @@ export default function NoteOrganization({
       anchor={anchor}
       launcher={launcher}
       noteId={note.id}
-      appearance={appearance}
       close={close}
       title={title}
       className="move-notebooks-popover"
     >
-      <div className="add-notebooks-heading">
-        <h2>{title}</h2>
+      <div className="picker-header">
+        <h2 className="popover-title">{title}</h2>
       </div>
-      <div className="move-notebooks-fields">
-        <div className="move-notebooks-body">
+      <div className="picker-body">
+        <div className="picker-scroll">
           <fieldset disabled={disabled}>
-            <p className="muted move-notebooks-description">{note.title || 'Untitled note'}</p>
-            <div className="add-notebooks-search text-field-shell">
-              <Search size={15} aria-hidden="true" />
+            <p className="picker-note">{note.title || 'Untitled note'}</p>
+            <div className="field-shell picker-search">
+              <Search aria-hidden="true" />
               <input
                 autoFocus
-                className="text-field"
                 aria-label="Search notebooks"
                 placeholder="Search notebooks"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            <div className="add-notebooks-options move-notebooks-options">
+            <div className="picker-list">
               {!note.source && (
                 <label>
                   <span>Uncategorized</span>
@@ -75,8 +71,8 @@ export default function NoteOrganization({
               )}
               {visibleNotebooks.map((book) => (
                 <label key={book.id}>
-                  <span className="notebook-swatch" style={{ color: book.color }}>
-                    <NotebookIconGlyph icon={book.icon} color={book.color} size={16} />
+                  <span className="picker-icon" style={{ color: book.color }}>
+                    <NotebookIconGlyph icon={book.icon} color={book.color} />
                   </span>
                   <span>
                     {notebookPath(book, notebooks)}{' '}
@@ -92,16 +88,16 @@ export default function NoteOrganization({
                   />
                 </label>
               ))}
-              {!visibleNotebooks.length && <p className="muted">No notebooks found.</p>}
+              {!visibleNotebooks.length && <p className="picker-empty">No notebooks found.</p>}
             </div>
           </fieldset>
         </div>
-        <div className="move-notebooks-footer">
-          <button type="button" className="quiet-button" onClick={close}>
+        <div className="picker-footer">
+          <button type="button" className="btn" onClick={close}>
             Cancel
           </button>
           <button
-            className="primary-button"
+            className="btn btn-primary"
             disabled={disabled || destination === null}
             onClick={() => {
               update({

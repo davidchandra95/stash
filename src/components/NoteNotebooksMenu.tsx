@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, FolderInput, FolderPlus, Plus } from '../icons'
-import { fontFamily } from '../fonts'
-import type { Appearance } from '../model'
+import { FolderInput, FolderPlus, Plus } from '../icons'
 import { usesNativeContextMenu } from '../nativeContextMenu'
 import MenuActionContent from './MenuActionContent'
 import NativeNoteMenuButton from './NativeNoteMenuButton'
@@ -12,7 +10,6 @@ import type { NoteAction } from './NoteContextMenu'
 export default function NoteNotebooksMenu({
   noteId,
   file,
-  appearance,
   disabled,
   onAdd,
   onMove,
@@ -21,7 +18,6 @@ export default function NoteNotebooksMenu({
   noteId: string
   /** File-backed notes move their file, so the Move label says so. */
   file: boolean
-  appearance: Appearance
   disabled: boolean
   onAdd: (launcher: HTMLElement) => void
   onMove: (launcher: HTMLElement) => void
@@ -44,15 +40,14 @@ export default function NoteNotebooksMenu({
   ]
   const content = (
     <>
-      <Plus size={12} aria-hidden="true" />
-      Notebooks
-      <ChevronDown size={12} aria-hidden="true" />
+      <Plus aria-hidden="true" className="ui-icon" />
+      <span>Notebook</span>
     </>
   )
   if (usesNativeContextMenu())
     return (
       <NativeNoteMenuButton
-        className="note-organization-button"
+        className="chip chip-add"
         label="Notebooks"
         data-move-note-id={noteId}
         actions={actions}
@@ -66,7 +61,7 @@ export default function NoteNotebooksMenu({
     <Dropdown.Root open={open} onOpenChange={setOpen}>
       <Dropdown.Trigger
         ref={trigger}
-        className="note-organization-button"
+        className="chip chip-add"
         data-move-note-id={noteId}
         disabled={disabled}
       >
@@ -74,10 +69,7 @@ export default function NoteNotebooksMenu({
       </Dropdown.Trigger>
       <Dropdown.Portal>
         <Dropdown.Content
-          className="workspace-action-menu note-notebooks-menu"
-          data-theme={appearance.dark ? 'dark' : 'light'}
-          data-palette={appearance.theme}
-          style={{ fontFamily: fontFamily(appearance.uiFont) }}
+          className="menu"
           align="start"
           sideOffset={5}
           collisionPadding={8}
@@ -87,7 +79,11 @@ export default function NoteNotebooksMenu({
           }}
         >
           {actions.map((action) => (
-            <Dropdown.Item key={action.label} onSelect={() => action.run(trigger.current!)}>
+            <Dropdown.Item
+              className="menu-item"
+              key={action.label}
+              onSelect={() => action.run(trigger.current!)}
+            >
               <MenuActionContent icon={action.icon} label={action.label} />
             </Dropdown.Item>
           ))}

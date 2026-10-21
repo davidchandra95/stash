@@ -1,6 +1,6 @@
 # Stash
 
-A local-first macOS and Android notes app using Tauri 2, React, TypeScript, Tiptap and Rust/SQLite. Notes, notebooks, body hashtags and appearance settings are saved on the current device. Autosave includes revision checks, visible failures and a save-before-quit guard. Self-hosted sync is optional and inactive until a user explicitly saves a server URL and device token. On macOS, open the account menu and click **Sync** to configure it; offline editing remains available. See [self-hosted sync](documents/SYNC.md) for setup, recovery and operations. See [local storage](documents/LOCAL_STORAGE.md) for the save contract, recovery behavior and limits.
+A local-first macOS and Android notes app using Tauri 2, React, TypeScript, Tiptap and Rust/SQLite. Notes, notebooks, body hashtags and appearance settings are saved on the current device. Autosave includes revision checks, visible failures and a save-before-quit guard. Self-hosted sync is optional and inactive until a user explicitly saves a server URL and device token. On macOS, click the sync status at the bottom of the sidebar (or open **Settings → Sync**) to configure it; offline editing remains available. See [self-hosted sync](documents/SYNC.md) for setup, recovery and operations. See [local storage](documents/LOCAL_STORAGE.md) for the save contract, recovery behavior and limits.
 
 ## Features at a glance
 
@@ -8,11 +8,11 @@ A local-first macOS and Android notes app using Tauri 2, React, TypeScript, Tipt
 
 <table>
   <tr>
-    <td width="67%"><img src="assets/screenshots/stash-settings.jpg" alt="Stash appearance settings with app styles, themes, color modes, and motion controls"></td>
+    <td width="67%"><img src="assets/screenshots/stash-settings.jpg" alt="Stash appearance settings"></td>
     <td width="33%"><img src="assets/screenshots/stash-mobile.jpg" alt="Stash mobile editor showing rich content, nested sections, a table, checklists, and formatting controls"></td>
   </tr>
   <tr>
-    <td><strong>Make it yours.</strong> Choose an app style, theme, color mode, fonts, spacing, shortcuts, and motion settings.</td>
+    <td><strong>Make it yours.</strong> Choose light, dark or automatic appearance, an accent color, fonts, spacing, shortcuts, and motion settings.</td>
     <td><strong>Write anywhere.</strong> The mobile editor supports the same rich notes, tables, tasks, sections, and formatting tools.</td>
   </tr>
 </table>
@@ -52,9 +52,9 @@ The app is generated at `src-tauri/target/release/bundle/macos/Stash.app`.
 - Right-click note rows (or press Shift+F10) for note actions. Copy a note link and paste it into another note to create a clickable reference.
 - Rich-text editing with optional Markdown shortcuts and paste conversion, searchable slash commands, compact paragraphs, mixed lists, inline checkboxes, colors, links, tables, session images and rich collapsible sections.
 - Per-note undo history, selection and collapse state survive note switches.
-- Independent interface, note, and code font settings, note size and writing width.
-- Light/dark appearance, sidebar visibility, and focus mode.
-- Settings → Appearance → App style offers Default and Modern cards previews. The choice applies immediately, saves on this Mac, and stays independent of colors, fonts, and writing settings.
+- Independent note title, note and code font settings, note size and writing width. The interface uses the macOS system font.
+- Sidebar and notes-list visibility, and focus mode.
+- Settings → Appearance sets light, dark or automatic appearance, the accent color (or your macOS accent), and the translucent sidebar. Choices apply immediately and save on this Mac, independently of fonts and writing settings.
 - Subtle animations for panels, menus, dialogs, note organization, and editor controls. Settings → Appearance → Motion provides a saved on/off switch; macOS Reduce Motion always takes priority. Disabling animations also pauses custom cursor motion without changing saved cursor settings.
 
 A new native library starts empty; use **Add sample notes** to add fictional examples. Browser previews still use session-only sample data. This is a first review of the UI, not a complete implementation of every retained feature. See documents/PROTOTYPE_SCOPE.md for the larger scope and deferred work. The UI remains React/Tiptap, with a small AppKit bridge for safe macOS termination.

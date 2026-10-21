@@ -10,7 +10,7 @@ import {
   type SavedNote,
   type LibraryData,
 } from './library'
-import type { Note } from '../model'
+import type { Appearance, Note } from '../model'
 function deferred<T = void>() {
   let resolve!: (value: T) => void
   let reject!: (e: unknown) => void
@@ -56,16 +56,16 @@ function transport(notes: SavedNote[] = []) {
 afterEach(() => {
   vi.useRealTimers()
 })
-it('saves and restores Aster with independent mode, layout and custom fonts', async () => {
+it('saves and restores color mode, accent and sidebar preferences with custom fonts', async () => {
   const native = transport()
   const store = new LibraryStore(native)
   await store.open()
   const appearance = {
     ...defaultAppearance,
-    theme: 'aster' as const,
-    dark: false,
-    appStyle: 'cards' as const,
-    uiFont: 'avenir',
+    colorMode: 'light' as const,
+    accent: 'purple' as const,
+    translucentSidebar: false,
+    sidebarCounts: false,
     noteFont: 'palatino',
   }
   store.setAppearance(appearance)
@@ -82,12 +82,61 @@ it('saves and restores Aster with independent mode, layout and custom fonts', as
   const reopened = new LibraryStore(native)
   await reopened.open()
   expect(reopened.getSnapshot().appearance).toEqual(appearance)
-  reopened.setAppearance({ ...reopened.getSnapshot().appearance, dark: true })
+  reopened.setAppearance({ ...reopened.getSnapshot().appearance, colorMode: 'dark' })
   await reopened.flush()
   expect(native.savePreferences.mock.calls.at(-1)![0].appearance).toEqual({
     ...appearance,
-    dark: true,
+    colorMode: 'dark',
   })
+})
+it('loads a v1 appearance as a color mode and drops retired palette, layout and UI font keys', async () => {
+  const t = transport()
+  // A complete v1 save: none of the v2 keys, plus the retired ones.
+  const {
+    colorMode: _colorMode,
+    accent: _accent,
+    translucentSidebar: _translucentSidebar,
+    sidebarCounts: _sidebarCounts,
+    ...shared
+  } = defaultAppearance
+  const legacy = {
+    ...shared,
+    dark: true,
+    theme: 'aster',
+    appStyle: 'cards',
+    uiFont: 'avenir',
+    noteFont: 'palatino',
+    titleFont: 'georgia',
+    size: 19,
+    width: 70,
+    cursorStyle: 'block' as const,
+  } as Partial<Appearance>
+  t.open.mockResolvedValue({
+    notes: [],
+    notebooks: [],
+    appearance: legacy,
+    preferencesRevision: 1,
+    path: 'test-library',
+  })
+  const store = new LibraryStore(t)
+  await store.open()
+  const loaded = store.getSnapshot().appearance
+  expect(loaded).toEqual({
+    ...defaultAppearance,
+    colorMode: 'dark',
+    noteFont: 'palatino',
+    titleFont: 'georgia',
+    size: 19,
+    width: 70,
+    cursorStyle: 'block',
+  })
+  const retired = ['dark', 'theme', 'appStyle', 'uiFont']
+  for (const key of retired) expect(loaded).not.toHaveProperty(key)
+  store.setAppearance({ ...loaded, width: 75 })
+  await store.flush()
+  const saved = t.savePreferences.mock.calls.at(-1)![0].appearance as Record<string, unknown>
+  for (const key of retired) expect(saved).not.toHaveProperty(key)
+  expect(saved).toMatchObject({ colorMode: 'dark', width: 75 })
 })
 describe('save queue', () => {
   it('waits for a typing pause and saves only the latest edit without repeated status notifications', async () => {
@@ -397,7 +446,7 @@ describe('persistent library controller', () => {
     const l = new LibraryStore(t)
     await l.open()
     l.setNotes([note('a')])
-    l.setAppearance({ ...defaultAppearance, theme: 'zen', width: 100 })
+    l.setAppearance({ ...defaultAppearance, colorMode: 'light', width: 100 })
     const quit = l.requestQuit()
     expect(t.quit).not.toHaveBeenCalled()
     gate.resolve({ revision: 1, updated: 3 })
@@ -525,11 +574,11 @@ it('loads older appearance preferences with spacing defaults', async () => {
       codeFont: 'menlo',
       size: 20,
       width: 90,
-    },
+    } as Partial<Appearance>,
   })
   const store = new LibraryStore(t)
   await store.open()
-  expect(store.getSnapshot().appearance.lineSpacing).toBe(1.5)
+  expect(store.getSnapshot().appearance.lineSpacing).toBe(defaultAppearance.lineSpacing)
   expect(store.getSnapshot().appearance.titleFont).toBe('palatino')
   expect(store.getSnapshot().appearance).toMatchObject({
     cursorStyle: 'line',
@@ -538,10 +587,10 @@ it('loads older appearance preferences with spacing defaults', async () => {
   })
   expect(store.getSnapshot().appearance).toEqual({
     ...defaultAppearance,
-    dark: false,
-    theme: 'zen',
+    colorMode: 'light',
     titleFont: 'palatino',
     noteFont: 'palatino',
+    codeFont: 'menlo',
     size: 20,
     width: 90,
   })
@@ -740,31 +789,37 @@ it('defaults missing appearance preferences and retains saved values on reopenin
 })
 
 it.each([undefined, null, 'unknown', 12])(
-  'uses Default for missing or invalid app style %s',
-  async (appStyle) => {
+  'uses defaults for a missing or invalid color mode, accent and sidebar switches (%s)',
+  async (invalid) => {
     const t = transport()
     t.open.mockResolvedValue({
       notes: [],
       notebooks: [],
-      appearance: { ...defaultAppearance, appStyle } as unknown as LibraryData['appearance'],
+      appearance: {
+        ...defaultAppearance,
+        colorMode: invalid,
+        accent: invalid,
+        translucentSidebar: invalid,
+        sidebarCounts: invalid,
+      } as unknown as LibraryData['appearance'],
       preferencesRevision: 0,
       path: 'test-library',
     })
     const store = new LibraryStore(t)
     await store.open()
-    expect(store.getSnapshot().appearance.appStyle).toBe('default')
+    expect(store.getSnapshot().appearance).toEqual(defaultAppearance)
   },
 )
 
-it('persists card style and other appearance settings across reopening and switching back', async () => {
+it('persists sidebar appearance switches and other settings across reopening and switching back', async () => {
   const t = transport()
   const store = new LibraryStore(t)
   await store.open()
   const appearance = {
     ...defaultAppearance,
-    appStyle: 'cards' as const,
-    theme: 'zen' as const,
-    dark: false,
+    translucentSidebar: false,
+    sidebarCounts: false,
+    accent: 'graphite' as const,
     width: 93,
   }
   store.setAppearance(appearance)
@@ -780,11 +835,16 @@ it('persists card style and other appearance settings across reopening and switc
   const reopened = new LibraryStore(t)
   await reopened.open()
   expect(reopened.getSnapshot().appearance).toEqual(appearance)
-  reopened.setAppearance({ ...reopened.getSnapshot().appearance, appStyle: 'default' })
+  reopened.setAppearance({
+    ...reopened.getSnapshot().appearance,
+    translucentSidebar: true,
+    sidebarCounts: true,
+  })
   await reopened.flush()
   expect(t.savePreferences.mock.calls.at(-1)![0].appearance).toEqual({
     ...appearance,
-    appStyle: 'default',
+    translucentSidebar: true,
+    sidebarCounts: true,
   })
 })
 

@@ -1,5 +1,5 @@
 import * as Popover from '@radix-ui/react-popover'
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
@@ -14,7 +14,6 @@ import {
 import { dateFormats } from '../editor/slashOptions'
 import { ArrowLeft, ChevronRight } from '../icons'
 import type { Appearance } from '../model'
-import { fontFamily } from '../fonts'
 
 interface Target {
   range: DatePickerRequest['range']
@@ -193,15 +192,6 @@ export default function DatePicker({
   const week = Array.from({ length: 7 }, (_, i) =>
     calendarDate(2023, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' }),
   )
-  const dom = editor.isDestroyed ? null : editor.view.dom
-  const theme = appearance?.dark
-    ? 'dark'
-    : appearance
-      ? 'light'
-      : (dom?.closest('[data-theme]')?.getAttribute('data-theme') ?? 'light')
-  const palette =
-    appearance?.theme ?? dom?.closest('[data-palette]')?.getAttribute('data-palette') ?? 'classic'
-
   return (
     <Popover.Root
       open={open && !readOnly}
@@ -214,15 +204,8 @@ export default function DatePicker({
       <Popover.Portal>
         <Popover.Content
           ref={content}
-          className="date-picker"
+          className="popover date-picker"
           data-step={step}
-          data-theme={theme}
-          data-palette={palette}
-          style={
-            appearance
-              ? ({ '--ui-font': fontFamily(appearance.uiFont) } as CSSProperties)
-              : undefined
-          }
           side="bottom"
           align="start"
           sideOffset={5}

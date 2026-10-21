@@ -1,7 +1,5 @@
 import { useRef, type ReactNode } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import type { Appearance } from '../model'
-import { fontFamily } from '../fonts'
 
 export type PopoverAnchor = { left: number; top: number; width: number; height: number }
 export type NotebookPopoverPosition = { anchor: PopoverAnchor; launcher: HTMLElement | null }
@@ -10,14 +8,12 @@ export default function NotebookPopover({
   anchor,
   launcher,
   noteId,
-  appearance,
   close,
   title,
   className,
   children,
 }: NotebookPopoverPosition & {
   noteId: string
-  appearance: Appearance
   close: () => void
   title: string
   className: string
@@ -50,15 +46,12 @@ export default function NotebookPopover({
       <Popover.Portal>
         <Popover.Content
           ref={content}
-          className={`notebook-popover ${className}`}
-          data-theme={appearance.dark ? 'dark' : 'light'}
-          data-palette={appearance.theme}
+          className={`popover picker notebook-popover ${className}`}
           aria-label={title}
           side="bottom"
           align="start"
           sideOffset={5}
           collisionPadding={10}
-          style={{ fontFamily: fontFamily(appearance.uiFont) }}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             const search = content.current?.querySelector<HTMLElement>(

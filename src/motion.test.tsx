@@ -12,7 +12,7 @@ import {
   useReducedMotion,
 } from './motion'
 import { defaultAppearance } from './storage/library'
-import Appearance from './components/Appearance'
+import Settings from './app/Settings'
 
 let root: ReturnType<typeof createRoot>
 let host: HTMLDivElement
@@ -170,21 +170,29 @@ it('offers a switch without rewriting saved cursor choices and explains system o
   await act(() =>
     root.render(
       <Policy enabled>
-        <Appearance open onOpenChange={() => {}} value={settings} onChange={onChange} />
+        <Settings
+          open
+          onOpenChange={() => {}}
+          value={settings}
+          onChange={onChange}
+          onSync={() => {}}
+        />
       </Policy>,
     ),
   )
-  await act(() =>
-    (document.querySelector('[aria-label="Enable animations"]') as HTMLInputElement).click(),
-  )
+  const toggle = () => document.querySelector<HTMLButtonElement>('[aria-label="Animations"]')!
+  expect(toggle().getAttribute('role')).toBe('switch')
+  expect(toggle().getAttribute('aria-checked')).toBe('true')
+  expect(document.body.textContent).toContain('Panels, menus, and the writing cursor')
+  await act(() => toggle().click())
   expect(onChange).toHaveBeenCalledWith({ ...settings, animationsEnabled: false })
   await act(() => {
     media.matches = true
     notify()
   })
-  expect(document.body.textContent).toContain(
-    'Animations are currently disabled by Reduce Motion on this device.',
-  )
+  expect(document.body.textContent).toContain('Off while Reduce Motion is on in macOS')
+  // The saved preference is still shown; Reduce Motion only overrides it.
+  expect(toggle().getAttribute('aria-checked')).toBe('true')
 })
 it('animates explicit list changes, suppresses autosave and search, and removes exit copies', async () => {
   let request!: () => void
@@ -229,7 +237,7 @@ it('removes a suspended Radix exit immediately when motion is disabled', async (
   const original = window.getComputedStyle.bind(window)
   vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
     const style = original(element, pseudo)
-    if (element.matches('.settings-dialog, .dialog-overlay')) {
+    if (element.matches('.settings, .dialog-overlay')) {
       Object.defineProperty(style, 'animationName', {
         configurable: true,
         get: () =>
@@ -244,20 +252,21 @@ it('removes a suspended Radix exit immediately when motion is disabled', async (
     act(() =>
       root.render(
         <Policy enabled={enabled}>
-          <Appearance
+          <Settings
             open={open}
             onOpenChange={() => {}}
             value={defaultAppearance}
             onChange={() => {}}
+            onSync={() => {}}
           />
         </Policy>,
       ),
     )
   await render(true, true)
   await render(false, true)
-  expect(document.querySelector('.settings-dialog[data-state="closed"]')).not.toBeNull()
-  expect(document.querySelector('.settings-dialog')?.hasAttribute('inert')).toBe(true)
+  expect(document.querySelector('.settings[data-state="closed"]')).not.toBeNull()
+  expect(document.querySelector('.settings')?.hasAttribute('inert')).toBe(true)
   await render(false, false)
-  expect(document.querySelector('.settings-dialog')).toBeNull()
+  expect(document.querySelector('.settings')).toBeNull()
   expect(document.querySelector('.dialog-overlay')).toBeNull()
 })

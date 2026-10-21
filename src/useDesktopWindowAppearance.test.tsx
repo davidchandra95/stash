@@ -10,13 +10,13 @@ import { useDesktopWindowAppearance } from './useDesktopWindowAppearance'
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
-function Surface({ ready = true, dark = true, palette = 'zen' }) {
+function Surface({ ready = true, dark = true, appearanceKey = 'dark:system', vibrancy = false }) {
   const ref = useRef<HTMLDivElement>(null)
-  useDesktopWindowAppearance(ref, ready, dark, palette)
+  useDesktopWindowAppearance(ref, ready, dark, appearanceKey, vibrancy)
   return (
     <div
       ref={ref}
-      style={{ '--surface-app': dark ? '#191d17' : '#e6e8df' } as React.CSSProperties}
+      style={{ '--bg-content': dark ? '#191d17' : '#e6e8df' } as React.CSSProperties}
     />
   )
 }
@@ -46,7 +46,7 @@ it('waits for library readiness and native appearance before revealing the windo
   expect(native.invoke).not.toHaveBeenCalled()
   await act(() => root.render(<Surface />))
   expect(native.invoke.mock.calls).toEqual([
-    ['set_window_appearance', { dark: true, background: '#191d17' }],
+    ['set_window_appearance', { dark: true, background: '#191d17', vibrancy: false }],
   ])
   expect(document.documentElement.style.getPropertyValue('--desktop-window-background')).toBe(
     '#191d17',
@@ -54,22 +54,41 @@ it('waits for library readiness and native appearance before revealing the windo
   await act(async () => finish())
   expect(native.invoke).toHaveBeenLastCalledWith('show_startup_window')
 })
-it('applies the current light palette on startup and later changes', async () => {
+it('applies the current light appearance on startup and later changes', async () => {
   await act(() => root.render(<Surface dark={false} />))
   expect(native.invoke).toHaveBeenCalledWith('set_window_appearance', {
     dark: false,
     background: '#e6e8df',
+    vibrancy: false,
   })
-  await act(() => root.render(<Surface dark={true} palette="aster" />))
+  await act(() => root.render(<Surface dark={true} appearanceKey="dark:purple" />))
   expect(native.invoke).toHaveBeenCalledWith('set_window_appearance', {
     dark: true,
     background: '#191d17',
+    vibrancy: false,
   })
+})
+it('requests native vibrancy for a translucent sidebar and drops it when turned off', async () => {
+  await act(() => root.render(<Surface vibrancy />))
+  expect(native.invoke.mock.calls).toEqual([
+    ['set_window_appearance', { dark: true, background: '#191d17', vibrancy: true }],
+    ['show_startup_window'],
+  ])
+  native.invoke.mockClear()
+  await act(() => root.render(<Surface vibrancy={false} />))
+  expect(native.invoke).toHaveBeenCalledWith('set_window_appearance', {
+    dark: true,
+    background: '#191d17',
+    vibrancy: false,
+  })
+  native.invoke.mockClear()
+  await act(() => root.render(<Surface vibrancy={false} />))
+  expect(native.invoke).not.toHaveBeenCalled()
 })
 it('reveals a startup error surface even when native appearance fails', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   native.invoke.mockRejectedValueOnce(new Error('appearance unavailable'))
-  await act(() => root.render(<Surface palette="startup-error" />))
+  await act(() => root.render(<Surface appearanceKey="startup-error" />))
   expect(native.invoke).toHaveBeenLastCalledWith('show_startup_window')
 })
 it('does not reveal a stale surface while its appearance command is pending', async () => {
@@ -92,7 +111,7 @@ it('keeps browser and mobile startup free of native window commands', async () =
   expect(native.invoke).not.toHaveBeenCalled()
   native.enabled = true
   platform.mobile = true
-  await act(() => root.render(<Surface palette="aster" />))
+  await act(() => root.render(<Surface appearanceKey="dark:purple" />))
   expect(native.invoke).not.toHaveBeenCalled()
   platform.mobile = false
 })

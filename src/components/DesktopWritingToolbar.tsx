@@ -18,7 +18,7 @@ import {
   usesNativeContextMenu,
   type NativeMenuAction,
 } from '../nativeContextMenu'
-import { fontFamily } from '../fonts'
+
 import type { Appearance } from '../model'
 import { defaultAppearance } from '../storage/library'
 import {
@@ -32,6 +32,7 @@ import {
 import WritingPickerContent from './WritingPickerContent'
 import { writingMenuActions } from './writingMenuActions'
 import { canRunWritingCommand, samePresentation, toolbarPresentation } from './editorPresentation'
+const maxToolbarWidth = 460
 const pickerLabels: Record<WritingPicker, string> = {
   color: 'Text color',
   highlight: 'Highlight',
@@ -61,6 +62,10 @@ export default function DesktopWritingToolbar({
   const hasSelection = useEditorState({
     editor,
     selector: ({ editor: current }) => !current.state.selection.empty,
+  })
+  const editorFocused = useEditorState({
+    editor,
+    selector: ({ editor: current }) => current.isFocused,
   })
   const [focusWithin, setFocusWithin] = useState(false)
   const shortcutLabel = useShortcutLabel()
@@ -99,14 +104,6 @@ export default function DesktopWritingToolbar({
         ? launcher.current
         : toolbar.current
       )?.getBoundingClientRect() ?? new DOMRect(),
-  }
-  const floatingProps = {
-    'data-theme': appearance.dark ? 'dark' : 'light',
-    'data-palette': appearance.theme,
-    style: {
-      '--ui-font': fontFamily(appearance.uiFont),
-      fontFamily: fontFamily(appearance.uiFont),
-    } as CSSProperties,
   }
   const canRun = (id: string) => canRunWritingCommand(editor, id)
   const disabled = (tool: ToolbarTool) => {
@@ -319,8 +316,10 @@ export default function DesktopWritingToolbar({
     const dock = toolbar.current?.parentElement
     if (!rack || !dock) return
     const update = () => {
-      const available = dock.getBoundingClientRect().width
-      if (!available) return
+      const width = dock.getBoundingClientRect().width
+      if (!width) return
+      // A compact bubble: lower-priority tools move to the overflow menu.
+      const available = Math.min(width - 16, maxToolbarWidth)
       const widths = Object.fromEntries(
         [...rack.querySelectorAll<HTMLElement>('[data-tool]')].map((node) => [
           node.dataset.tool!,
@@ -411,6 +410,62 @@ export default function DesktopWritingToolbar({
   useLayoutEffect(() => {
     close('outside')
   }, [readOnly, editor])
+
+  // Unpinned, the toolbar floats beside the selection (or caret, for slash pickers).
+  const pinned = appearance.showFormattingToolbar
+  useLayoutEffect(() => {
+    const bar = toolbar.current
+    const dock = bar?.parentElement
+    if (!bar || !dock) return
+    if (pinned) {
+      bar.dataset.placement = 'docked'
+      return
+    }
+    const place = () => {
+      if (editor.isDestroyed || !bar.isConnected) return
+      const { from, to } = editor.state.selection
+      let start: { left: number; right: number; top: number; bottom: number }
+      let end: typeof start
+      try {
+        start = editor.view.coordsAtPos(from)
+        end = editor.view.coordsAtPos(to, -1)
+      } catch {
+        return
+      }
+      const box = dock.getBoundingClientRect()
+      const width = bar.offsetWidth
+      const height = bar.offsetHeight
+      const sameLine = Math.abs(start.top - end.top) < 4
+      const center = sameLine ? (start.left + end.right) / 2 : start.left + width / 2
+      let top = Math.min(start.top, end.top) - box.top - height - 8
+      let placement = 'above'
+      if (top < 8) {
+        top = Math.max(start.bottom, end.bottom) - box.top + 8
+        placement = 'below'
+      }
+      top = Math.max(8, Math.min(top, box.height - height - 8))
+      const left = Math.max(width / 2 + 8, Math.min(center - box.left, box.width - width / 2 - 8))
+      bar.style.setProperty('--bubble-x', `${Math.round(left)}px`)
+      bar.style.setProperty('--bubble-y', `${Math.round(top)}px`)
+      bar.dataset.placement = placement
+    }
+    place()
+    const scroller = editor.view.dom.closest('.note-scroll')
+    editor.on('selectionUpdate', place)
+    editor.on('transaction', place)
+    scroller?.addEventListener('scroll', place, { passive: true })
+    window.addEventListener('resize', place)
+    // Banners and the find bar move the document without scrolling it.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
+    observer?.observe(dock)
+    return () => {
+      observer?.disconnect()
+      editor.off('selectionUpdate', place)
+      editor.off('transaction', place)
+      scroller?.removeEventListener('scroll', place)
+      window.removeEventListener('resize', place)
+    }
+  }, [editor, pinned])
   useLayoutEffect(() => {
     if (picker && launcher.current && !launcher.current.isConnected)
       launcher.current = fallbackLauncher(picker)
@@ -519,7 +574,7 @@ export default function DesktopWritingToolbar({
   // anchors still work.
   const collapsed =
     !appearance.showFormattingToolbar &&
-    !(hasSelection && !readOnly) &&
+    !(hasSelection && editorFocused && !readOnly) &&
     !focusWithin &&
     !picker &&
     !overflow &&
@@ -529,6 +584,7 @@ export default function DesktopWritingToolbar({
       <div
         ref={toolbar}
         className="toolbar desktop-writing-toolbar"
+        data-placement={pinned ? 'docked' : undefined}
         role="toolbar"
         aria-label="Text formatting"
         data-collapsed={collapsed || undefined}
@@ -585,8 +641,7 @@ export default function DesktopWritingToolbar({
               </Dropdown.Trigger>
               <Dropdown.Portal>
                 <Dropdown.Content
-                  className="dropdown writing-overflow"
-                  {...floatingProps}
+                  className="menu writing-overflow"
                   side="top"
                   align="end"
                   sideOffset={8}
@@ -614,6 +669,7 @@ export default function DesktopWritingToolbar({
                     .filter((tool) => hidden.has(tool.id))
                     .map((tool) => (
                       <Dropdown.Item
+                        className="menu-item"
                         key={tool.id}
                         disabled={disabled(tool)}
                         data-active={toolActive(editor, tool) || undefined}
@@ -623,23 +679,24 @@ export default function DesktopWritingToolbar({
                           } else execute(tool.id)
                         }}
                       >
-                        {renderIcon(tool)}
-                        <span>{tool.label}</span>
-                        {toolActive(editor, tool) && <Check className="writing-menu-check" />}
+                        <span className="menu-icon">{renderIcon(tool)}</span>
+                        <span className="menu-text">{tool.label}</span>
+                        {toolActive(editor, tool) && <Check className="menu-icon" />}
                         {shortcutLabel(tool.id) !== 'Unassigned' && (
-                          <kbd>{shortcutLabel(tool.id)}</kbd>
+                          <span className="menu-shortcut">{shortcutLabel(tool.id)}</span>
                         )}
                       </Dropdown.Item>
                     ))}
                   {quote && (
                     <Dropdown.Item
+                      className="menu-item"
                       disabled={readOnly}
                       onSelect={() => {
                         pickerFromOverflow('quote')
                       }}
                     >
-                      <Quote />
-                      <span>Quote background</span>
+                      <Quote className="menu-icon" />
+                      <span className="menu-text">Quote background</span>
                     </Dropdown.Item>
                   )}
                 </Dropdown.Content>
@@ -671,8 +728,7 @@ export default function DesktopWritingToolbar({
         <Popover.Portal>
           <Popover.Content
             ref={content}
-            className="writing-picker"
-            {...floatingProps}
+            className="popover writing-picker"
             side="top"
             align="end"
             sideOffset={8}
@@ -723,7 +779,7 @@ export default function DesktopWritingToolbar({
               <strong>{picker ? pickerLabels[picker] : ''}</strong>
               <button
                 type="button"
-                className="tool"
+                className="icon-btn icon-btn-sm"
                 aria-label="Close writing menu"
                 onClick={() => close()}
               >
@@ -731,7 +787,7 @@ export default function DesktopWritingToolbar({
               </button>
             </div>
             {error && (
-              <p className="editor-error" role="alert">
+              <p className="field-error" role="alert">
                 {error}
               </p>
             )}

@@ -1,14 +1,311 @@
-/* Mobile layout is enabled by the native platform, or ?mobile=1 in browser previews. */
-html[data-platform='mobile'],
-html[data-platform='mobile'] body,
-html[data-platform='mobile'] #root {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--surface-editor);
-  overscroll-behavior: none;
+/*
+ * Android: the v2 design system at touch size. Loaded after the shared stylesheets
+ * (src/mobile/index.css), only on mobile (the native platform, or ?mobile=1 in previews).
+ *
+ * Colors, accent and color mode come unchanged from tokens.css. This file raises geometry
+ * and type tokens to touch sizes, resizes shared controls to match, and lays out the mobile
+ * surfaces: app bar, notes list, drawer, bottom sheets, note editor and settings pages.
+ * Action targets are at least 48px; rows and fields at least 44px.
+ */
+
+html[data-platform='mobile'] {
+  --font-ui: system-ui, Roboto, 'Segoe UI', sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --leading: 22px;
+
+  --bar: 56px;
+  --row: 48px;
+  --control: 44px;
+  --control-sm: 36px;
+  --icon: 22px;
+  --icon-sm: 18px;
+  /* Minimum touch target for anything that acts on tap. */
+  --target: 48px;
+  --radius-sheet: 16px;
+
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* Keyboard focus rings stay; a tap doesn't leave one behind (also covers portaled UI). */
+html[data-platform='mobile'][data-mobile-focus-input='pointer'] :focus {
+  outline: none;
+}
+
+button,
+summary,
+label,
+input,
+select {
+  touch-action: manipulation;
+}
+
+/* Touch screens keep :hover after a tap; only pressed states give feedback there. */
+@media (hover: none) {
+  .icon-btn:hover:not(:active, [aria-pressed='true'], [aria-expanded='true']),
+  .btn-plain:hover:not(:active),
+  .tool:hover:not(:active, .active, [aria-pressed='true']),
+  .menu-item:hover:not([data-highlighted]),
+  .slash-menu button:not(.slash-option):hover:not([aria-selected='true']) {
+    background: none;
+  }
+  .btn:hover:not(:active, :disabled, .btn-primary, .btn-danger, .btn-plain) {
+    background: var(--bg-control);
+  }
+  .mobile-note-header .icon-btn:hover:not(:active) {
+    background: var(--fill-1);
+  }
+}
+
+/* ───────── Shared controls at touch size ───────── */
+
+.icon-btn,
+.icon-btn-sm {
+  width: var(--target);
+  height: var(--target);
+  border-radius: 50%;
+}
+.icon-btn .ui-icon,
+.icon-btn-sm .ui-icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+/* Push buttons draw at 44px (36px small) and take taps across a 48px band. */
+.btn {
+  position: relative;
+  min-height: var(--control);
+  padding: 2px 16px;
+  border-radius: 10px;
+  font-size: var(--text-md);
+}
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: calc((var(--control) - var(--target)) / 2) 0;
+}
+.btn-sm {
+  min-height: var(--control-sm);
+  padding: 1px 12px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+.btn-sm::before {
+  inset: calc((var(--control-sm) - var(--target)) / 2) 0;
+}
+.btn .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.field {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+.field-shell {
+  min-height: var(--target);
+  padding: 0 0 0 12px;
+  gap: var(--space-4);
+  border-radius: 12px;
+}
+.field-shell > .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.field-shell > input {
+  height: calc(var(--target) - 2px);
+  font-size: var(--text-md);
+}
+.field-shell .icon-btn {
+  width: var(--target);
+  height: var(--target);
+  border-radius: 50%;
+}
+.field-shell .icon-btn .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.field-label {
+  font-size: var(--text-sm);
+}
+.field-help,
+.field-error {
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+/* Switches grow to 44×26 and take taps across a 48px band. */
+.switch {
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+}
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: -11px -2px;
+}
+.switch::after {
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+}
+.switch[aria-checked='true']::after {
+  transform: translateX(18px);
+}
+
+.segmented {
+  padding: 3px;
+  border-radius: 10px;
+}
+.segmented > button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+.select-native {
+  min-height: var(--control);
+  max-width: 100%;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--fill-2);
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.slider {
+  height: 32px;
+}
+.checkbox {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.count {
+  font-size: var(--text-sm);
+}
+.status-line {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-sm);
+}
+.pane-banner {
+  min-height: var(--target);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
+}
+
+/* Floating surfaces: larger rows, same materials. */
+.menu {
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 14px;
+  font-size: var(--text-md);
+}
+.menu-item {
+  min-height: var(--control);
+  padding: 0 12px;
+  gap: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+.menu-icon {
+  width: 20px;
+  height: 20px;
+}
+.menu-separator {
+  margin: 6px 12px;
+}
+.menu-label {
+  padding: 8px 12px 4px;
+  font-size: var(--text-sm);
+}
+.popover {
+  padding: var(--space-6);
+  border-radius: var(--radius-sheet);
+}
+.app-tooltip {
+  font-size: var(--text-sm);
+  line-height: 18px;
+}
+
+/* Dialogs stay centered in the space above the keyboard. */
+.dialog-overlay {
+  z-index: 802;
+}
+.dialog {
+  z-index: 803;
+  top: calc(var(--mobile-top, 0px) + var(--mobile-height, 100dvh) / 2);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(var(--mobile-height, 100dvh) - 32px);
+  border-radius: var(--radius-sheet);
+}
+.dialog-header {
+  padding: var(--space-8) var(--space-8) 0;
+}
+.dialog-title {
+  font-size: var(--text-lg);
+  line-height: 24px;
+}
+.dialog-description {
+  font-size: var(--text-md);
+  line-height: var(--leading);
+}
+.dialog-body {
+  padding: var(--space-6) var(--space-8);
+}
+.dialog-footer {
+  flex-wrap: wrap;
+  padding: 0 var(--space-8) var(--space-8);
+}
+.radio-choice {
+  min-height: var(--control);
+  padding: var(--space-3) 0;
+}
+.radio-choice input {
+  width: 20px;
+  height: 20px;
+}
+.notebook-preview {
+  width: var(--control);
+  height: var(--control);
+  border-radius: 10px;
+}
+.notebook-colors {
+  gap: 4px;
+}
+.color-swatch {
+  width: var(--control);
+  height: var(--control);
+  border: 8px solid transparent;
+  background-clip: padding-box;
+}
+.color-swatch[aria-pressed='true'] {
+  outline-offset: -5px;
+}
+.color-swatch.is-custom {
+  background-clip: padding-box;
+}
+.notebook-icons {
+  grid-template-columns: repeat(auto-fill, minmax(var(--target), 1fr));
+}
+.notebook-icon {
+  height: var(--target);
+}
+.notebook-icon .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ───────── App frame ───────── */
+
 .mobile-app {
   position: fixed;
   inset-inline: 0;
@@ -17,822 +314,1175 @@ html[data-platform='mobile'] #root {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  font-family: var(--ui-font);
-  background: var(--surface-editor);
-  color: var(--text);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
+  background: var(--bg-content);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
 }
-.mobile-app button,
-.mobile-drawer button,
-.mobile-sheet button {
-  min-height: 48px;
-  touch-action: manipulation;
+
+.startup {
+  padding: var(--space-8);
 }
-.mobile-app :is(button, input, textarea, select):focus-visible,
-.mobile-drawer button:focus-visible,
-.mobile-sheet button:focus-visible {
-  outline: 2px solid var(--focus-ring, var(--accent));
-  outline-offset: -2px;
-}
+
 .mobile-header {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 4px;
-  min-height: 58px;
-  flex-shrink: 0;
-  padding: 4px 10px;
+  gap: var(--space-1);
+  height: var(--bar);
+  padding: 0 var(--space-2);
   border-bottom: 1px solid var(--line);
-  background: var(--surface-editor);
-}
-.mobile-header button {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  border-radius: 50%;
-  flex: 0 0 48px;
-}
-.mobile-note-header {
-  justify-content: space-between;
-  border-bottom: 0;
-}
-.mobile-note-header button {
-  height: 48px;
-  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  background: var(--bg-content);
 }
 .mobile-header h1 {
-  flex: 1;
-  min-width: 0;
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: 8px;
-  font-size: 18px;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0 var(--space-2);
+  font-size: var(--text-lg);
   font-weight: 600;
-  margin: 0 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 24px;
 }
-.mobile-heading-icon {
-  flex: 0 0 18px;
+.mobile-header .mobile-heading-icon {
+  width: 20px;
+  height: 20px;
 }
 .mobile-heading-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.mobile-header button:active,
-.mobile-sheet-actions button:active {
-  background: var(--hover);
-}
-.mobile-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  flex-shrink: 0;
-}
-.mobile-search input {
-  flex: 1;
-  padding: 12px;
-  width: 0;
-}
-.mobile-list {
-  flex: 1;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding-bottom: 100px;
-}
-.mobile-note-row,
-.mobile-book-row {
-  display: flex;
-  align-items: center;
-  min-height: 58px;
-  border-bottom: 1px solid var(--line);
-  padding-inline: 12px 4px;
-}
-.mobile-note-row > button:last-child,
-.mobile-book-row > button:not(.mobile-book-label) {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  flex-shrink: 0;
-  color: var(--muted);
-}
-.mobile-note-label,
-.mobile-book-label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-  text-align: start;
-  padding: 12px 8px;
-  font-size: 17px;
-}
-.mobile-note-label span,
-.mobile-book-label span {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mobile-note-copy {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
+/* In a note the bar holds only two floating buttons over the page. */
+.mobile-note-header {
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+  border-bottom: 0;
 }
-.mobile-note-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.mobile-note-title > svg {
-  flex-shrink: 0;
-  color: var(--control-accent);
-}
-.mobile-note-title > span {
-  min-width: 0;
-}
-.mobile-note-copy > .note-list-preview {
-  font-size: 14px;
-  line-height: 20px;
-}
-.mobile-note-copy > .note-list-notebook {
-  margin-top: 4px;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--muted);
-}
-.mobile-note-copy .note-list-notebook-extra {
-  overflow: visible;
-}
-.mobile-list-modes {
-  border: 0;
-  margin: 0;
-  padding: 8px 0;
-  min-width: 0;
-}
-.mobile-list-modes legend {
-  padding: 0 16px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.mobile-list-modes label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 8px 16px;
-  font-size: 17px;
-}
-.mobile-list-modes label:active {
-  background: var(--hover);
-}
-.mobile-list-modes input {
-  accent-color: var(--control-accent);
-}
-.mobile-book-label > svg {
-  width: 23px;
-  height: 23px;
-}
-.mobile-book-label small {
-  color: var(--muted);
-  margin-inline-start: auto;
-  font-size: 13px;
-}
-.mobile-subnotebooks {
-  margin-bottom: 12px;
-  background: var(--surface-panel);
-}
-.mobile-compose {
-  position: absolute;
-  right: calc(20px + env(safe-area-inset-right));
-  bottom: calc(22px + env(safe-area-inset-bottom));
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--control-accent);
-  color: var(--on-accent, var(--bg));
-  box-shadow: var(--shadow);
-  z-index: 4;
-}
-.mobile-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin: 60px 24px;
-  color: var(--muted);
-}
-.mobile-empty h2 {
-  font-weight: 500;
-  font-size: 20px;
-  line-height: 1.4;
+.mobile-note-header .icon-btn {
+  background: var(--fill-1);
   color: var(--text);
 }
-.mobile-empty p {
-  font-size: 15px;
-  line-height: 1.5;
-}
-.mobile-preview {
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-}
+
 .mobile-error {
-  color: var(--danger, var(--text));
   display: flex;
-  gap: 12px;
+  flex: none;
   align-items: center;
-  background: var(--surface-panel);
-  border-bottom: 1px solid var(--line);
-  padding: 8px 14px;
-  font-size: 13px;
-  flex-shrink: 0;
+  gap: var(--space-5);
   max-height: 150px;
   overflow: auto;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  line-height: 20px;
 }
 .mobile-error span {
   flex: 1;
   overflow-wrap: anywhere;
 }
-.mobile-error button {
-  color: var(--text);
+.mobile-sheet > .mobile-error {
+  margin: 0 calc(var(--space-4) * -1) var(--space-2);
 }
+
 .mobile-busy {
   position: fixed;
-  inset: 0;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
   z-index: 1000;
+  inset: 0;
   display: grid;
   place-items: center;
-  padding: 28px;
+  padding: var(--space-8);
+  background: var(--bg-scrim);
+}
+.mobile-busy > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 100%;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  overflow-wrap: anywhere;
+}
+.mobile-busy .spinner {
+  width: 20px;
+  height: 20px;
+}
+
+/* ───────── Notes list ───────── */
+
+.mobile-search {
+  flex: none;
+  margin: var(--space-4) var(--space-6);
+}
+.mobile-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 96px;
+}
+.mobile-note-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding-inline: var(--space-6) var(--space-2);
+}
+.mobile-note-row::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: var(--space-6);
+  height: 1px;
+  background: var(--line);
+}
+.mobile-note-row:has(> .mobile-note-label:active) {
+  background: var(--fill-1);
+}
+.mobile-note-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 56px;
+  padding: var(--space-4) 0;
+  text-align: start;
+}
+.mobile-note-label:focus-visible {
+  outline-offset: -2px;
+}
+.mobile-note-copy {
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+}
+.mobile-note-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-weight: 600;
+}
+.mobile-note-title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-note-title > .ui-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.mobile-note-copy > .note-list-preview {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-note-copy > .note-list-notebook {
+  /* --text-2 keeps 4.5:1 on the content surface; --text-3 doesn't at this size. */
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+.mobile-note-row > .icon-btn,
+.mobile-book-row > .icon-btn {
+  color: var(--text-3);
+}
+
+.mobile-subnotebooks {
+  margin: var(--space-5) var(--space-6);
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.mobile-subnotebooks > div + div {
+  border-top: 1px solid var(--line);
+}
+.mobile-book-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--row);
+  border-radius: 10px;
+}
+.mobile-book-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+  min-height: var(--row);
+  padding: 0 var(--space-2) 0 var(--space-6);
+  text-align: start;
+}
+.mobile-book-label:active {
+  background: var(--fill-1);
+}
+.mobile-book-label > .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+.mobile-book-label > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-subnotebooks .mobile-book-row {
+  padding-right: var(--space-2);
+}
+
+.mobile-compose {
+  position: absolute;
+  z-index: 4;
+  right: calc(var(--space-6) + env(safe-area-inset-right));
+  bottom: calc(var(--space-7) + env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-pop);
+  color: var(--on-accent);
+}
+.mobile-compose:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+.mobile-compose:disabled {
+  background: var(--fill-3);
+  color: var(--text-4);
+}
+
+.mobile-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin: 64px var(--space-8);
+  color: var(--text-3);
   text-align: center;
 }
+.mobile-empty h2 {
+  color: var(--text-2);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 24px;
+}
+.mobile-empty .mobile-empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--space-2);
+  color: var(--text-4);
+  stroke-width: 1.3;
+}
+.mobile-empty .btn {
+  margin-top: var(--space-4);
+}
+.mobile-preview {
+  margin: var(--space-6);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+/* ───────── Drawer and bottom sheets ───────── */
+
 .mobile-scrim {
   position: fixed;
+  z-index: 800;
   inset: 0;
-  z-index: 100;
-  background: #0007;
+  background: var(--bg-scrim);
+  animation: fade-in var(--normal) var(--ease);
 }
 .mobile-drawer,
 .mobile-sheet {
   position: fixed;
-  z-index: 101;
-  background: var(--surface-floating);
-  color: var(--text);
-  font-family: var(--ui-font);
+  z-index: 801;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow);
-}
-.mobile-drawer {
-  background: var(--surface-navigation, var(--surface-floating));
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: min(88vw, 380px);
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  outline: none;
 }
 .mobile-drawer > header,
 .mobile-sheet > header {
   display: flex;
+  flex: none;
   align-items: center;
-  min-height: 60px;
-  padding: 4px 3px 4px 16px;
-  gap: 12px;
-  flex-shrink: 0;
+  gap: var(--space-2);
+  min-height: var(--bar);
 }
 .mobile-drawer > header h2,
 .mobile-sheet > header h2 {
   flex: 1;
   min-width: 0;
-  font-size: 19px;
-  font-weight: 600;
-  margin: 0;
   overflow: hidden;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mobile-drawer > header button,
-.mobile-sheet > header button {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  padding: 0;
-  display: grid;
-  place-items: center;
+
+/* The drawer is the desktop sidebar: same surface, icons and selection. */
+.mobile-drawer {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(84vw, 320px);
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--bg-sidebar);
+  box-shadow: var(--shadow-pop);
+  animation: drawer-in var(--normal) var(--ease);
+}
+.mobile-drawer > header {
+  padding: 0 var(--space-2) 0 var(--space-7);
 }
 .mobile-drawer-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 4px 8px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-4) var(--space-6);
 }
 .mobile-drawer nav > button {
-  width: 100%;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
-  text-align: left;
-  border-radius: 8px;
+  gap: var(--space-5);
+  width: 100%;
+  min-height: var(--row);
+  padding: 0 var(--space-5);
+  border-radius: 10px;
+  text-align: start;
 }
-.mobile-drawer nav > button small {
-  margin-left: auto;
-  color: var(--muted);
+.mobile-drawer nav > button > .ui-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
 }
-.mobile-drawer .selected {
-  background: var(--row-selected);
-  box-shadow: var(--selected-edge);
-  color: var(--text);
+.mobile-drawer nav > button > span:not(.mobile-tag-icon) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mobile-drawer .selected small {
-  color: var(--text);
+.mobile-drawer nav > button:active,
+.mobile-drawer .mobile-book-label:active {
+  background: var(--fill-1);
 }
-.mobile-drawer .mobile-book-row {
-  border: 0;
-  padding-inline: 0;
-  border-radius: 8px;
+.mobile-drawer .selected,
+.mobile-drawer .selected .mobile-book-label:active {
+  background: var(--fill-3);
 }
 .mobile-drawer .mobile-book-label {
-  padding-inline-start: 14px;
-  font-size: 16px;
-  gap: 10px;
+  padding: 0 var(--space-2) 0 var(--space-5);
+  border-radius: 10px;
+}
+.mobile-drawer .mobile-book-row > .icon-btn {
+  width: 44px;
+}
+.mobile-tag-icon {
+  width: 20px;
+  flex: none;
+  color: var(--accent);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  text-align: center;
 }
 .mobile-section-label {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  min-height: 48px;
-  margin: 18px 10px 0;
-  font-size: 13px;
+  justify-content: space-between;
+  min-height: var(--target);
+  margin-top: var(--space-4);
+  padding-left: var(--space-5);
+  color: var(--text-3);
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--muted);
 }
-.mobile-section-label button {
-  width: 48px;
-  display: grid;
-  place-items: center;
-}
-.mobile-tag-icon {
-  font-size: 22px;
+.mobile-section-label .icon-btn .ui-icon {
   width: 20px;
-  color: var(--control-ink);
+  height: 20px;
 }
 .mobile-drawer-footer {
   display: grid;
+  flex: none;
   grid-template-columns: 1fr 1fr;
-  padding: 8px 12px;
+  gap: var(--space-2);
+  padding: var(--space-4);
   border-top: 1px solid var(--line);
 }
 .mobile-drawer-footer button {
   display: flex;
-  gap: 10px;
   align-items: center;
-  padding: 10px;
+  gap: var(--space-5);
+  min-height: var(--row);
+  padding: 0 var(--space-5);
+  border-radius: 10px;
+}
+.mobile-drawer-footer button:active:not(:disabled) {
+  background: var(--fill-1);
+}
+.mobile-drawer-footer button:disabled {
+  color: var(--text-4);
+}
+.mobile-drawer-footer .ui-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-2);
 }
 .mobile-drawer-footer small {
   grid-column: 1 / -1;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 0 10px 8px;
+  padding: 0 var(--space-5) var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-xs);
 }
+
+/* Action sheets are floating surfaces anchored above the keyboard. */
 .mobile-sheet {
-  bottom: calc(var(--mobile-bottom, 0px));
-  left: 0;
   right: 0;
+  bottom: var(--mobile-bottom, 0px);
+  left: 0;
+  width: min(100%, 560px);
   max-height: min(80dvh, calc(var(--mobile-height, 100dvh) - 24px));
-  border-radius: 24px 24px 0 0;
-  padding: 8px 12px max(16px, env(safe-area-inset-bottom));
+  margin-inline: auto;
+  padding: 0 calc(var(--space-4) + env(safe-area-inset-right))
+    max(var(--space-6), env(safe-area-inset-bottom))
+    calc(var(--space-4) + env(safe-area-inset-left));
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  animation: sheet-in var(--normal) var(--ease);
+}
+.mobile-sheet > header {
+  padding-left: var(--space-5);
 }
 .mobile-sheet-actions {
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .mobile-sheet-actions > button {
   display: flex;
-  gap: 14px;
-  width: 100%;
   align-items: center;
-  padding: 12px 16px;
-  text-align: left;
-  font-size: 16px;
-  border-radius: 8px;
+  gap: var(--space-6);
+  width: 100%;
+  min-height: var(--row);
+  padding: 0 var(--space-5);
+  border-radius: 10px;
+  text-align: start;
 }
-.mobile-sheet-actions > button > svg {
+.mobile-sheet-actions > button > .ui-icon {
   width: 20px;
   height: 20px;
-  flex-shrink: 0;
-  stroke-width: 1.8;
+  color: var(--text-2);
 }
-.mobile-sheet-actions p {
-  padding: 0 16px;
-  overflow-wrap: anywhere;
+.mobile-sheet-actions > button:active,
+.mobile-list-modes label:active,
+.mobile-membership:active {
+  background: var(--fill-2);
+}
+.mobile-sheet-actions > .danger,
+.mobile-sheet-actions > .danger > .ui-icon {
+  color: var(--danger);
+}
+.mobile-sheet-note {
+  padding: var(--space-4) var(--space-5);
+  color: var(--text-3);
+}
+.mobile-list-modes {
+  min-width: 0;
+  margin: var(--space-2) 0;
+  padding: 0;
+  border: 0;
+  border-block: 1px solid var(--line);
+}
+.mobile-list-modes legend {
+  float: left;
+  width: 100%;
+  padding: var(--space-5) var(--space-5) var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.mobile-list-modes label {
+  display: flex;
+  clear: left;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--row);
+  padding: 0 var(--space-5);
+  border-radius: 10px;
 }
 .mobile-membership {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 10px 16px;
+  gap: var(--space-5);
+  min-height: var(--row);
+  padding: var(--space-3) var(--space-5);
+  border-radius: 10px;
 }
-.mobile-membership input {
-  width: 22px;
-  height: 22px;
-  accent-color: var(--control-accent);
+.mobile-membership > .ui-icon {
+  width: 20px;
+  height: 20px;
 }
 .mobile-membership span {
   overflow-wrap: anywhere;
 }
-.mobile-sheet .danger {
-  color: var(--danger, #db7272);
+.mobile-info {
+  display: grid;
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-4);
+}
+.mobile-info > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-4) 0;
+}
+.mobile-info > div + div {
+  border-top: 1px solid var(--line);
+}
+.mobile-info dt {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.mobile-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* ───────── Note ───────── */
+
+.mobile-app #note-find-slot {
+  flex: none;
 }
 .mobile-app .mobile-note-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* The floating formatting bar sits below the scroll area, so the caret stays above it. */
+  margin-bottom: 64px;
   padding: 0;
   overscroll-behavior: contain;
-  margin-bottom: 76px;
 }
 .mobile-app .note-article {
-  width: 100%;
   max-width: none;
-  padding: 24px 20px calc(var(--editor-bottom-space) + 88px);
   margin: 0;
+  padding: var(--space-5) var(--space-7) calc(var(--editor-bottom-space) + 88px);
 }
 .mobile-app .note-title-wrap {
-  margin: 0 0 16px;
+  margin-bottom: var(--space-6);
 }
 .mobile-app textarea.note-title {
   display: block;
-  width: 100%;
-  min-height: 40px;
-  resize: none;
+  min-height: 1.25em;
   overflow: hidden;
+  resize: none;
   white-space: pre-wrap;
-  border: 0;
-  outline: 0;
-  box-shadow: none;
-  padding: 0;
-  color: var(--text);
-  background: transparent;
-  font-family: var(--title-font);
-  font-size: 28px;
-  font-weight: 650;
-  line-height: 1.3;
 }
 .mobile-app .note-title-highlights {
   display: none;
 }
 .mobile-app .editor-body .tiptap {
-  padding: 0;
   min-height: 200px;
   caret-color: var(--accent);
-  font-family: var(--note-font);
-  font-size: var(--note-size);
-  line-height: var(--line-spacing);
-}
-.mobile-app .editor-body {
-  padding: 0;
 }
 .mobile-app .tiptap img {
   max-width: 100%;
 }
 .mobile-app .tiptap pre,
 .mobile-app .tiptap .tableWrapper {
-  overflow-x: auto;
   max-width: 100%;
+  overflow-x: auto;
 }
+
+/* The formatting bar floats above the keyboard and scrolls sideways. */
 .mobile-app .writing-dock {
   position: fixed;
   z-index: 20;
-  left: calc(8px + env(safe-area-inset-left));
-  right: calc(8px + env(safe-area-inset-right));
-  bottom: calc(var(--mobile-bottom, 0px) + max(8px, env(safe-area-inset-bottom)));
-  width: auto;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  transform: none;
-}
-.mobile-app .toolbar {
+  top: auto;
+  right: calc(var(--space-4) + env(safe-area-inset-right));
+  bottom: calc(var(--mobile-bottom, 0px) + max(var(--space-4), env(safe-area-inset-bottom)));
+  left: calc(var(--space-4) + env(safe-area-inset-left));
   display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.mobile-app .writing-dock > .toolbar {
+  position: static;
   flex-wrap: nowrap;
   justify-content: flex-start;
   width: 100%;
-  gap: 0;
-  padding: 0 4px;
+  max-width: none;
+  height: var(--target);
+  padding: 0 var(--space-1);
   overflow-x: auto;
-  touch-action: pan-x;
+  overflow-y: hidden;
+  border-radius: 12px;
+  /* No backdrop blur: it would make the bar the containing block of the fixed writing-tools
+     sheet inside it, and the bar's sideways scrolling would clip that sheet. */
+  background: var(--bg-elevated-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   scrollbar-width: none;
-  background: var(--surface-floating);
-  border: 1px solid var(--border-floating);
-  border-radius: 24px;
-  box-shadow: 0 3px 12px rgb(0 0 0 / 12%);
+  touch-action: pan-x;
+  transform: none;
+}
+.mobile-app .toolbar::-webkit-scrollbar {
+  display: none;
 }
 .mobile-app .toolbar > * {
   flex-shrink: 0;
 }
-.mobile-app .toolbar .tool {
-  width: 36px;
-  min-width: 36px;
-  height: 44px;
-  min-height: 44px;
-  padding: 0;
-  color: var(--text);
-  font-weight: 600;
-  border-radius: 50%;
-}
-.mobile-app .toolbar .tool svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 2.5;
-}
-.mobile-app .toolbar .tool.active {
-  color: var(--focus-ring);
-}
-.mobile-app .toolbar select {
-  min-height: 44px;
-  width: 60px;
-  max-width: 60px;
-  padding-inline: 4px;
-  font-weight: 600;
-  background: var(--surface-floating);
-  color: var(--text);
-}
-.mobile-app .toolbar > i {
-  display: none;
-}
-.mobile-app .toolbar [aria-label='Undo'] {
+/* Undo and Redo lead the bar; disabled ones are wrapped by their tooltip. */
+.mobile-app .toolbar > :is([aria-label='Undo'], :has(> [aria-label='Undo'])) {
   order: -3;
 }
-.mobile-app .toolbar [aria-label='Redo'] {
+.mobile-app .toolbar > :is([aria-label='Redo'], :has(> [aria-label='Redo'])) {
   order: -2;
 }
+.mobile-app .tool {
+  width: var(--target);
+  height: var(--target);
+  border-radius: 10px;
+  font-weight: 600;
+}
+.mobile-app .tool svg {
+  width: 20px;
+  height: 20px;
+}
+.mobile-app .tool.active,
+.mobile-app .tool[aria-pressed='true'] {
+  background: none;
+  color: var(--accent);
+}
+.mobile-app .tool:active:not(:disabled) {
+  background: var(--fill-2);
+}
+.mobile-app .toolbar select {
+  height: var(--target);
+  max-width: 108px;
+  padding: 0 4px 0 10px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Table and code-block controls sit just above the formatting bar. */
 .mobile-app .context-tools {
+  position: static;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  min-height: var(--target);
   overflow-x: auto;
+  border-radius: 12px;
+  scrollbar-width: none;
+  transform: none;
   white-space: nowrap;
-  background: var(--surface-floating);
-  border-radius: 16px;
-  margin-bottom: 6px;
 }
 .mobile-app .context-tools > * {
   flex-shrink: 0;
 }
+.mobile-app .context-tools button:not(.tool),
+.mobile-app .context-tools select {
+  height: var(--control);
+  padding: 0 12px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+/* Writing tools: a sheet above the formatting bar. */
 .mobile-app .rich-menu {
   position: fixed;
-  left: 8px;
-  right: 8px;
-  top: auto;
-  bottom: calc(var(--mobile-bottom, 0px) + 70px + env(safe-area-inset-bottom));
-  width: auto;
-  max-width: none;
-  max-height: calc(var(--mobile-height, 100dvh) - 155px);
-  overflow-y: auto;
-  border-radius: 20px;
-  padding: 18px;
   z-index: 25;
+  top: auto;
+  right: calc(var(--space-4) + env(safe-area-inset-right));
+  bottom: calc(
+    var(--mobile-bottom, 0px) + var(--target) + var(--space-6) + env(safe-area-inset-bottom)
+  );
+  left: calc(var(--space-4) + env(safe-area-inset-left));
+  width: auto;
+  max-height: calc(var(--mobile-height, 100dvh) - 150px);
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border-radius: var(--radius-sheet);
+  overscroll-behavior: contain;
 }
-.mobile-app .rich-menu button {
-  min-height: 44px;
-  padding: 8px 12px;
+.mobile-app .rich-menu > strong {
+  font-size: var(--text-lg);
+  line-height: var(--target);
+}
+/* The close button shares the title's row. */
+.mobile-app .rich-menu > button[aria-label='Close writing tools'] {
+  justify-self: end;
+  width: var(--target);
+  height: var(--target);
+  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1)
+    calc((var(--target) + var(--space-5) - var(--space-3)) * -1) 0;
+  border-radius: 50%;
+  background: none;
+  box-shadow: none;
+  color: var(--text-2);
+  font-size: 24px;
+}
+.mobile-app .rich-menu section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.mobile-app .rich-menu section > label {
+  flex-basis: 100%;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.mobile-app .rich-menu section button {
+  min-height: var(--control);
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--fill-1);
+  text-transform: none;
+}
+.mobile-app .rich-menu section button:active:not(:disabled) {
+  background: var(--fill-3);
+}
+.mobile-app .rich-menu section button:disabled {
+  color: var(--text-4);
 }
 .mobile-app .rich-menu input:not([type='file']) {
-  min-height: 44px;
+  flex: 1 1 100%;
+  min-height: var(--control);
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  color: var(--text);
+  outline: none;
+}
+.mobile-app .rich-menu input[type='number'] {
+  flex: 0 0 88px;
+}
+.mobile-app .rich-menu input:not([type='file']):focus {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px var(--accent-soft);
 }
 .mobile-app .rich-menu input[type='file'] {
   max-width: 100%;
 }
+.mobile-app .rich-menu .swatches {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -6px;
+}
+/* Swatch colors are inline backgrounds, so the tap area grows outside the 32px circle. */
+.mobile-app .rich-menu .swatches button {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin: 6px;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  color: var(--text-2);
+}
+.mobile-app .rich-menu .swatches button::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.mobile-app .rich-menu .writing-field-hint {
+  flex-basis: 100%;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
 
-.mobile-app #note-find-slot {
-  flex-shrink: 0;
+/* Find bar and table of contents. */
+.mobile-app .find-row {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
 }
-.mobile-app .note-find-bar {
+.mobile-app .find-field {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  padding-right: var(--space-4);
+}
+.mobile-app .find-replace-row {
+  flex-wrap: wrap;
+  padding-left: var(--space-4);
+}
+.mobile-app .find-count {
+  font-size: var(--text-xs);
+}
+.mobile-app .note-outline[data-mode='overlay'] {
+  top: calc(var(--bar) + env(safe-area-inset-top));
+  right: calc(var(--space-4) + env(safe-area-inset-right));
+  /* Ends above the formatting bar. */
+  bottom: calc(var(--target) + var(--space-4) + max(var(--space-4), env(safe-area-inset-bottom)));
+  width: min(calc(100% - 32px), 360px);
+  border-radius: var(--radius-sheet);
+}
+.mobile-app .outline-header {
+  height: var(--bar);
+  padding: 0 var(--space-2) 0 var(--space-6);
+}
+.mobile-app .outline-header h2 {
+  font-size: var(--text-sm);
+}
+.mobile-app .outline-tree ul ul {
+  padding-left: 16px;
+}
+.mobile-app .outline-row {
+  min-height: var(--control);
+  border-radius: var(--radius-lg);
+}
+.mobile-app .outline-disclosure {
+  width: 32px;
+  height: var(--control);
+}
+.mobile-app .outline-disclosure .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+.mobile-app .outline-heading {
+  padding: 10px var(--space-3) 10px 4px;
+}
+
+/* Editor menus at touch size. */
+.slash-menu {
+  width: min(300px, calc(100vw - 32px));
+  max-height: min(240px, calc(var(--mobile-height, 100dvh) / 2));
   padding: 6px;
-  gap: 2px;
+  border-radius: 14px;
 }
-.mobile-app .note-find-bar input {
-  width: 0;
-  flex: 1;
-  padding: 10px;
+.slash-menu button {
+  min-height: var(--control);
+  padding: 0 12px;
+  gap: var(--space-5);
+  border-radius: var(--radius-lg);
 }
-.mobile-app .note-find-bar [role='status'] {
-  font-size: 11px;
+.slash-icon {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
 }
-.mobile-app .note-find-bar .icon-button {
-  min-width: var(--ui-target);
+.slash-menu.slash-menu-dates,
+.slash-menu.body-tag-menu {
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
 }
-.mobile-app .note-outline {
-  position: absolute;
-  top: 58px;
-  bottom: 0;
-  right: 0;
-  width: min(90%, 360px);
-  background: var(--surface-floating);
-  z-index: 30;
-  overflow: auto;
-  box-shadow: var(--shadow);
-  padding: 20px;
+.note-link-menu {
+  width: min(340px, calc(100vw - 32px));
 }
-.mobile-app .contents-resizer {
-  display: none;
+.date-picker {
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--space-4);
 }
-.mobile-close-contents {
-  position: absolute;
-  right: 12px;
-  top: 58px;
-  z-index: 31;
+.date-picker button {
+  min-height: var(--control);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
 }
+.date-picker-header button {
+  width: var(--target);
+  height: var(--target);
+  border-radius: 50%;
+}
+.date-picker svg {
+  width: 18px;
+  height: 18px;
+}
+.date-calendar button {
+  min-height: 40px;
+}
+
+/* ───────── Settings pages ───────── */
+
 .mobile-settings {
-  --settings-control-surface: var(
-    --surface-input,
-    color-mix(in srgb, var(--text) 8%, var(--surface-panel))
-  );
-  --settings-control-hover: var(
-    --control-hover,
-    color-mix(in srgb, var(--text) 12%, var(--surface-panel))
-  );
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 16px 36px;
+  overscroll-behavior: contain;
+  padding: var(--space-5) var(--space-6) var(--space-8);
 }
 .mobile-settings .settings-search {
-  margin-bottom: 24px;
-  padding: 2px 12px;
-  min-height: 48px;
-  border-radius: 24px;
-}
-.mobile-settings .settings-search input {
-  height: 44px;
-}
-.mobile-settings-categories {
-  border-radius: 20px;
-  background: var(--surface-panel);
-  padding: 0 16px;
-}
-.mobile-settings-categories button {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 16px;
-  text-align: left;
-  padding: 16px 0;
-  min-height: 66px;
-  border-bottom: 1px solid var(--line);
-}
-.mobile-settings-categories button:last-child {
-  border-bottom: 0;
-}
-.mobile-settings-categories button span {
-  flex: 1;
+  margin: 0 0 var(--space-6);
 }
 .mobile-settings .settings-content {
-  padding: 0;
   overflow: visible;
-}
-.mobile-settings .settings-section {
-  margin-bottom: 26px;
-}
-.mobile-settings .settings-section h3 {
-  color: var(--muted);
-  margin: 0 8px 12px;
-  font-size: 13px;
+  padding: 0;
 }
 .mobile-settings .settings-group {
-  border-radius: 18px;
-  background: var(--surface-group, var(--surface-panel));
-  overflow: hidden;
+  border-radius: 12px;
 }
-.mobile-settings .settings-item {
-  padding: 16px;
+.mobile-settings .settings-group-title {
+  margin: var(--space-7) var(--space-2) var(--space-3);
+  font-size: 13px;
 }
-.mobile-settings .setting-row {
-  gap: 16px;
-  flex-wrap: wrap;
+.mobile-settings
+  .settings-content
+  > section:first-child
+  > section:first-child
+  > .settings-group-title {
+  margin-top: var(--space-2);
 }
-.mobile-settings .setting-row > span {
-  flex: 1 1 145px;
+.mobile-settings .settings-section-title {
+  margin-top: var(--space-7);
+  font-size: var(--text-md);
 }
-.mobile-settings .setting-row select {
-  max-width: 100%;
-  min-height: 44px;
-  padding: 8px;
+.mobile-settings .settings-content > section:first-child > .settings-section-title {
+  margin-top: 0;
 }
-.mobile-settings .theme-options {
+.mobile-settings .settings-row {
+  gap: var(--space-5);
+  min-height: 56px;
+  padding: var(--space-4) var(--space-6);
+}
+.mobile-settings .settings-label small {
+  font-size: 13px;
+  line-height: 18px;
+}
+.mobile-settings .settings-control {
+  max-width: 55%;
+}
+.mobile-settings .settings-row.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+.mobile-settings .settings-row.is-stacked > .settings-control {
+  justify-content: flex-start;
+  max-width: none;
+}
+.settings-slider-label {
   display: flex;
-  flex-wrap: wrap;
-}
-.mobile-settings .theme-options button {
-  flex: 1;
-}
-.mobile-settings .theme-preview {
-  width: 100%;
-}
-.mobile-setting-result {
-  display: flex;
-  width: 100%;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  text-align: left;
+  gap: var(--space-5);
 }
-.mobile-settings .sync-connection {
-  max-width: 100%;
+.settings-slider-label output {
+  color: var(--text-2);
+  font-size: var(--text-sm);
 }
-.mobile-settings .sync-connection input {
+.mobile-settings .settings-row.is-stacked > .slider {
+  margin-top: calc(var(--space-2) * -1);
+}
+.mobile-settings .status-line {
+  border-top: 1px solid var(--line);
+}
+.mobile-settings .settings-form {
+  padding: var(--space-6);
+}
+.mobile-settings .sync-connection .field-label {
+  font-size: var(--text-md);
+}
+.mobile-settings .sync-connection-actions .btn {
   width: 100%;
-  min-height: 46px;
 }
-.mobile-settings .sync-connection p {
-  font-size: 14px;
-  line-height: 1.5;
+.mobile-settings .settings-empty {
+  padding: 48px 0;
 }
-html[data-platform='mobile'] .settings-dialog:not(.grouped-settings) {
-  width: calc(100vw - 24px);
-  max-width: 520px;
-  max-height: calc(var(--mobile-height, 100dvh) - 24px);
-  top: calc(var(--mobile-top, 0px) + var(--mobile-height, 100dvh) / 2);
-  overflow-y: auto;
-  padding: 22px;
+
+/* Category list. */
+.mobile-settings-category {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--space-5) 0 var(--space-6);
+  text-align: start;
 }
-html[data-platform='mobile']
-  .settings-dialog
-  :is(button, input:not([type='checkbox'], [type='radio']), select) {
-  min-height: 44px;
+.mobile-settings-category:active {
+  background: var(--fill-1);
 }
-html[data-platform='mobile'] .settings-dialog button {
-  min-height: var(--ui-target);
+.mobile-settings-category:focus-visible {
+  outline-offset: -2px;
 }
-html[data-platform='mobile'] .notebook-icon-options {
-  grid-template-columns: repeat(auto-fit, minmax(var(--ui-target), 1fr));
+.mobile-settings-category .settings-category-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-lg);
 }
-html[data-platform='mobile'] .notebook-icon-picker button {
-  min-width: var(--ui-target);
+.mobile-settings-category .settings-category-icon .ui-icon {
+  width: 18px;
+  height: 18px;
 }
-html[data-platform='mobile'] .notebook-color-field input[type='color'] {
-  width: var(--ui-control-height);
+.mobile-settings-category .mobile-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--text-3);
 }
-html[data-platform='mobile'] .slash-menu {
-  max-width: calc(100vw - 32px);
-  max-height: 180px;
+
+/* Appearance tiles and accent swatches. */
+.mobile-settings .mode-options {
+  width: 100%;
+  gap: var(--space-5);
 }
+.mobile-settings .mode-option {
+  flex: 1;
+  gap: var(--space-3);
+  min-height: var(--target);
+  font-size: var(--text-sm);
+}
+.mobile-settings .mode-preview {
+  grid-template-columns: 28% 1fr;
+  width: 100%;
+  height: 56px;
+  border-radius: var(--radius-lg);
+}
+/* One row of swatches; each tap area is up to 44px with the swatch drawn inside it. */
+.mobile-settings .accent-options {
+  display: grid;
+  grid-auto-columns: minmax(0, var(--control));
+  grid-auto-flow: column;
+  justify-content: space-between;
+  width: calc(100% + var(--space-4));
+  margin: 0 calc(var(--space-2) * -1);
+}
+.mobile-settings .accent-option {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border: 7px solid transparent;
+  background-clip: padding-box;
+}
+.mobile-settings .accent-option[aria-checked='true'] {
+  outline-offset: -5px;
+}
+.mobile-settings .accent-option[aria-checked='true']::after {
+  position: absolute;
+  inset: 0;
+  width: 10px;
+  height: 10px;
+  margin: auto;
+}
+
+/* Typography preview and heading styles. */
+.mobile-settings .font-preview {
+  padding: var(--space-6);
+}
+.mobile-settings .font-preview strong {
+  font-size: 22px;
+  line-height: 1.3;
+}
+.mobile-settings .heading-style summary {
+  min-height: 56px;
+  padding: var(--space-3) var(--space-6);
+}
+.mobile-settings .heading-style-preview {
+  font-size: var(--text-lg);
+}
+.mobile-settings .heading-style-controls {
+  gap: var(--space-3);
+  padding: 0 var(--space-6) var(--space-6);
+}
+.mobile-settings .heading-style-control,
+.mobile-settings .heading-style-toggle {
+  min-height: var(--control);
+}
+.mobile-settings .heading-style-control select {
+  min-height: var(--control);
+  max-width: 60%;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--fill-2);
+  color: var(--text);
+}
+.mobile-settings .heading-style-toggle input {
+  width: 22px;
+  height: 22px;
+}
+.mobile-settings .heading-color-swatches {
+  gap: var(--space-1);
+}
+.mobile-settings .heading-color-swatch {
+  width: var(--control);
+  height: var(--control);
+  border: 9px solid transparent;
+  background-clip: padding-box;
+}
+.mobile-settings .heading-color-swatch[aria-pressed='true'] {
+  outline-offset: -7px;
+}
+.mobile-settings .heading-custom-color input {
+  width: var(--control);
+  height: var(--control);
+}
+.mobile-settings .heading-style-reset {
+  min-height: var(--control);
+  font-size: var(--text-md);
+}
+
+/* ───────── Landscape and short screens ───────── */
 
 /* Keep a writing line visible with a tall landscape keyboard. */
 @media (max-height: 300px) {
-  .mobile-app .mobile-header {
-    height: 44px;
-    min-height: 44px;
-  }
-  .mobile-app .mobile-header:not(.mobile-note-header) button {
-    min-height: 44px;
-    height: 44px;
+  html[data-platform='mobile'] {
+    --bar: 48px;
   }
   .mobile-app .mobile-note-header {
-    height: 48px;
-    min-height: 48px;
     padding-block: 0;
   }
   .mobile-app .mobile-note-scroll {
-    margin-bottom: 54px;
+    margin-bottom: 56px;
   }
   .mobile-app .writing-dock {
-    bottom: calc(var(--mobile-bottom, 0px) + 4px);
-  }
-  .mobile-app .toolbar {
-    padding: 0 6px;
-  }
-  .mobile-app .toolbar .tool {
-    height: 44px;
-    min-height: 44px;
+    bottom: calc(var(--mobile-bottom, 0px) + var(--space-2));
   }
   .mobile-app .rich-menu {
-    top: 4px;
-    bottom: 4px;
+    top: var(--space-2);
+    bottom: calc(var(--mobile-bottom, 0px) + var(--target) + var(--space-4));
     max-height: none;
   }
 }
 
-/* Cover portaled dialogs and menus as well as the mobile page. */
-html[data-platform='mobile'][data-mobile-focus-input='pointer'] :focus {
-  outline: none;
-}
-
-.mobile-list,
-.mobile-search,
-.mobile-header:not(.mobile-note-header) {
-  background: var(--surface-list, var(--surface-panel));
-}
-.mobile-note-header button {
-  background: var(--surface-floating);
-}
-.mobile-app .note-outline h2 {
-  background: var(--surface-floating);
+/* Wide screens (landscape phones, tablets) keep settings at a readable measure. Notes stay
+   full width: mobile has no writing-width setting. */
+@media (min-width: 720px) {
+  .mobile-settings > * {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  .mobile-settings > .settings-search {
+    margin: 0 auto var(--space-6);
+  }
 }

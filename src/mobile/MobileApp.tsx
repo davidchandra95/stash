@@ -1,3 +1,4 @@
+import { useDocumentTheme } from '../appearance'
 import {
   useEffect,
   useLayoutEffect,
@@ -23,15 +24,22 @@ import { platform } from '../platform'
 import { onBackButtonPress } from '@tauri-apps/api/app'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import {
+  ArrowDownWideNarrow,
   ArrowLeft,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   Feather,
+  FilePlus2,
   Files,
+  FolderPlus,
+  Inbox,
+  ListTodo,
   Menu,
   MoreHorizontal,
   MoreVertical,
   BookPlus,
+  PenLine,
   Search,
   Settings2,
   X,
@@ -47,10 +55,12 @@ import {
   Trash2,
   ArchiveRestore,
   RefreshCw,
+  type IconComponent,
 } from '../icons'
 import { useLibrary, library } from '../storage/useLibrary'
 import { matchesView, type Note, type Notebook, type View } from '../model'
 import { fontFamily } from '../fonts'
+import { headingStyleVariables } from '../headingStyles'
 import { useMotionPreference } from '../motion'
 import { ShortcutContext } from '../useShortcuts'
 import { useNoteActions } from '../useNoteActions'
@@ -60,7 +70,7 @@ import NoteEditor from '../components/NoteEditor'
 import NoteTools from '../components/NoteTools'
 import NotebookDialog from '../components/NotebookDialog'
 import NotebookDeleteDialog from '../components/NotebookDeleteDialog'
-import Appearance from '../components/Appearance'
+import MobileSettings from './MobileSettings'
 import SyncConnection from '../components/SyncConnection'
 import { formatSyncTime } from '../syncTime'
 import { getEditor } from '../editor/session'
@@ -79,6 +89,16 @@ const viewNames: Record<string, string> = {
   pinned: 'Pinned notes',
   quickAccess: 'Quick Access',
   trash: 'Trash',
+}
+// The drawer mirrors the desktop sidebar's views and icons.
+const viewIcons: Record<string, IconComponent> = {
+  all: Files,
+  today: CalendarDays,
+  todo: ListTodo,
+  uncategorized: Inbox,
+  pinned: Pin,
+  quickAccess: Star,
+  trash: Trash2,
 }
 const categoryNames = {
   appearance: 'Appearance',
@@ -156,23 +176,19 @@ export default function MobileApp() {
     }
   }, [])
 
+  // Color mode and accent live on <html>, so sheets and dialogs share them.
+  const dark = useDocumentTheme(appearance)
   useLayoutEffect(() => {
     document.documentElement.dataset.platform = 'mobile'
-    document.documentElement.style.setProperty('--ui-font', fontFamily(appearance.uiFont))
-    document.documentElement.dataset.theme = appearance.dark ? 'dark' : 'light'
-    document.documentElement.dataset.palette = appearance.theme
-    return () => {
-      delete document.documentElement.dataset.theme
-      delete document.documentElement.dataset.palette
-    }
-  }, [appearance.uiFont, appearance.dark, appearance.theme])
+  }, [])
   useEffect(() => {
-    if (!isTauri() || !state.ready || !root.current) return
-    const background = getComputedStyle(root.current).getPropertyValue('--surface-editor').trim()
-    void invoke('set_mobile_appearance', { dark: appearance.dark, background }).catch((e) =>
-      setError(String(e)),
-    )
-  }, [state.ready, appearance.dark, appearance.theme])
+    if (!isTauri() || !state.ready) return
+    // The Android system bars match the content surface behind the app bar.
+    const background = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-content')
+      .trim()
+    void invoke('set_mobile_appearance', { dark, background }).catch((e) => setError(String(e)))
+  }, [state.ready, dark])
   useEffect(() => {
     const viewport = window.visualViewport
     const update = () => {
@@ -401,7 +417,6 @@ export default function MobileApp() {
           : 'Settings'
         : ''
   const variables = {
-    '--ui-font': fontFamily(appearance.uiFont),
     '--title-font': fontFamily(appearance.titleFont),
     '--note-font': fontFamily(appearance.noteFont),
     '--code-font': fontFamily(appearance.codeFont),
@@ -411,6 +426,7 @@ export default function MobileApp() {
     '--paragraph-spacing': `${appearance.paragraphSpacing}px`,
     '--list-item-spacing': `${appearance.listItemSpacing}px`,
     '--editor-bottom-space': `${Math.max(112, appearance.editorBottomSpace)}px`,
+    ...headingStyleVariables(appearance.headingStyles, appearance.noteFont),
   } as CSSProperties
   const listNotes =
     route.kind === 'list'
@@ -438,19 +454,28 @@ export default function MobileApp() {
     overlay && 'id' in overlay ? notes.find((n) => n.id === overlay.id) : undefined
   const overlayBook =
     overlay?.kind === 'book-actions' ? notebooks.find((b) => b.id === overlay.id) : undefined
+  const count = (view: View) =>
+    (appearance.sidebarCounts && notes.filter((n) => matchesView(n, view)).length) || ''
   const bookRow = (book: Notebook, drawer: boolean, depth = 0): ReactNode => (
     <div key={book.id}>
       <div
         className={`mobile-book-row ${route.kind === 'list' && route.view === `book:${book.id}` ? 'selected' : ''}`}
         style={{ paddingInlineStart: depth * 16 }}
       >
-        <button className="mobile-book-label" onClick={() => navigate(`book:${book.id}`, !drawer)}>
+        <button
+          className="mobile-book-label"
+          aria-current={
+            route.kind === 'list' && route.view === `book:${book.id}` ? 'page' : undefined
+          }
+          onClick={() => navigate(`book:${book.id}`, !drawer)}
+        >
           <NotebookIconGlyph icon={book.icon} color={book.color} />
           <span>{book.name}</span>
-          <small>{notes.filter((n) => matchesView(n, `book:${book.id}`)).length || ''}</small>
+          <small className="count">{count(`book:${book.id}`)}</small>
         </button>
         {drawer && notebooks.some((b) => b.parentId === book.id) && (
           <button
+            className="icon-btn"
             aria-label={`${collapsed.has(book.id) ? 'Expand' : 'Collapse'} ${book.name}`}
             aria-expanded={!collapsed.has(book.id)}
             onClick={() =>
@@ -465,6 +490,7 @@ export default function MobileApp() {
           </button>
         )}
         <button
+          className="icon-btn"
           aria-label={`Actions for ${book.name}`}
           onClick={() => setOverlay({ kind: 'book-actions', id: book.id })}
         >
@@ -476,6 +502,22 @@ export default function MobileApp() {
         notebooks.filter((b) => b.parentId === book.id).map((b) => bookRow(b, true, depth + 1))}
     </div>
   )
+  const viewRow = (view: View, label: string, showCount = true) => {
+    const Icon = viewIcons[view]
+    const selected = route.kind === 'list' && route.view === view
+    return (
+      <button
+        key={view}
+        className={selected ? 'selected' : ''}
+        aria-current={selected ? 'page' : undefined}
+        onClick={() => navigate(view)}
+      >
+        <Icon aria-hidden="true" />
+        <span>{label}</span>
+        {showCount && <small className="count">{count(view)}</small>}
+      </button>
+    )
+  }
   const noteMutation = (n: Note, patch: Partial<Note>) =>
     void perform(async () => {
       actions.update(n.id, patch)
@@ -510,6 +552,7 @@ export default function MobileApp() {
     <div className="mobile-error" role="alert">
       <span>{error || state.error || state.syncError}</span>
       <button
+        className="btn btn-sm"
         onClick={() =>
           void perform(async () => {
             if (state.syncError && !state.error) await library.sync()
@@ -523,32 +566,32 @@ export default function MobileApp() {
   )
   if (!state.ready)
     return (
-      <main className="storage-startup" data-theme="dark">
-        <h2>{state.startupError ? 'Could not open your library' : 'Opening your library…'}</h2>
+      <main className="startup">
+        <h2>{state.startupError ? 'Couldn’t open your library' : 'Opening your library…'}</h2>
         {state.startupError && (
           <>
             <p role="alert">{state.startupError}</p>
-            <button onClick={() => void state.retryOpen()}>Retry</button>
+            <button className="btn" onClick={() => void state.retryOpen()}>
+              Retry
+            </button>
           </>
         )}
       </main>
     )
   return (
     <ShortcutContext.Provider value={appearance.shortcuts ?? {}}>
-      <div
-        className="mobile-app"
-        ref={root}
-        style={variables}
-        data-theme={appearance.dark ? 'dark' : 'light'}
-        data-palette={appearance.theme}
-      >
+      <div className="mobile-app" ref={root} style={variables}>
         <header className={`mobile-header${route.kind === 'note' ? ' mobile-note-header' : ''}`}>
           {route.kind !== 'note' && navigation.routes.length > 1 ? (
-            <button aria-label="Back" onClick={back}>
+            <button className="icon-btn" aria-label="Back" onClick={back}>
               <ArrowLeft />
             </button>
           ) : (
-            <button aria-label="Open navigation" onClick={() => setOverlay({ kind: 'drawer' })}>
+            <button
+              className="icon-btn"
+              aria-label="Open navigation"
+              onClick={() => setOverlay({ kind: 'drawer' })}
+            >
               <Menu />
             </button>
           )}
@@ -567,12 +610,18 @@ export default function MobileApp() {
             </h1>
           )}
           {route.kind === 'list' && (
-            <button aria-label="Search notes" onClick={() => setSearchOpen((v) => !v)}>
+            <button
+              className="icon-btn"
+              aria-label="Search notes"
+              aria-pressed={searchOpen || !!route.query}
+              onClick={() => setSearchOpen((v) => !v)}
+            >
               <Search />
             </button>
           )}
           {route.kind !== 'settings' && (
             <button
+              className="icon-btn"
               aria-label={route.kind === 'note' ? 'Note actions' : 'Page actions'}
               disabled={blocked}
               onClick={() =>
@@ -591,11 +640,10 @@ export default function MobileApp() {
         {route.kind === 'list' && (
           <>
             {(searchOpen || route.query) && (
-              <div className="mobile-search">
-                <Search size={18} />
+              <label className="field-shell mobile-search">
+                <Search aria-hidden="true" />
                 <input
                   autoFocus
-                  className="text-field"
                   aria-label="Search notes"
                   placeholder="Search notes…"
                   value={route.query}
@@ -607,15 +655,17 @@ export default function MobileApp() {
                   }
                 />
                 <button
+                  type="button"
+                  className="icon-btn"
                   aria-label="Close search"
                   onClick={() => {
                     dispatch({ type: 'replace', route: { ...route, query: '' } })
                     setSearchOpen(false)
                   }}
                 >
-                  <X size={20} />
+                  <X aria-hidden="true" />
                 </button>
-              </div>
+              </label>
             )}
             <div className="mobile-list" ref={scroll} key={routeKey}>
               {children.length > 0 && (
@@ -629,16 +679,17 @@ export default function MobileApp() {
                   scrollRef={scroll}
                   initialOffset={route.scroll}
                   retainedIds={[overlay?.kind === 'note-actions' ? overlay.id : undefined]}
+                  // Row heights from mobile.css; All notes adds the notebook context line.
                   estimatedSize={
                     route.view === 'all'
                       ? noteListMode === 'preview'
-                        ? 91
-                        : 67
+                        ? 78
+                        : 57
                       : noteListMode === 'preview'
-                        ? 69
-                        : 58
+                        ? 59
+                        : 56
                   }
-                  geometryKey={`${noteListMode}:${appearance.uiFont}:${route.view}`}
+                  geometryKey={`${noteListMode}:${route.view}`}
                   renderRow={(n) => {
                     const context =
                       route.view === 'all' ? noteNotebookContext(n, notebooks) : undefined
@@ -657,7 +708,7 @@ export default function MobileApp() {
                           >
                             <span className="mobile-note-copy">
                               <span className="mobile-note-title">
-                                {n.pinned && <Pin size={15} aria-hidden="true" />}
+                                {n.pinned && <Pin aria-hidden="true" />}
                                 <span>{n.title || 'Untitled note'}</span>
                               </span>
                               {preview && <span className="note-list-preview">{preview}</span>}
@@ -666,10 +717,11 @@ export default function MobileApp() {
                           </button>
                         </AppTooltip>
                         <button
+                          className="icon-btn"
                           aria-label={`Actions for ${n.title || 'Untitled note'}`}
                           onClick={() => setOverlay({ kind: 'note-actions', id: n.id })}
                         >
-                          <MoreHorizontal size={20} />
+                          <MoreHorizontal aria-hidden="true" />
                         </button>
                       </div>
                     )
@@ -678,7 +730,7 @@ export default function MobileApp() {
               </section>
               {!listNotes.length && (
                 <div className="mobile-empty">
-                  <Feather size={32} />
+                  <Feather aria-hidden="true" className="mobile-empty-icon" />
                   <h2>{route.query ? 'No matching notes' : 'A little space for a new thought'}</h2>
                   <p>
                     {route.query
@@ -696,7 +748,7 @@ export default function MobileApp() {
                 disabled={blocked}
                 onClick={() => newNote()}
               >
-                <Feather size={26} />
+                <Feather aria-hidden="true" />
               </button>
             )}
           </>
@@ -708,9 +760,12 @@ export default function MobileApp() {
               <>
                 <div className="note-scroll mobile-note-scroll" ref={scroll} key={active.id}>
                   {active.trashed && (
-                    <div className="trash-banner">
-                      This note is in Trash.
-                      <button onClick={() => noteMutation(active, { trashed: false })}>
+                    <div className="pane-banner">
+                      <span>This note is in Trash.</span>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => noteMutation(active, { trashed: false })}
+                      >
                         Restore note
                       </button>
                     </div>
@@ -761,16 +816,9 @@ export default function MobileApp() {
                   onFindOpenChange={setFindOpen}
                   disabled={blocked}
                   readOnly={!!active.trashed}
+                  contentsMode="overlay"
+                  onContentsOpenChange={setContentsOpen}
                 />
-                {contentsOpen && (
-                  <button
-                    className="mobile-close-contents"
-                    aria-label="Close table of contents"
-                    onClick={() => setContentsOpen(false)}
-                  >
-                    <X />
-                  </button>
-                )}
               </>
             ) : (
               <div className="mobile-empty">
@@ -780,42 +828,23 @@ export default function MobileApp() {
                     : 'This note is no longer available.'}
                 </p>
                 {note && state.noteErrors[note.id] && (
-                  <button onClick={() => void library.load(note.id)}>Retry</button>
+                  <button className="btn" onClick={() => void library.load(note.id)}>
+                    Retry
+                  </button>
                 )}
               </div>
             )}
           </>
         )}
         {route.kind === 'settings' && (
-          <Appearance
-            open
-            onOpenChange={() => back()}
+          <MobileSettings
             value={appearance}
             onChange={state.setAppearance}
-            syncSettings={
-              <>
-                <SyncConnection state={state} />
-                <button
-                  className="primary-button"
-                  disabled={blocked || state.preview}
-                  onClick={sync}
-                >
-                  <RefreshCw size={17} /> Sync now
-                </button>
-                {state.syncStatus?.lastSuccess && (
-                  <p>Last sync: {formatSyncTime(state.syncStatus.lastSuccess)}</p>
-                )}
-                {state.syncStatus?.warnings.map((warning) => (
-                  <p key={warning} role="status">
-                    {warning}
-                  </p>
-                ))}
-              </>
-            }
-            mobile={{
-              category: route.category,
-              onCategory: (category) => push({ kind: 'settings', category }),
-            }}
+            syncSettings={<SyncConnection state={state} />}
+            onSync={sync}
+            syncDisabled={blocked || state.preview}
+            category={route.category}
+            onCategory={(category) => push({ kind: 'settings', category })}
           />
         )}
         {overlay && (
@@ -835,8 +864,6 @@ export default function MobileApp() {
             }
             close={() => setOverlay(null)}
             drawer={overlay.kind === 'drawer'}
-            dark={appearance.dark}
-            palette={appearance.theme}
           >
             {saveFailure}
             {overlay.kind === 'drawer' ? (
@@ -845,30 +872,19 @@ export default function MobileApp() {
                   <nav aria-label="Notes navigation">
                     {Object.entries(viewNames)
                       .filter(([key]) => key !== 'trash')
-                      .map(([key, label]) => (
-                        <button
-                          key={key}
-                          className={route.kind === 'list' && route.view === key ? 'selected' : ''}
-                          onClick={() => navigate(key as View)}
-                        >
-                          <Files size={20} />
-                          <span>{label}</span>
-                          <small>
-                            {notes.filter((n) => matchesView(n, key as View)).length || ''}
-                          </small>
-                        </button>
-                      ))}
+                      .map(([key, label]) => viewRow(key as View, label))}
                   </nav>
                   <div className="mobile-section-label">
                     <span>Notebooks</span>
                     <button
+                      className="icon-btn"
                       aria-label="New notebook"
                       onClick={() => {
                         setOverlay(null)
                         setBookDialog({})
                       }}
                     >
-                      <BookPlus size={21} />
+                      <BookPlus aria-hidden="true" />
                     </button>
                   </div>
                   <nav aria-label="Notebooks">
@@ -879,26 +895,34 @@ export default function MobileApp() {
                     {[...new Set(notes.filter((n) => !n.trashed).flatMap((n) => n.tags))]
                       .sort()
                       .map((tag) => (
-                        <button key={tag} onClick={() => navigate(`tag:${tag}`)}>
-                          <span className="mobile-tag-icon">#</span>
+                        <button
+                          key={tag}
+                          className={
+                            route.kind === 'list' && route.view === `tag:${tag}` ? 'selected' : ''
+                          }
+                          aria-current={
+                            route.kind === 'list' && route.view === `tag:${tag}`
+                              ? 'page'
+                              : undefined
+                          }
+                          onClick={() => navigate(`tag:${tag}`)}
+                        >
+                          <span className="mobile-tag-icon" aria-hidden="true">
+                            #
+                          </span>
                           <span>{tag}</span>
                         </button>
                       ))}
                   </nav>
-                  <nav>
-                    <button onClick={() => navigate('trash')}>
-                      <Files size={20} />
-                      <span>Trash</span>
-                    </button>
-                  </nav>
+                  <nav aria-label="Trash">{viewRow('trash', viewNames.trash, false)}</nav>
                 </div>
                 <footer className="mobile-drawer-footer">
                   <button disabled={blocked || state.preview} onClick={sync}>
-                    <RefreshCw size={21} />
+                    <RefreshCw aria-hidden="true" />
                     <span>Sync</span>
                   </button>
                   <button onClick={() => openSettings()}>
-                    <Settings2 size={21} />
+                    <Settings2 aria-hidden="true" />
                     <span>Settings</span>
                   </button>
                   {state.syncStatus?.lastSuccess && (
@@ -920,6 +944,7 @@ export default function MobileApp() {
                         setOverlay(null)
                       }}
                     >
+                      <ArrowDownWideNarrow aria-hidden="true" />
                       Sort by {route.kind === 'list' && route.sortTitle ? 'last updated' : 'title'}
                     </button>
                     <fieldset className="mobile-list-modes" disabled={blocked || state.quitting}>
@@ -927,6 +952,7 @@ export default function MobileApp() {
                       {(Object.keys(noteListModes) as NoteListMode[]).map((mode) => (
                         <label key={mode}>
                           <input
+                            className="checkbox"
                             type="radio"
                             name="note-list-mode"
                             value={mode}
@@ -943,27 +969,40 @@ export default function MobileApp() {
                         setBookDialog(currentBook ? { parent: currentBook } : {})
                       }}
                     >
+                      {currentBook ? (
+                        <FolderPlus aria-hidden="true" />
+                      ) : (
+                        <BookPlus aria-hidden="true" />
+                      )}
                       {currentBook ? 'New sub-notebook' : 'New notebook'}
                     </button>
                     {currentBook && (
                       <button
                         onClick={() => setOverlay({ kind: 'book-actions', id: currentBook.id })}
                       >
+                        <MoreHorizontal aria-hidden="true" />
                         Notebook actions
                       </button>
                     )}
-                    <button onClick={() => openSettings()}>Settings</button>
+                    <button onClick={() => openSettings()}>
+                      <Settings2 aria-hidden="true" />
+                      Settings
+                    </button>
                   </>
                 )}
                 {overlayBook && (
                   <>
-                    <button onClick={() => newNote(overlayBook.id)}>New note</button>
+                    <button onClick={() => newNote(overlayBook.id)}>
+                      <FilePlus2 aria-hidden="true" />
+                      New note
+                    </button>
                     <button
                       onClick={() => {
                         setBookDialog({ notebook: overlayBook })
                         setOverlay(null)
                       }}
                     >
+                      <PenLine aria-hidden="true" />
                       Edit notebook
                     </button>
                     <button
@@ -972,6 +1011,7 @@ export default function MobileApp() {
                         setOverlay(null)
                       }}
                     >
+                      <FolderPlus aria-hidden="true" />
                       New sub-notebook
                     </button>
                     <button
@@ -981,6 +1021,7 @@ export default function MobileApp() {
                         setOverlay(null)
                       }}
                     >
+                      <Trash2 aria-hidden="true" />
                       Delete notebook
                     </button>
                   </>
@@ -1092,6 +1133,7 @@ export default function MobileApp() {
                     {notebooks.map((book) => (
                       <label className="mobile-membership" key={book.id}>
                         <input
+                          className="checkbox"
                           type="checkbox"
                           checked={overlayNote.notebookIds.includes(book.id)}
                           disabled={blocked}
@@ -1110,23 +1152,34 @@ export default function MobileApp() {
                         <span>{notebookPath(book, notebooks)}</span>
                       </label>
                     ))}
-                    {!notebooks.length && <p>Create a notebook from the drawer first.</p>}
+                    {!notebooks.length && (
+                      <p className="mobile-sheet-note">Create a notebook from the drawer first.</p>
+                    )}
                   </>
                 )}
                 {overlayNote && overlay.kind === 'information' && (
-                  <>
-                    <p>Updated {new Date(overlayNote.updated).toLocaleString()}</p>
-                    <p>
-                      {overlayNote.text.trim() ? overlayNote.text.trim().split(/\s+/).length : 0}{' '}
-                      words · {overlayNote.text.length} characters
-                    </p>
-                    <p>
-                      {notebooks
-                        .filter((b) => overlayNote.notebookIds.includes(b.id))
-                        .map((b) => notebookPath(b, notebooks))
-                        .join(', ') || 'Uncategorized'}
-                    </p>
-                  </>
+                  <dl className="mobile-info">
+                    <div>
+                      <dt>Updated</dt>
+                      <dd>{new Date(overlayNote.updated).toLocaleString()}</dd>
+                    </div>
+                    <div>
+                      <dt>Length</dt>
+                      <dd>
+                        {overlayNote.text.trim() ? overlayNote.text.trim().split(/\s+/).length : 0}{' '}
+                        words · {overlayNote.text.length} characters
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Notebooks</dt>
+                      <dd>
+                        {notebooks
+                          .filter((b) => overlayNote.notebookIds.includes(b.id))
+                          .map((b) => notebookPath(b, notebooks))
+                          .join(', ') || 'Uncategorized'}
+                      </dd>
+                    </div>
+                  </dl>
                 )}
               </div>
             )}
@@ -1141,9 +1194,6 @@ export default function MobileApp() {
             {...bookDialog}
             onCreated={(id) => navigate(`book:${id}`)}
             onUpdated={state.updateNotebook}
-            fontFamily={fontFamily(appearance.uiFont)}
-            dark={appearance.dark}
-            palette={appearance.theme}
             allowFolderLinking={false}
           />
         )}
@@ -1153,7 +1203,6 @@ export default function MobileApp() {
             notebook={deleteBook}
             notebooks={notebooks}
             notes={notes}
-            appearance={appearance}
             onClose={() => setDeleteBook(null)}
             onConfirm={async (options) => {
               const result = await library.deleteNotebook(
@@ -1171,7 +1220,10 @@ export default function MobileApp() {
         )}
         {state.syncing && (
           <div className="mobile-busy" role="status">
-            {state.syncProgress || 'Syncing…'}
+            <span>
+              <RefreshCw aria-hidden="true" className="ui-icon spinner" />
+              {state.syncProgress || 'Syncing…'}
+            </span>
           </div>
         )}
       </div>

@@ -59,31 +59,32 @@ afterEach(async () => {
   clearSessions()
 })
 
-it('shows the Feather opening state until a selected note loads, then preserves retry errors', async () => {
+it('shows the opening state until a selected note loads, then preserves retry errors', async () => {
   await mountUnloadedNote()
 
-  const opening = host.querySelector<HTMLElement>('.note-opening')
+  const opening = host.querySelector<HTMLElement>('.editor-empty.is-loading')
   expect(opening).toBeTruthy()
   expect(opening?.getAttribute('role')).toBe('status')
   expect(opening?.textContent).toContain('Opening note…')
-  expect(opening?.querySelector('.empty-symbol svg')).toBeTruthy()
-  expect(host.querySelector('.note-tab.active')?.textContent).toContain('Loaded title')
-  expect(host.querySelector('.note-opening-pane .note-kicker')?.textContent).toContain('1970')
+  expect(host.querySelector('.tab.is-active')?.textContent).toContain('Loaded title')
   expect(host.querySelector('.note-title')).toBeNull()
   expect(host.querySelector('.ProseMirror')).toBeNull()
 
   await act(async () => publish({ loaded: new Set([note.id]), noteErrors: {} }))
-  expect(host.querySelector('.note-opening')).toBeNull()
+  expect(host.querySelector('.editor-empty.is-loading')).toBeNull()
   expect(host.querySelector<HTMLInputElement>('.note-title')?.value).toBe('Loaded title')
+  expect(host.querySelector('.note-meta')?.textContent).toContain('1970')
   expect(host.querySelector('.ProseMirror')?.textContent).toContain('Loaded note body')
 
   await act(async () =>
     publish({ loaded: new Set(), noteErrors: { [note.id]: 'The note file is unavailable.' } }),
   )
-  expect(host.querySelector('.note-opening')).toBeNull()
-  expect(host.querySelector('.empty-editor h2')?.textContent).toBe('Could not open this note')
+  expect(host.querySelector('.editor-empty.is-loading')).toBeNull()
+  expect(host.querySelector('.editor-empty h2')?.textContent).toBe('Couldn’t open this note')
   expect(host.querySelector('[role="alert"]')?.textContent).toContain(
     'The note file is unavailable.',
   )
-  expect(host.querySelector<HTMLButtonElement>('.empty-editor button')?.textContent).toBe('Retry')
+  expect(host.querySelector<HTMLButtonElement>('.editor-empty button')?.textContent).toBe(
+    'Try again',
+  )
 })

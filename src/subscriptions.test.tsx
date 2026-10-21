@@ -69,9 +69,9 @@ it('keeps the shell quiet for save feedback, caret moves, and ordinary body edit
   const shell = vi.spyOn(readers, 'useLibraryShell')
   const sorts = vi.spyOn(ordering, 'sortNotes')
   await act(async () => publish({ status: 'saving' }))
-  expect(host.querySelector('.save-status')).toBeNull()
+  expect(host.querySelector('.note-save-status')).toBeNull()
   await act(async () => publish({ status: 'saved' }))
-  expect(host.querySelector('.save-status')).toBeNull()
+  expect(host.querySelector('.note-save-status')).toBeNull()
   await act(async () => editor.commands.setTextSelection(3))
   expect(shell).not.toHaveBeenCalled()
   expect(sorts).not.toHaveBeenCalled()
@@ -80,15 +80,17 @@ it('keeps the shell quiet for save feedback, caret moves, and ordinary body edit
   shell.mockClear()
   sorts.mockClear()
   const view = editor.view
-  const before = library.getSnapshot().notes[0].text.length
+  const words = (text: string) => text.trim().split(/\s+/).length
+  const before = words(library.getSnapshot().notes[0].text)
+  expect(host.querySelector('.note-meta')?.textContent).toContain(`${before} words`)
   await act(async () => editor.commands.insertContent(' fresh'))
   expect(shell).not.toHaveBeenCalled()
   expect(sorts).not.toHaveBeenCalled()
   expect(editor.view).toBe(view)
-  expect(host.querySelector('[data-note-id="active"] .note-list-preview')?.textContent).toContain(
+  expect(host.querySelector('[data-note-id="active"] .note-row-preview')?.textContent).toContain(
     'fresh',
   )
-  expect(host.querySelector('.editor-status')?.textContent).toContain(`${before + 6} characters`)
+  expect(host.querySelector('.note-meta')?.textContent).toContain(`${before + 1} words`)
   await act(async () => editor.commands.undo())
   expect(library.getSnapshot().notes[0].text).not.toContain('fresh')
 })
@@ -113,10 +115,11 @@ it('keeps failed-save recovery and quit actions visible without rendering the sh
   await mount()
   const shell = vi.spyOn(readers, 'useLibraryShell')
   await act(async () => publish({ error: 'Disk full', status: 'error', quitFailed: true }))
-  expect(host.querySelector('.save-error')?.textContent).toContain('Disk full')
-  expect(host.querySelector('.save-error')?.textContent).toContain('Retry and quit')
-  expect(host.querySelector('.save-error')?.textContent).toContain('Keep editing')
+  const notice = () => host.querySelector('.notices .notice[role="alert"]')?.textContent
+  expect(notice()).toContain('Disk full')
+  expect(notice()).toContain('Retry and quit')
+  expect(notice()).toContain('Keep editing')
   expect(shell).not.toHaveBeenCalled()
   await act(async () => publish({ error: '', quitFailed: false, syncError: 'Sync failed' }))
-  expect(host.querySelector('.save-error')?.textContent).toContain('Couldn’t sync')
+  expect(notice()).toContain('Couldn’t sync')
 })

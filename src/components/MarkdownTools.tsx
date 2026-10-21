@@ -81,7 +81,7 @@ export default function MarkdownTools({
       {open && (
         <div className="rich-menu" role="dialog" aria-label="Markdown writing tools">
           <button
-            className="quiet-button"
+            className="btn btn-sm"
             onClick={() => {
               setOpen(false)
               target.current = null
@@ -93,7 +93,7 @@ export default function MarkdownTools({
           <label>
             Link title
             <input
-              className="text-field"
+              className="field"
               value={linkTitle}
               disabled={!target.current?.titleEditable}
               onChange={(event) => setLinkTitle(event.target.value)}
@@ -106,7 +106,7 @@ export default function MarkdownTools({
           <label>
             Link address
             <input
-              className="text-field"
+              className="field"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="other-note.md or https://example.com"

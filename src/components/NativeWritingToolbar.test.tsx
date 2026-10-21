@@ -48,14 +48,20 @@ beforeEach(() => {
       28,
     )
   })
+  // The toolbar observes the dock for both fitting and bubble placement, so
+  // notify every live observer.
+  const observers = new Set<() => void>()
+  resize = () => observers.forEach((callback) => callback())
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      constructor(callback: () => void) {
-        resize = callback
+      constructor(private callback: () => void) {}
+      observe() {
+        observers.add(this.callback)
       }
-      observe() {}
-      disconnect() {}
+      disconnect() {
+        observers.delete(this.callback)
+      }
     },
   )
 })
@@ -269,11 +275,15 @@ it('cancels the old native menu when changing notes', async () => {
 
 it('retains section commands, disabled states, and contextual header colors', async () => {
   await mount()
-  await open('Sections')
-  expect(menus[0].actions.find((action) => action.label === 'Unwrap section')?.disabled).toBe(true)
+  // Sections sits beyond the 460px toolbar cap, so it is launched from overflow.
+  expect(trigger('Sections')).toBeNull()
+  await open('More writing tools')
+  await choose('Sections')
+  expect(menus[1].actions.find((action) => action.label === 'Unwrap section')?.disabled).toBe(true)
   await choose('Wrap selection in section')
-  await open('Sections')
-  expect(menus[1].actions.find((action) => action.label === 'Header background')?.disabled).toBe(
+  await open('More writing tools')
+  await choose('Sections')
+  expect(menus[3].actions.find((action) => action.label === 'Header background')?.disabled).toBe(
     true,
   )
   await choose('Purple')

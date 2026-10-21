@@ -161,7 +161,7 @@ export default function ContentSearchResults({
   return (
     <div
       ref={list}
-      className="global-search-results content-search-results"
+      className="content-search-results"
       id={listId}
       role="listbox"
       aria-label="Matching content"
@@ -200,7 +200,7 @@ export default function ContentSearchResults({
                     key={resultKey(row)}
                     data-search-row={row.rowIndex}
                     id={resultId(listId, row)}
-                    className="global-search-result content-search-match"
+                    className="palette-row content-search-match"
                     role="option"
                     aria-selected={row.matchIndex === selectedIndex}
                     aria-posinset={row.matchIndex + 1}

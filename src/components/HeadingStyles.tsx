@@ -41,16 +41,12 @@ export default function HeadingStyles({
   styles,
   noteFont,
   installed,
-  dark,
-  palette,
   mobile = false,
   onChange,
 }: {
   styles: HeadingStyles
   noteFont: string
   installed: string[]
-  dark: boolean
-  palette: string
   mobile?: boolean
   onChange: (styles: HeadingStyles) => void
 }) {
@@ -109,8 +105,6 @@ export default function HeadingStyles({
                     inheritedFont={noteFont}
                     presetOptions={desktopFonts}
                     installed={installed}
-                    dark={dark}
-                    palette={palette}
                     onChange={(font) => update(level, { font: font || null })}
                   />
                 )}

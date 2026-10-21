@@ -31,6 +31,7 @@ fn set_window_appearance(
     window: tauri::WebviewWindow,
     dark: bool,
     background: tauri::window::Color,
+    vibrancy: Option<bool>,
 ) -> Result<(), String> {
     window
         .set_theme(Some(if dark {
@@ -39,9 +40,51 @@ fn set_window_appearance(
             tauri::Theme::Light
         }))
         .map_err(|error| error.to_string())?;
+    // The page paints every pane except the sidebar, which shows the window material.
+    #[cfg(target_os = "macos")]
+    if vibrancy.unwrap_or(false) {
+        use tauri::window::{Effect, EffectState, EffectsBuilder};
+        window
+            .set_effects(
+                EffectsBuilder::new()
+                    .effect(Effect::Sidebar)
+                    .state(EffectState::FollowsWindowActiveState)
+                    .build(),
+            )
+            .map_err(|error| error.to_string())?;
+        return window
+            .set_background_color(Some(tauri::window::Color(0, 0, 0, 0)))
+            .map_err(|error| error.to_string());
+    } else {
+        window.set_effects(None).map_err(|error| error.to_string())?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = vibrancy;
     window
         .set_background_color(Some(background))
         .map_err(|error| error.to_string())
+}
+
+/// The macOS accent color as a hex string, so the interface can follow it.
+#[tauri::command]
+fn system_accent_color() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::{NSColor, NSColorSpace};
+        let color =
+            NSColor::controlAccentColor().colorUsingColorSpace(&NSColorSpace::sRGBColorSpace())?;
+        let channel = |value: f64| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+        Some(format!(
+            "#{:02x}{:02x}{:02x}",
+            channel(color.redComponent()),
+            channel(color.greenComponent()),
+            channel(color.blueComponent())
+        ))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
 }
 
 #[tauri::command]
@@ -131,6 +174,7 @@ pub fn run() {
             open_external_url,
             installed_fonts,
             set_window_appearance,
+            system_accent_color,
             show_startup_window,
             storage::bridge::sync_status,
             storage::bridge::configure_sync,

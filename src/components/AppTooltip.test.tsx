@@ -192,7 +192,7 @@ it('opens a group hint when its ordinary input receives keyboard focus', async (
 it('keeps popover hints inside their themed content rather than the outer positioning wrapper', async () => {
   const { host } = await mount(
     <div data-radix-popper-content-wrapper="">
-      <div data-theme="dark" data-palette="catppuccin">
+      <div data-theme="dark">
         <AppTooltip label="Settings">
           <button>Settings</button>
         </AppTooltip>

@@ -6,7 +6,7 @@ import type { HTMLAttributes, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditorState } from '@tiptap/react'
 import { replaceBodyText } from '../editor/replace'
-import { ArrowDown, ArrowUp, ChevronRight, X } from '../icons'
+import { ChevronDown, ChevronRight, ChevronUp, Search, X } from '../icons'
 import type { Note } from '../model'
 import { getEditor } from '../editor/session'
 import { retainEditorView } from '../editor/lifecycle'
@@ -339,10 +339,10 @@ export default function NoteTools({
                   })
                 }
               >
-                <ChevronRight size={13} />
+                <ChevronRight aria-hidden="true" />
               </button>
             ) : (
-              <span className="outline-bullet">·</span>
+              <span className="outline-disclosure" aria-hidden="true" />
             )}
             <AppTooltip label={heading.title}>
               <button
@@ -415,72 +415,76 @@ export default function NoteTools({
       {slot &&
         createPortal(
           <MotionPresence open={findOpen} collapse duration={motion.find}>
-            <div className="note-find-bar" role="search" aria-label="Find in current note">
-              <div className="note-find-row">
+            <div className="find-bar" role="search" aria-label="Find in current note">
+              <div className="find-row">
                 <button
-                  className="icon-button find-replace-toggle"
+                  className="icon-btn icon-btn-sm find-replace-toggle"
                   aria-label="Show replacement"
                   aria-expanded={replaceOpen}
                   disabled={disabled}
                   onClick={() => setReplaceOpen((open) => !open)}
                 >
-                  <ChevronRight size={15} />
+                  <ChevronRight aria-hidden="true" />
                 </button>
-                <input
-                  ref={input}
-                  className="text-field"
-                  value={query}
-                  disabled={disabled}
-                  aria-label="Find in current note"
-                  placeholder="Find in note…"
-                  onChange={(event) => {
-                    setQuery(event.target.value)
-                    setIndex(0)
-                    setNavigationError('')
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.nativeEvent.isComposing) return
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      revealMatch(current + (event.shiftKey ? -1 : 1))
-                    }
-                    if (event.key === 'Escape') {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      close()
-                    }
-                  }}
-                />
-                <span role="status">
-                  {total ? `${current + 1} of ${total}` : query ? 'No matches' : '0 of 0'}
+                <label className="field-shell find-field">
+                  <Search aria-hidden="true" />
+                  <input
+                    ref={input}
+                    value={query}
+                    disabled={disabled}
+                    aria-label="Find in current note"
+                    placeholder="Find in note"
+                    onChange={(event) => {
+                      setQuery(event.target.value)
+                      setIndex(0)
+                      setNavigationError('')
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        revealMatch(current + (event.shiftKey ? -1 : 1))
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        close()
+                      }
+                    }}
+                  />
+                  <span className="find-count" role="status">
+                    {total ? `${current + 1} of ${total}` : query ? 'No matches' : ''}
+                  </span>
+                </label>
+                <span className="find-nav">
+                  <button
+                    className="icon-btn icon-btn-sm"
+                    aria-label="Previous match"
+                    disabled={!total || disabled}
+                    onClick={() => revealMatch(current - 1)}
+                  >
+                    <ChevronUp aria-hidden="true" />
+                  </button>
+                  <button
+                    className="icon-btn icon-btn-sm"
+                    aria-label="Next match"
+                    disabled={!total || disabled}
+                    onClick={() => revealMatch(current + 1)}
+                  >
+                    <ChevronDown aria-hidden="true" />
+                  </button>
                 </span>
-                <button
-                  className="icon-button"
-                  aria-label="Previous match"
-                  disabled={!total || disabled}
-                  onClick={() => revealMatch(current - 1)}
-                >
-                  <ArrowUp size={15} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Next match"
-                  disabled={!total || disabled}
-                  onClick={() => revealMatch(current + 1)}
-                >
-                  <ArrowDown size={15} />
-                </button>
-                <button className="icon-button" aria-label="Close find" onClick={close}>
-                  <X size={15} />
+                <button className="btn btn-sm" aria-label="Close find" onClick={close}>
+                  Done
                 </button>
               </div>
               {replaceOpen && (
-                <div className="note-find-row note-replace-row">
+                <div className="find-row find-replace-row">
                   <input
                     ref={replacementInput}
-                    className="text-field"
+                    className="field find-field"
                     aria-label="Replace with"
-                    placeholder="Replace with…"
+                    placeholder="Replace with"
                     value={replacement}
                     disabled={writesBlocked}
                     onChange={(event) => setReplacement(event.target.value)}
@@ -498,14 +502,14 @@ export default function NoteTools({
                     }}
                   />
                   <button
-                    className="quiet-button"
+                    className="btn btn-sm"
                     disabled={writesBlocked || !activeBodyMatch || !!activeBodyMatch.atom}
                     onClick={() => replace(false)}
                   >
                     Replace
                   </button>
                   <button
-                    className="quiet-button"
+                    className="btn btn-sm"
                     disabled={writesBlocked || !bodyMatches.some((match) => !match.atom)}
                     onClick={() => replace(true)}
                   >
@@ -518,7 +522,7 @@ export default function NoteTools({
           slot,
         )}
       {findOpen && navigationError && (
-        <p className="content-search-navigation-error" role="status">
+        <p className="pane-banner find-error" role="status">
           {navigationError}
         </p>
       )}
@@ -535,23 +539,25 @@ export default function NoteTools({
           data-mode={contentsMode}
         >
           <header className="outline-header">
-            <h2>Table of contents</h2>
+            <h2>Contents</h2>
             {onContentsOpenChange && (
               <AppTooltip instant label="Close table of contents">
                 <button
-                  className="icon-button"
+                  className="icon-btn icon-btn-sm"
                   aria-label="Close table of contents"
                   onClick={closeContents}
                 >
-                  <X size={16} />
+                  <X aria-hidden="true" />
                 </button>
               </AppTooltip>
             )}
           </header>
           {headings.length ? (
-            <nav aria-label="Note headings">{tree(headings)}</nav>
+            <nav aria-label="Note headings" className="outline-tree">
+              {tree(headings)}
+            </nav>
           ) : (
-            <p>Add headings to see this note’s contents.</p>
+            <p className="outline-empty">Headings in this note appear here.</p>
           )}
         </aside>
       </MotionPresence>

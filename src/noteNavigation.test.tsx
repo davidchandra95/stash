@@ -52,15 +52,15 @@ it('opens links across filters, restores source selection and scroll, and explai
   document.body.append(host)
   const root = createRoot(host)
   const title = () => host.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value
-  const selectedSection = () => host.querySelector('.list-heading-title')?.textContent
+  const selectedSection = () => host.querySelector('.list-title .truncate')?.textContent
   const button = (label: string) =>
     host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
   async function openPalette(bodies = false) {
-    await act(async () => button('Search notes or run a command').click())
+    await act(async () => host.querySelector<HTMLButtonElement>('button.side-search')!.click())
     if (bodies)
       await act(async () => {
         document
-          .querySelector('.command-palette input')!
+          .querySelector('.palette input')!
           .dispatchEvent(
             new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
           )
@@ -68,13 +68,14 @@ it('opens links across filters, restores source selection and scroll, and explai
   }
   try {
     await act(async () => root.render(<App />))
-    const notebook = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-      (b) => b.textContent === 'Work1',
+    const notebook = [...host.querySelectorAll<HTMLButtonElement>('button.side-row-main')].find(
+      (b) => b.querySelector('.side-label')?.textContent === 'Work',
     )!
     expect(notebook).toBeTruthy()
     await act(async () => notebook.click())
     expect(selectedSection()).toBe('Work')
-    const headingIcon = host.querySelector<SVGElement>('.list-heading-icon')
+    expect(notebook.getAttribute('aria-current')).toBe('page')
+    const headingIcon = host.querySelector<SVGElement>('.list-title svg')
     expect(headingIcon?.getAttribute('aria-hidden')).toBe('true')
     expect(headingIcon?.style.color).toBe('rgb(136, 136, 136)')
     expect(title()).toBe('Source')
@@ -109,9 +110,10 @@ it('opens links across filters, restores source selection and scroll, and explai
     expect(document.querySelector('.content-search-results')?.getAttribute('aria-busy')).toBe(
       'false',
     )
-    const targetResult = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
-      (result) =>
-        result.closest('.content-search-group')?.querySelector('strong')?.textContent === 'Target',
+    const targetResult = [
+      ...document.querySelectorAll<HTMLElement>('.content-search-match[role="option"]'),
+    ].find((result) =>
+      result.closest('[role="group"]')?.getAttribute('aria-label')?.startsWith('Target,'),
     )!
     await act(async () => targetResult.click())
     expect(selectedSection()).toBe('Work')

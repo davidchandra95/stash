@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import NotebookPopover, { type PopoverAnchor } from './NotebookPopover'
 export type { PopoverAnchor } from './NotebookPopover'
 import { BookPlus, Search, X } from '../icons'
-import type { Appearance, Note, Notebook } from '../model'
+import type { Note, Notebook } from '../model'
 import { NotebookIconGlyph } from '../notebookIcons'
 
 export default function AddToNotebooksPopover({
   note,
   notes,
   notebooks,
-  appearance,
   anchor,
   launcher,
   update,
@@ -22,7 +21,6 @@ export default function AddToNotebooksPopover({
   note: Note
   notes: Note[]
   notebooks: Notebook[]
-  appearance: Appearance
   anchor: PopoverAnchor
   launcher: HTMLElement | null
   update: (patch: Partial<Note>) => void
@@ -48,32 +46,29 @@ export default function AddToNotebooksPopover({
       anchor={anchor}
       launcher={launcher}
       noteId={note.id}
-      appearance={appearance}
       close={close}
       title="Add to notebooks"
       className="add-notebooks-popover"
     >
-      <div className="add-notebooks-heading">
-        <h2 id="add-notebooks-title">Add to notebooks</h2>
+      <div className="picker-header">
+        <h2 className="popover-title" id="add-notebooks-title">
+          Add to notebooks
+        </h2>
         <AppTooltip instant label="New notebook" disabled={disabled}>
           <button
-            className="add-notebooks-create-trigger"
+            className="icon-btn icon-btn-sm"
             type="button"
             aria-label="New notebook"
             disabled={disabled}
             onClick={() => setCreating((open) => !open)}
           >
-            {creating ? (
-              <X size={14} aria-hidden="true" />
-            ) : (
-              <BookPlus size={15} aria-hidden="true" />
-            )}
+            {creating ? <X aria-hidden="true" /> : <BookPlus aria-hidden="true" />}
           </button>
         </AppTooltip>
       </div>
       {creating && (
         <form
-          className="add-notebooks-create"
+          className="picker-create"
           onSubmit={(event) => {
             event.preventDefault()
             const trimmedName = name.trim()
@@ -93,7 +88,7 @@ export default function AddToNotebooksPopover({
         >
           <input
             ref={nameInput}
-            className="text-field"
+            className="field"
             aria-label="New notebook name"
             placeholder="Notebook name"
             maxLength={80}
@@ -101,15 +96,14 @@ export default function AddToNotebooksPopover({
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          <button className="primary-button" type="submit" disabled={disabled || !name.trim()}>
+          <button className="btn btn-primary" type="submit" disabled={disabled || !name.trim()}>
             Create
           </button>
         </form>
       )}
-      <div className="add-notebooks-search text-field-shell">
-        <Search size={15} aria-hidden="true" />
+      <div className="field-shell picker-search">
+        <Search aria-hidden="true" />
         <input
-          className="text-field"
           aria-label="Search notebooks"
           placeholder="Search notebooks"
           disabled={disabled}
@@ -117,15 +111,15 @@ export default function AddToNotebooksPopover({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      <div className="add-notebooks-options">
+      <div className="picker-list">
         {visibleNotebooks.map((book) => {
           const member = note.notebookIds.includes(book.id)
           return (
             <label key={book.id} data-member={member || undefined}>
-              <span className="notebook-swatch" style={{ color: book.color }}>
-                <NotebookIconGlyph icon={book.icon} color={book.color} size={16} />
+              <span className="picker-icon" style={{ color: book.color }}>
+                <NotebookIconGlyph icon={book.icon} color={book.color} />
               </span>
-              <span className="add-notebooks-name">
+              <span className="picker-name">
                 <span>{notebookPath(book, notebooks)}</span>
                 <small>
                   {
@@ -146,7 +140,7 @@ export default function AddToNotebooksPopover({
             </label>
           )
         })}
-        {!visibleNotebooks.length && <p className="muted">No notebooks found.</p>}
+        {!visibleNotebooks.length && <p className="picker-empty">No notebooks found.</p>}
       </div>
     </NotebookPopover>
   )

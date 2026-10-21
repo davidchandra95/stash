@@ -3,7 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import NoteOrganization from './NoteOrganization'
-import { defaultAppearance } from '../storage/library'
 import type { Note, Notebook } from '../model'
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -38,7 +37,6 @@ it('keeps linked-file move rules and requires confirmation in the compact picker
           note={note}
           notes={[note]}
           notebooks={notebooks}
-          appearance={defaultAppearance}
           anchor={{ left: 0, top: 0, width: 20, height: 20 }}
           launcher={null}
           update={update}

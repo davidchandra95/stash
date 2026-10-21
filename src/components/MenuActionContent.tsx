@@ -9,8 +9,8 @@ export default function MenuActionContent({
 }) {
   return (
     <>
-      <Icon className="menu-action-icon" aria-hidden="true" />
-      <span className="menu-action-label">{label}</span>
+      <Icon className="menu-icon" aria-hidden="true" />
+      <span className="menu-text">{label}</span>
     </>
   )
 }

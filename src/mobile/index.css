@@ -1,0 +1,17 @@
+/*
+ * Android stylesheet entry. Mobile uses the v2 design system: the shared tokens, controls,
+ * floating surfaces and area styles it shares with desktop, then mobile.css for touch geometry
+ * and mobile layout. The desktop sidebar and command palette are not loaded.
+ */
+@import '../styles/tokens.css';
+@import '../styles/base.css';
+@import '../styles/controls.css';
+@import '../styles/floating.css';
+@import '../styles/shell.css';
+@import '../styles/notelist.css';
+@import '../styles/editor.css';
+@import '../styles/document.css';
+@import '../styles/writing.css';
+@import '../styles/settings.css';
+@import '../styles/dialogs.css';
+@import './mobile.css';

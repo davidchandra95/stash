@@ -1,0 +1,304 @@
+/* Menus, popovers, tooltips, dialogs and notices: everything that floats above panes. */
+
+/* ───────── Menus (Radix dropdown and context menus, DOM-built editor menus) ───────── */
+
+.menu {
+  z-index: 900;
+  min-width: 200px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: var(--radix-dropdown-menu-content-available-height, 70vh);
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  outline: none;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top);
+}
+.menu[data-state='open'] {
+  animation: float-in var(--fast) var(--ease);
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 22px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  outline: none;
+  white-space: nowrap;
+}
+.menu-item[data-highlighted],
+.menu-item[aria-selected='true'],
+.menu-item.is-highlighted {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.menu-item[data-disabled],
+.menu-item:disabled {
+  color: var(--text-4);
+}
+.menu-item[data-state='open']:not([data-highlighted]) {
+  background: var(--fill-2);
+}
+.menu-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--text-2);
+}
+.menu-item[data-highlighted] .menu-icon,
+.menu-item[aria-selected='true'] .menu-icon {
+  color: inherit;
+}
+.menu-item[data-disabled] .menu-icon {
+  color: var(--text-4);
+}
+.menu-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-detail,
+.menu-shortcut {
+  margin-left: var(--space-5);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.menu-shortcut {
+  background: none;
+  padding: 0;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+}
+.menu-item[data-highlighted] :is(.menu-detail, .menu-shortcut) {
+  color: color-mix(in srgb, var(--on-accent) 75%, transparent);
+}
+.menu-check {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  flex: none;
+}
+.menu-check .ui-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+.menu-separator {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--line-strong);
+}
+.menu-label {
+  padding: 4px 8px 2px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.menu-label.indented {
+  padding-left: 26px;
+}
+.menu-empty {
+  padding: 4px 8px;
+  color: var(--text-3);
+}
+
+/* ───────── Popovers (forms anchored to a control) ───────── */
+
+.popover {
+  z-index: 900;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  max-height: var(--radix-popover-content-available-height, 70vh);
+  overflow: auto;
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  outline: none;
+}
+.popover[data-state='open'] {
+  animation: float-in var(--fast) var(--ease);
+}
+.popover-title {
+  margin-bottom: var(--space-4);
+  font-weight: 600;
+}
+.popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.popover form,
+.popover .stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* ───────── Tooltips ───────── */
+
+.app-tooltip {
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: min(320px, var(--radix-tooltip-content-available-width, 320px));
+  padding: 3px 7px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated-solid);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font: var(--text-sm) / 15px var(--font-ui);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.app-tooltip-shortcut {
+  flex: none;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+.app-tooltip-disabled {
+  display: inline-flex;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.app-tooltip-disabled > :disabled {
+  pointer-events: none;
+}
+
+/* ───────── Dialogs ───────── */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: var(--bg-scrim);
+}
+.dialog-overlay[data-state='open'] {
+  animation: fade-in var(--normal) var(--ease);
+}
+
+.dialog {
+  position: fixed;
+  z-index: 801;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  border-radius: var(--radius-2xl);
+  background: var(--bg-content);
+  box-shadow: var(--shadow-window);
+  color: var(--text);
+  transform: translate(-50%, -50%);
+  outline: none;
+}
+.dialog[data-state='open'] {
+  animation: dialog-in var(--normal) var(--ease);
+}
+.dialog-header {
+  padding: var(--space-6) var(--space-6) 0;
+}
+.dialog-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.dialog-description {
+  margin-top: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 17px;
+}
+.dialog-body {
+  display: grid;
+  gap: var(--space-5);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-5) var(--space-6);
+}
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-6);
+}
+.dialog-footer .spacer {
+  flex: 1;
+}
+.dialog-footer .btn {
+  min-width: 72px;
+}
+
+/* ───────── Notices: transient status at the bottom of the window ───────── */
+
+.notices {
+  position: fixed;
+  z-index: 700;
+  bottom: 14px;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: min(560px, calc(100vw - 32px));
+  min-height: 30px;
+  padding: 4px 6px 4px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+  animation: float-in var(--normal) var(--ease);
+}
+.notice[role='alert'] > span:first-child {
+  color: var(--danger);
+}
+.notice .btn {
+  min-height: 20px;
+  padding: 1px 8px;
+  font-size: var(--text-sm);
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-2px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+}

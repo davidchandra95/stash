@@ -1,3 +1,4 @@
+import { normalizeAppearance } from '../appearance'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { pdfCitationHref } from '../pdf/citations'
 import { copyDrawingIds, replaceDrawingPreview, type DrawingData } from '../drawing/model'
@@ -65,21 +66,20 @@ function normalizeWorkspacePreferences(
 }
 
 export const defaultAppearance: Appearance = {
-  appStyle: 'default',
   animationsEnabled: true,
-  dark: true,
-  theme: 'classic',
-  uiFont: 'system',
-  // Match the previous title rendering until someone chooses a distinct family.
-  titleFont: 'georgia',
-  noteFont: 'georgia',
-  codeFont: 'menlo',
+  colorMode: 'system',
+  accent: 'system',
+  translucentSidebar: true,
+  sidebarCounts: true,
+  titleFont: 'system',
+  noteFont: 'system',
+  codeFont: 'sf-mono',
   headingStyles: defaultHeadingStyles(),
-  size: 17,
+  size: 15,
   width: 80,
   // Keep normal-text carets close to the font's visual height. Native carets
   // follow the line box, so the previous 1.8× default looked oversized.
-  lineSpacing: 1.5,
+  lineSpacing: 1.6,
   paragraphSpacing: 0,
   listItemSpacing: 0,
   editorBottomSpace: 112,
@@ -373,8 +373,7 @@ export class LibraryStore {
           notebooks: data.notebooks,
           roots: data.roots ?? [],
           appearance: {
-            ...defaultAppearance,
-            ...data.appearance,
+            ...normalizeAppearance(data.appearance, defaultAppearance),
             // Older libraries used the body font for titles. Keep that appearance until the
             // user picks a dedicated title font.
             titleFont:
@@ -382,7 +381,6 @@ export class LibraryStore {
               data.appearance?.noteFont ??
               defaultAppearance.titleFont,
             headingStyles: normalizeHeadingStyles(data.appearance?.headingStyles),
-            appStyle: data.appearance?.appStyle === 'cards' ? 'cards' : 'default',
             ...(data.appearance?.shortcuts
               ? { shortcuts: normalizeOverrides(data.appearance.shortcuts) }
               : {}),

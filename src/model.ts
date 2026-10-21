@@ -87,14 +87,26 @@ export type View =
   | `book:${string}`
   | `tag:${string}`
 
+export type ColorMode = 'light' | 'dark' | 'system'
+export type AccentColor =
+  | 'system'
+  | 'blue'
+  | 'purple'
+  | 'pink'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'graphite'
+
 export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
-  appStyle: 'default' | 'cards'
   animationsEnabled: boolean
-  theme:
-    'classic' | 'zen' | 'financial' | 'tiktok' | 'catppuccin' | 'lastchat' | 'qrafthive' | 'aster'
-  dark: boolean
-  uiFont: string
+  colorMode: ColorMode
+  accent: AccentColor
+  /** Desktop macOS only. Lets the desktop show through the sidebar. */
+  translucentSidebar: boolean
+  sidebarCounts: boolean
   titleFont: string
   noteFont: string
   codeFont: string

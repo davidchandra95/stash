@@ -3,8 +3,7 @@ import AppTooltip from './AppTooltip'
 import { useEffect, useRef, useState } from 'react'
 import NoteContextMenu from './NoteContextMenu'
 import { constrainTabIndex } from '../workspace'
-import type { CSSProperties, ReactNode } from 'react'
-import { FileText, Pin, PinOff, X } from '../icons'
+import { BookOpen, FileText, Pin, PinOff, X } from '../icons'
 import type { Note } from '../model'
 import { useShortcutLabel } from '../useShortcuts'
 
@@ -19,21 +18,12 @@ export default function NoteTabs({
   onKeepOpenTab,
   onReorderTab,
   onPinTab,
-  dark = false,
-  palette = 'default',
-  menuStyle = {},
-  actions,
 }: {
   notes: Pick<Note, 'id' | 'title'>[]
   documents?: { id: string; name: string }[]
   tabs: { id: string; noteId?: string; documentId?: string; preview?: boolean; pinned?: boolean }[]
   activeTabId: string | null
   disabled: boolean
-  dark?: boolean
-  palette?: string
-  menuStyle?: CSSProperties
-  /** Note controls shown at the right end of the strip, even when no tabs are open. */
-  actions?: ReactNode
   onPinTab: (id: string, pinned: boolean) => void
   onSelectTab: (id: string) => void
   onCloseTab: (id: string) => void
@@ -56,7 +46,7 @@ export default function NoteTabs({
     onCloseTab(id)
     requestAnimationFrame(() =>
       (
-        document.querySelector<HTMLElement>('.note-tabs [aria-selected="true"]') ??
+        document.querySelector<HTMLElement>('.tabs [aria-selected="true"]') ??
         document.querySelector<HTMLElement>('[aria-label="New note"]')
       )?.focus(),
     )
@@ -65,7 +55,7 @@ export default function NoteTabs({
   useEffect(() => {
     if (drag.session.current?.active) return
     tabsRef.current
-      ?.querySelector('.note-tab.active')
+      ?.querySelector('.tab.is-active')
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeTabId, JSON.stringify(tabs.map((tab) => [tab.id, tab.pinned]))])
   useEffect(() => {
@@ -104,7 +94,7 @@ export default function NoteTabs({
         : new ResizeObserver(() => {
             if (drag.session.current?.active) return
             strip
-              .querySelector('.note-tab.active')
+              .querySelector('.tab.is-active')
               ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
           })
     observer?.observe(strip)
@@ -113,12 +103,11 @@ export default function NoteTabs({
       observer?.disconnect()
     }
   }, [hasTabs])
-  if (!hasTabs && !actions) return null
   return (
-    <div className="note-tab-bar">
+    <>
       {hasTabs && (
         <div
-          className={`note-tabs ${drag.visual ? 'is-reordering' : ''}`}
+          className={`tabs ${drag.visual ? 'is-reordering' : ''}`}
           ref={tabsRef}
           role="tablist"
           aria-label="Open documents"
@@ -138,7 +127,7 @@ export default function NoteTabs({
             drag.suppressClick.current = false
           }}
           onKeyDown={(event) => {
-            if (!(event.target as HTMLElement).closest('.note-tab')) return
+            if (!(event.target as HTMLElement).closest('.tab')) return
             drag.suppressClick.current = false
             if (disabled || drag.session.current?.active) return
             if (
@@ -183,9 +172,6 @@ export default function NoteTabs({
             return (
               <NoteContextMenu
                 key={tab.id}
-                dark={dark}
-                palette={palette}
-                style={menuStyle}
                 disabled={disabled || !!drag.visual}
                 actions={[
                   {
@@ -197,7 +183,15 @@ export default function NoteTabs({
                 ]}
               >
                 <div
-                  className={`note-tab ${tab.pinned ? 'pinned' : ''} ${activeTabId === tab.id ? 'active' : ''} ${tab.preview ? 'preview' : ''} ${drag.visual?.id === tab.id ? 'is-dragged' : ''}`}
+                  className={[
+                    'tab',
+                    tab.pinned && 'is-pinned',
+                    activeTabId === tab.id && 'is-active',
+                    tab.preview && 'is-preview',
+                    drag.visual?.id === tab.id && 'is-dragged',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   data-tab-id={tab.id}
                   style={
                     drag.visual
@@ -213,6 +207,7 @@ export default function NoteTabs({
                     suppressed={!!drag.visual}
                   >
                     <button
+                      className="tab-main"
                       role="tab"
                       aria-description={`${tab.pinned ? 'Pinned. ' : ''}Drag to rearrange within this group, or press Control+Shift+Left or Right.`}
                       onPointerDown={(event) => drag.start(event, tab.id)}
@@ -229,8 +224,12 @@ export default function NoteTabs({
                         }
                       }}
                     >
-                      <FileText size={14} />
-                      <span>{title}</span>
+                      {tab.documentId ? (
+                        <BookOpen aria-hidden="true" />
+                      ) : (
+                        <FileText aria-hidden="true" />
+                      )}
+                      <span className="tab-title">{title}</span>
                     </button>
                   </AppTooltip>
                   <AppTooltip
@@ -249,7 +248,7 @@ export default function NoteTabs({
                         else close(tab.id)
                       }}
                     >
-                      {tab.pinned ? <Pin size={13} /> : <X size={13} />}
+                      {tab.pinned ? <Pin aria-hidden="true" /> : <X aria-hidden="true" />}
                     </button>
                   </AppTooltip>
                 </div>
@@ -258,15 +257,9 @@ export default function NoteTabs({
           })}
         </div>
       )}
-      {actions}
-      <span
-        className="tab-reorder-announcement"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </span>
-    </div>
+    </>
   )
 }

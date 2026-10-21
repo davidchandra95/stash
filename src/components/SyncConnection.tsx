@@ -28,15 +28,17 @@ export default function SyncConnection({ state }: { state: LibraryState }) {
           .finally(() => setSaving(false))
       }}
     >
-      <p>
+      <p className="field-help">
         Connect your private library. Notes sync only when you press Sync. Folder-linked notes and
         device settings stay on their original device.
       </p>
-      {state.preview && <p>Open the Stash app to set up sync.</p>}
-      <label htmlFor="sync-server-url">Server URL</label>
+      {state.preview && <p className="field-help">Open the Stash app to set up sync.</p>}
+      <label className="field-label" htmlFor="sync-server-url">
+        Server URL
+      </label>
       <input
         id="sync-server-url"
-        className="text-field"
+        className="text-field field"
         type="url"
         value={url}
         placeholder="https://stash.example.com"
@@ -44,10 +46,12 @@ export default function SyncConnection({ state }: { state: LibraryState }) {
         required
         disabled={disabled}
       />
-      <label htmlFor="sync-device-token">Device token</label>
+      <label className="field-label" htmlFor="sync-device-token">
+        Device token
+      </label>
       <input
         id="sync-device-token"
-        className="text-field"
+        className="text-field field"
         type="password"
         autoComplete="off"
         spellCheck={false}
@@ -57,7 +61,7 @@ export default function SyncConnection({ state }: { state: LibraryState }) {
         disabled={disabled}
         aria-describedby="sync-token-help"
       />
-      <p id="sync-token-help">
+      <p className="field-help" id="sync-token-help">
         {platform.mobile ? (
           'The device token is encrypted with Android Keystore. Enter a new token to update the connection.'
         ) : (
@@ -68,10 +72,22 @@ export default function SyncConnection({ state }: { state: LibraryState }) {
           </>
         )}
       </p>
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p className="field-help" role="status">
+          {message}
+        </p>
+      )}
       <div className="sync-connection-actions">
-        <button className="primary-button" type="submit" disabled={disabled || !token.trim()}>
+        <button
+          className="primary-button btn btn-primary"
+          type="submit"
+          disabled={disabled || !token.trim()}
+        >
           {saving ? 'Connecting…' : 'Save connection'}
         </button>
       </div>

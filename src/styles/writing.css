@@ -1,0 +1,569 @@
+/* Writing tools: formatting bubble, pickers, slash/link/tag menus, date picker. */
+
+/* ───────── Formatting toolbar ───────── */
+
+/* The dock covers the document so the toolbar can float anywhere inside it. */
+.writing-dock {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  pointer-events: auto;
+}
+.desktop-writing-toolbar {
+  position: absolute;
+  top: var(--bubble-y, auto);
+  left: var(--bubble-x, 50%);
+  flex-wrap: nowrap;
+  transform: translateX(-50%);
+}
+.desktop-writing-toolbar[data-placement='docked'] {
+  top: auto;
+  bottom: 16px;
+  left: 50%;
+}
+.desktop-writing-toolbar[data-collapsed] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.desktop-writing-toolbar[data-placement='above'][data-collapsed] {
+  translate: 0 4px;
+}
+.desktop-writing-toolbar[data-placement='below'][data-collapsed] {
+  translate: 0 -4px;
+}
+[data-motion='on'] .desktop-writing-toolbar:not(.writing-toolbar-measure) {
+  transition:
+    opacity var(--fast) var(--ease),
+    translate var(--fast) var(--ease),
+    visibility var(--fast);
+}
+.writing-toolbar-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: none;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  transform: none;
+}
+.toolbar select {
+  height: 24px;
+  max-width: 96px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.toolbar select:hover:not(:disabled) {
+  background: var(--fill-1);
+}
+.toolbar i {
+  display: none;
+}
+.tool {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+.tool svg {
+  width: 15px;
+  height: 15px;
+}
+.tool:hover:not(:disabled) {
+  background: var(--fill-1);
+}
+.tool.active,
+.tool[aria-pressed='true'],
+.tool[data-state='open'] {
+  background: var(--fill-2);
+}
+.tool:disabled {
+  color: var(--text-4);
+}
+.writing-color-icon {
+  position: relative;
+  display: inline-flex;
+}
+.writing-color-icon::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: -2px;
+  left: 1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--writing-ink, currentColor);
+}
+
+/* Table and code-block controls shown while the caret is inside one. */
+.context-tools {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+.context-tools > span {
+  padding: 0 6px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.context-tools button:not(.tool) {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+}
+.context-tools button:hover:not(:disabled) {
+  background: var(--fill-1);
+}
+.context-tools select {
+  height: 22px;
+  font-size: var(--text-sm);
+}
+.desktop-writing-toolbar:not([data-collapsed]) ~ .context-tools,
+.writing-dock:has(.desktop-writing-toolbar[data-placement='docked']) .context-tools {
+  bottom: 56px;
+}
+
+/* ───────── Writing pickers (link, table, color, …) ───────── */
+
+.writing-picker {
+  width: 260px;
+  padding: var(--space-3);
+}
+.writing-overflow {
+  min-width: 220px;
+}
+.writing-picker-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 var(--space-3) var(--space-3);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.writing-picker-controls {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.writing-picker section {
+  display: grid;
+  gap: 1px;
+}
+.writing-picker section button,
+.writing-picker-controls > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 24px;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-xs);
+  text-align: left;
+}
+.writing-picker section button:hover:not(:disabled),
+.writing-picker-controls > button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.writing-picker section button[aria-pressed='true'] {
+  font-weight: 600;
+}
+.writing-picker button:disabled {
+  color: var(--text-4);
+}
+.writing-picker svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.writing-menu-check {
+  margin-left: auto;
+}
+.writing-color-dot {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+.writing-menu-separator {
+  height: 1px;
+  margin: 4px var(--space-3);
+  background: var(--line-strong);
+}
+.writing-picker form {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-2);
+}
+.writing-picker label {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.writing-picker input:not([type='checkbox']):not([type='color']):not([type='file']) {
+  width: 100%;
+  min-height: var(--control);
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  color: var(--text);
+  outline: none;
+}
+.writing-picker input:focus {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.writing-form-actions,
+.writing-table-size {
+  display: flex;
+  gap: var(--space-3);
+}
+.writing-table-size label {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+}
+.writing-form-actions button,
+.writing-picker form > button[type='submit'] {
+  min-height: var(--control);
+  padding: 2px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+}
+.writing-form-actions button[type='submit'],
+.writing-picker form > button[type='submit'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.writing-field-hint {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.writing-picker h3 {
+  padding: var(--space-3) var(--space-3) 2px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* ───────── Slash, note-link and tag menus (built by the editor) ───────── */
+
+.slash-menu {
+  position: fixed;
+  z-index: 900;
+  width: 228px;
+  max-height: min(400px, calc(100vh - 24px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font: var(--text-md) / var(--leading) var(--font-ui);
+}
+.slash-menu[hidden] {
+  display: none;
+}
+.slash-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 24px;
+  padding: 2px var(--space-4) 2px var(--space-3);
+  border-radius: var(--radius-xs);
+  text-align: left;
+  white-space: nowrap;
+}
+.slash-menu button[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.slash-menu button:not(.slash-option):hover {
+  background: var(--fill-1);
+}
+.slash-menu
+  button[aria-selected='true']
+  :is(.slash-icon, .slash-path, .note-link-detail, .note-link-separator) {
+  color: inherit;
+  opacity: 0.85;
+}
+.slash-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-2);
+}
+.slash-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slash-path {
+  color: var(--text-3);
+}
+.slash-chevron {
+  width: 12px;
+  margin-left: auto;
+  flex-basis: 12px;
+}
+.slash-menu .slash-back {
+  margin-bottom: 3px;
+  color: var(--text-2);
+}
+:root[data-theme='dark'] .slash-color-icon {
+  filter: brightness(1.6);
+}
+.slash-menu.slash-menu-dates,
+.slash-menu.body-tag-menu {
+  width: max-content;
+  min-width: 228px;
+  max-width: min(400px, calc(100vw - 16px));
+}
+.slash-menu.body-tag-menu button {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-link-menu {
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  max-height: min(320px, calc(100vh - 16px));
+}
+.note-link-option {
+  gap: 0;
+  min-width: 0;
+}
+.note-link-title,
+.note-link-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-link-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.note-link-separator {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--text-3);
+}
+.note-link-detail {
+  flex: 0 1 auto;
+  max-width: 45%;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+.note-link-empty {
+  padding: 6px 8px;
+  color: var(--text-3);
+}
+
+/* ───────── Date picker ───────── */
+
+.date-picker {
+  width: 252px;
+  max-width: calc(100vw - 16px);
+  max-height: var(--radix-popover-content-available-height, calc(100vh - 16px));
+  padding: 6px;
+  overscroll-behavior: contain;
+}
+.date-picker[data-step='formats'] {
+  width: max-content;
+}
+.date-picker button {
+  min-height: 24px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+.date-picker button:hover {
+  background: var(--fill-1);
+}
+.date-picker button:focus-visible {
+  outline-offset: -2px;
+}
+.date-picker[data-step='formats'] button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+.date-picker-header button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-2);
+}
+.date-picker svg {
+  width: 14px;
+  height: 14px;
+}
+.date-calendar-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  text-align: center;
+}
+.date-calendar [role='columnheader'] {
+  padding: 2px 0;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.date-calendar button {
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.date-calendar [aria-current='date'] button {
+  color: var(--accent);
+  font-weight: 600;
+}
+.date-calendar [aria-selected='true'] button,
+.date-calendar [aria-selected='true'] button:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.date-today,
+.date-back,
+.date-format {
+  width: 100%;
+  text-align: left;
+}
+.date-today,
+.date-back {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
+}
+.date-formats {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Linked Markdown notes keep a simpler, always-visible toolbar. */
+.writing-dock > .toolbar:not(.desktop-writing-toolbar) {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  flex-wrap: wrap;
+  justify-content: center;
+  transform: translateX(-50%);
+}
+.rich-menu {
+  position: absolute;
+  right: 16px;
+  bottom: 56px;
+  display: grid;
+  gap: var(--space-3);
+  width: 300px;
+  max-height: min(520px, 70vh);
+  overflow: auto;
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  pointer-events: auto;
+}
+.rich-menu label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.rich-menu > button:not(.btn) {
+  justify-self: start;
+  min-height: var(--control);
+  padding: 2px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+}
+.rich-menu > .btn:first-child {
+  justify-self: end;
+}
+.rich-menu [role='alert'] {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}

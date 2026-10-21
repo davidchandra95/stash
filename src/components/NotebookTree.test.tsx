@@ -47,10 +47,11 @@ async function mount(active = 'book:work', disabled = false) {
       <NotebookTree
         books={books}
         active={active}
-        dark={false}
-        palette="classic"
         renderBook={(book) => (
-          <button className={`nav-item ${active === `book:${book.id}` ? 'selected' : ''}`}>
+          <button
+            className="side-row-main"
+            aria-current={active === `book:${book.id}` ? 'page' : undefined}
+          >
             <span>{book.name}</span>
           </button>
         )}
@@ -69,7 +70,7 @@ async function mount(active = 'book:work', disabled = false) {
 }
 
 function row(name: string) {
-  return [...host!.querySelectorAll<HTMLElement>('.notebook-tree-row')].find((element) =>
+  return [...host!.querySelectorAll<HTMLElement>('.side-row.has-actions')].find((element) =>
     element.textContent?.includes(name),
   )!
 }
@@ -118,25 +119,29 @@ it('puts selected background ownership on the full row around the action button'
   await mount()
   const selected = row('Work')
 
-  expect(selected.classList.contains('selected')).toBe(true)
+  expect(selected.classList.contains('is-selected')).toBe(true)
   expect(selected.querySelector('button[aria-label="Actions for Work"]')).not.toBeNull()
 })
 
 it('places the new-note shortcut before the menu and targets its notebook', async () => {
   const { createNote } = await mount('book:child')
   const target = row('Learning')
-  const shortcut = target.querySelector<HTMLButtonElement>('.notebook-new-note')!
+  const shortcut = target.querySelector<HTMLButtonElement>(
+    'button[aria-label="New note in Learning"]',
+  )!
   const options = target.querySelector<HTMLButtonElement>('.notebook-options')!
 
-  expect(shortcut.getAttribute('aria-label')).toBe('New note in Learning')
-  expect(shortcut.nextElementSibling).toBe(options)
+  expect(shortcut).not.toBeNull()
+  expect(shortcut.compareDocumentPosition(options) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   await act(async () => shortcut.click())
   expect(createNote).toHaveBeenCalledExactlyOnceWith(books[1])
 })
 
 it('disables the new-note shortcut when notebook actions are blocked', async () => {
   const { createNote } = await mount('book:work', true)
-  const shortcut = row('Work').querySelector<HTMLButtonElement>('.notebook-new-note')!
+  const shortcut = row('Work').querySelector<HTMLButtonElement>(
+    'button[aria-label="New note in Work"]',
+  )!
 
   expect(shortcut.disabled).toBe(true)
   await act(async () => shortcut.click())
@@ -156,7 +161,7 @@ it('marks the notebook row while its menu is open and clears it on close', async
 
   await openFromOptions(selected)
   expect(selected.classList.contains('menu-open')).toBe(true)
-  expect(selected.classList.contains('selected')).toBe(true)
+  expect(selected.classList.contains('is-selected')).toBe(true)
   await closeMenu()
   expect(selected.classList.contains('menu-open')).toBe(false)
 })
@@ -166,7 +171,7 @@ it('prevents the native menu and opens the linked notebook actions on right-clic
   const event = await rightClick(row('Learning'))
 
   expect(event.defaultPrevented).toBe(true)
-  expect(document.querySelector('.workspace-action-menu')).toBeTruthy()
+  expect(document.querySelector('.menu[role="menu"]')).toBeTruthy()
   expect(menuItems()).toEqual([
     'New note',
     'Edit',
@@ -177,10 +182,10 @@ it('prevents the native menu and opens the linked notebook actions on right-clic
     'Delete notebook',
   ])
   expect(
-    [...document.querySelectorAll<HTMLElement>('.workspace-action-menu [role="menuitem"]')].every(
+    [...document.querySelectorAll<HTMLElement>('.menu [role="menuitem"]')].every(
       (item) =>
-        !!item.querySelector('svg.menu-action-icon[aria-hidden="true"]') &&
-        !!item.querySelector('.menu-action-label'),
+        !!item.querySelector('svg.menu-icon[aria-hidden="true"]') &&
+        !!item.querySelector('.menu-text'),
     ),
   ).toBe(true)
   const deleteItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(

@@ -138,10 +138,6 @@ export const Slash = Extension.create({
       else menu.hidden = false
       if (!options.length) return
       selected = Math.min(selected, options.length - 1)
-      menu.dataset.theme =
-        editor.view.dom.closest('[data-theme]')?.getAttribute('data-theme') ?? 'light'
-      menu.dataset.palette =
-        editor.view.dom.closest('[data-palette]')?.getAttribute('data-palette') ?? 'classic'
       menu.classList.toggle(
         'slash-menu-dates',
         category === 'today' || options.some((entry) => entry.command?.startsWith('today-')),

@@ -14,7 +14,7 @@ import { ShortcutContext } from '../useShortcuts'
 import { bindingFor } from '../shortcuts'
 import { showNativeContextMenu, usesNativeContextMenu } from '../nativeContextMenu'
 import * as Context from '@radix-ui/react-context-menu'
-import type { CSSProperties, ReactElement } from 'react'
+import type { ReactElement } from 'react'
 import type { IconComponent } from '../icons'
 import MenuActionContent from './MenuActionContent'
 // Tooltip.Trigger and Context.Trigger both use data-state. Let the context
@@ -36,9 +36,6 @@ export type NoteAction = {
 export default function NoteContextMenu({
   children,
   actions,
-  dark,
-  palette,
-  style,
   disabled,
   tooltipLabel,
   onTrackingChange,
@@ -46,9 +43,6 @@ export default function NoteContextMenu({
 }: {
   children: ReactElement
   actions: NoteAction[]
-  dark: boolean
-  palette: string
-  style: CSSProperties
   disabled: boolean
   tooltipLabel?: string
   onTrackingChange?: (open: boolean) => void
@@ -126,23 +120,23 @@ export default function NoteContextMenu({
               }
               trackingCallback.current?.(false)
             }}
-            className="workspace-action-menu note-actions-menu"
-            style={style}
-            data-theme={dark ? 'dark' : 'light'}
-            data-palette={palette}
+            className="menu"
             collisionPadding={8}
           >
             {actions.map((action) => (
-              <div key={action.label}>
-                {action.separator && <Context.Separator />}
+              <div key={action.label} role="none">
+                {action.separator && <Context.Separator className="menu-separator" />}
                 <Context.Item
+                  className="menu-item"
                   aria-label={action.label}
                   disabled={disabled || action.disabled}
                   onSelect={(event) => action.run(event.currentTarget as HTMLElement)}
                 >
                   <MenuActionContent icon={action.icon} label={action.label} />
                   {action.shortcutId && shortcutLabel(action.shortcutId) !== 'Unassigned' && (
-                    <kbd aria-hidden="true">{shortcutLabel(action.shortcutId)}</kbd>
+                    <span className="menu-shortcut" aria-hidden="true">
+                      {shortcutLabel(action.shortcutId)}
+                    </span>
                   )}
                 </Context.Item>
               </div>

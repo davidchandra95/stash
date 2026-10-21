@@ -264,7 +264,7 @@ it('restores an offscreen virtual list and its focusable note after Android Back
   }))
   await act(async () => library.setNotes(notes))
   const pane = document.querySelector<HTMLElement>('.mobile-list')!
-  const offset = 500 * 67
+  const offset = 500 * 57
   await act(async () => {
     pane.scrollTop = offset
     pane.dispatchEvent(new Event('scroll'))
@@ -277,4 +277,30 @@ it('restores an offscreen virtual list and its focusable note after Android Back
   expect(restored.scrollTop).toBe(offset)
   expect(restored.querySelectorAll('.mobile-note-row').length).toBeLessThan(50)
   expect(document.querySelector('[aria-label="Large 00500"]')).toBeTruthy()
+})
+
+it('takes color mode from the document root and mirrors the desktop sidebar in the drawer', async () => {
+  const appearance = library.getSnapshot().appearance
+  expect(document.documentElement.dataset.palette).toBeUndefined()
+  expect(document.documentElement.dataset.theme).toMatch(/^(light|dark)$/)
+  expect(document.querySelector('.mobile-app')!.hasAttribute('data-theme')).toBe(false)
+  await click('Open navigation')
+  const drawer = document.querySelector<HTMLElement>('.mobile-drawer')!
+  expect(drawer.hasAttribute('data-theme')).toBe(false)
+  expect(drawer.querySelector('[aria-current="page"]')?.textContent).toBe('All notes2')
+  expect(drawer.querySelector('nav[aria-label="Trash"]')?.textContent).toBe('Trash')
+  await act(async () => library.setAppearance({ ...appearance, sidebarCounts: false }))
+  expect(drawer.querySelector('[aria-current="page"]')?.textContent).toBe('All notes')
+  expect(drawer.querySelector('.mobile-book-label .count')?.textContent).toBe('')
+  await act(async () => library.setAppearance(appearance))
+})
+
+it('closes the table of contents from its own header', async () => {
+  await click('Direct note')
+  await click('Note actions')
+  await click('Table of contents')
+  expect(document.querySelector('.note-outline')?.getAttribute('data-mode')).toBe('overlay')
+  await click('Close table of contents')
+  await androidBack()
+  expect(document.querySelector('.mobile-list')).toBeTruthy()
 })

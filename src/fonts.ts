@@ -4,6 +4,7 @@ export const fonts: Record<string, string> = {
   avenir: '"Avenir Next", sans-serif',
   georgia: 'Georgia, serif',
   palatino: 'Palatino, serif',
+  'sf-mono': 'ui-monospace, "SF Mono", Menlo, monospace',
   menlo: 'Menlo, monospace',
   monaco: 'Monaco, monospace',
   courier: '"Courier New", monospace',

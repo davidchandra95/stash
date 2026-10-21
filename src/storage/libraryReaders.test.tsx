@@ -50,10 +50,13 @@ it('refreshes mounted Today readers at midnight and after the window resumes', a
 
 it('keeps a compact row quiet when only milliseconds change inside the displayed minute', async () => {
   const original = library.getSnapshot()
+  // Rows show the time of day only for notes edited today (Finder-style list dates).
+  const noon = new Date()
+  noon.setHours(12, 0, 0, 0)
   const note = {
     id: 'row',
     title: 'Row',
-    updated: new Date(2026, 9, 9, 12, 0, 0).getTime(),
+    updated: noon.getTime(),
     text: 'Body',
     notebookIds: [],
     tags: [],

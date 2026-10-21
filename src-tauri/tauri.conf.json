@@ -17,17 +17,28 @@
         "dragDropEnabled": false,
         "title": "Stash",
         "titleBarStyle": "Overlay",
-        "trafficLightPosition": { "x": 15, "y": 24 },
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 20
+        },
         "hiddenTitle": true,
         "width": 1320,
         "height": 880,
         "minWidth": 900,
-        "minHeight": 620
+        "minHeight": 620,
+        "transparent": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost"
-    }
+    },
+    "macOSPrivateApi": true
   },
-  "bundle": { "active": false, "icon": ["icons/icon.png", "icons/icon.icns"] }
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns"
+    ]
+  }
 }

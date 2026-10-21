@@ -1,17 +1,14 @@
 import { useState } from 'react'
-import { LoaderCircle } from '../icons'
 import * as Dialog from '@radix-ui/react-dialog'
-import type { Appearance, Notebook } from '../model'
+import type { Notebook } from '../model'
 
 export default function NotebookConvertDialog({
   notebook,
-  appearance,
   progress,
   onConfirm,
   onClose,
 }: {
   notebook: Notebook
-  appearance: Appearance
   progress: string
   onConfirm: () => Promise<void>
   onClose: () => void
@@ -26,12 +23,10 @@ export default function NotebookConvertDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay notebook-convert-overlay" data-busy={busy} />
+        <Dialog.Overlay className="dialog-overlay" data-busy={busy} />
         <Dialog.Content
-          className="settings-dialog notebook-convert-dialog"
+          className="dialog"
           data-busy={busy}
-          data-theme={appearance.dark ? 'dark' : 'light'}
-          data-palette={appearance.theme}
           onCloseAutoFocus={(event) => {
             const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-options')].find(
               (element) => element.dataset.notebookId === notebook.id,
@@ -48,50 +43,42 @@ export default function NotebookConvertDialog({
             if (busy) event.preventDefault()
           }}
         >
-          {busy && (
-            <LoaderCircle className="notebook-convert-spinner" size={28} aria-hidden="true" />
-          )}
-          <Dialog.Title>
-            {busy ? 'Converting notebook…' : 'Convert to Stash notebook?'}
-          </Dialog.Title>
-          <Dialog.Description className="muted">
+          <div className="dialog-header">
+            <Dialog.Title className="dialog-title">
+              {busy ? 'Converting notebook…' : `Convert “${notebook.name}” to a Stash notebook?`}
+            </Dialog.Title>
+            <Dialog.Description className="dialog-description">
+              {busy
+                ? `“${notebook.name}” is being saved in Stash.`
+                : 'The notebook and its sub-notebooks become regular Stash notebooks. The original folder stays untouched, and Stash stops editing its files.'}
+            </Dialog.Description>
+          </div>
+          <div className="dialog-body">
             {busy ? (
-              `“${notebook.name}” is being saved in Stash.`
+              <p className="convert-progress" role="status" aria-live="polite" aria-atomic="true">
+                <span className="spinner" aria-hidden="true" />
+                {progress || 'Preparing conversion…'}
+              </p>
             ) : (
-              <>
-                “{notebook.name}” and all its sub-notebooks will become native Stash notebooks.
-                Images will be embedded. PDFs and other file attachments will remain external links.
-                The original folder and files will stay untouched, and Stash will stop syncing edits
-                with them.
-              </>
+              <ul className="field-help convert-notes">
+                <li>Images are embedded in the notes.</li>
+                <li>PDFs and other attachments stay as links to the original files.</li>
+                <li>Markdown that can’t become rich text is kept in editable code blocks.</li>
+              </ul>
             )}
-          </Dialog.Description>
-          {busy ? (
-            <p
-              className="notebook-convert-progress"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {progress || 'Preparing conversion…'}
-            </p>
-          ) : (
-            <p>
-              Markdown that cannot be converted to rich text will be kept in editable code blocks.
-            </p>
-          )}
-          {error && (
-            <p role="alert" className="folder-error">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p role="alert" className="field-error">
+                {error}
+              </p>
+            )}
+          </div>
           {!busy && (
-            <div className="dialog-buttons">
-              <button className="quiet-button" disabled={busy} onClick={onClose}>
+            <div className="dialog-footer">
+              <button className="btn" disabled={busy} onClick={onClose}>
                 Cancel
               </button>
               <button
-                className="primary-button"
+                className="btn btn-primary"
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true)
@@ -106,7 +93,7 @@ export default function NotebookConvertDialog({
                   }
                 }}
               >
-                {busy ? 'Converting…' : 'Convert notebook'}
+                Convert
               </button>
             </div>
           )}

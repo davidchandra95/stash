@@ -66,12 +66,31 @@ afterEach(async () => {
 })
 const button = (label: string) =>
   document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+const menuItem = (label: string) =>
+  [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (element) => element.querySelector('.menu-text')?.textContent === label,
+  )!
+async function openMenu(label: string) {
+  await act(async () =>
+    button(label).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })),
+  )
+}
+async function hideNotesList() {
+  await openMenu('Sort and view options')
+  await act(async () => menuItem('Hide notes list').click())
+}
+const noteList = () => host.querySelector<HTMLElement>('#note-list')!
+const notesListHidden = () => noteList().hasAttribute('inert')
+const appWindow = () => host.querySelector('.window')!
 async function openPalette(bodies = false) {
-  await act(async () => button('Search notes or run a command').click())
+  const search = [...host.querySelectorAll<HTMLButtonElement>('.sidebar button')].find(
+    (element) => element.querySelector('.side-label')?.textContent === 'Search',
+  )!
+  await act(async () => search.click())
   if (bodies)
     await act(async () => {
       document
-        .querySelector('.command-palette input')!
+        .querySelector('.palette input')!
         .dispatchEvent(
           new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
         )
@@ -81,13 +100,13 @@ const row = (title: string) =>
   [...host.querySelectorAll<HTMLButtonElement>('.note-row')].find(
     (el) => el.querySelector('.note-row-title')?.textContent === title,
   )!
-const title = () => host.querySelector<HTMLInputElement>('.note-title')?.value
-const selectedSection = () => host.querySelector('.list-heading-title')?.textContent
+const title = () => host.querySelector<HTMLInputElement>('input[aria-label="Note title"]')?.value
+const selectedSection = () => host.querySelector('.list-title .truncate')?.textContent
 const navItem = (label: string) =>
-  [...host.querySelectorAll<HTMLButtonElement>('.nav-item')].find(
-    (element) => element.querySelector('span')?.textContent === label,
+  [...host.querySelectorAll<HTMLButtonElement>('.sidebar button')].find(
+    (element) => element.querySelector(':scope > .side-label')?.textContent === label,
   )!
-const headingCount = () => host.querySelector('.list-heading .notebook-count')?.textContent
+const headingCount = () => host.querySelector('.list-title .count')?.textContent
 async function type(label: string, value: string) {
   const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!
   await act(async () => {
@@ -109,7 +128,7 @@ async function openSearchResult(method: string, noteTitle: string, ctrlKey = fal
     await openPalette(true)
     await type('Search note bodies', 'heading')
     await waitForBodySearch()
-    const result = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
+    const result = [...document.querySelectorAll<HTMLElement>('.content-search-match')].find(
       (element) =>
         element.closest('.content-search-group')?.querySelector('strong')?.textContent ===
         noteTitle,
@@ -124,7 +143,7 @@ async function openSearchResult(method: string, noteTitle: string, ctrlKey = fal
     if (method === 'title click')
       await act(async () =>
         document
-          .querySelector<HTMLElement>('.palette-result')!
+          .querySelector<HTMLElement>('[aria-label="Matching note titles"] [role="option"]')!
           .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
       )
     else
@@ -159,7 +178,7 @@ it.each(['title click', 'title Enter', 'body click'])(
     expect(library.getSnapshot().workspace?.activeTabId).toBe(previewId)
     expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
     await openSearchResult(method, 'Gamma', true)
-    expect(host.querySelector('.note-tab.preview')).toBeNull()
+    expect(host.querySelector('.tab.is-preview')).toBeNull()
     await openSearchResult(method, 'Beta')
     expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3)
     expect(library.getSnapshot().workspace?.tabs.map((tab) => tab.noteId)).toEqual([
@@ -168,7 +187,7 @@ it.each(['title click', 'title Enter', 'body click'])(
       'beta',
     ])
     await openSearchResult(method, 'Beta', true)
-    expect(host.querySelector('.note-tab.preview')).toBeNull()
+    expect(host.querySelector('.tab.is-preview')).toBeNull()
     await openSearchResult(method, 'Gamma', true)
     expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3)
   },
@@ -281,20 +300,17 @@ it('waits for library loading before restoring or saving the sidebar view', asyn
 it('keeps note actions at the end of the tab strip and preserves toggle shortcuts and states', async () => {
   await mount()
   const strip = host.querySelector('[role="tablist"]')!
-  const bar = host.querySelector('.note-tab-bar')!
-  expect(strip.parentElement).toBe(bar)
-  expect(host.querySelector('.writing-pane')?.firstElementChild).toBe(bar)
-  expect(strip.closest('.title-bar')).toBeNull()
-  expect(host.querySelector('.editor-header')).toBeNull()
-  expect(host.querySelector('.breadcrumb')).toBeNull()
+  const editorPane = host.querySelector('main')!
+  const bar = editorPane.firstElementChild!
+  expect(bar.contains(strip)).toBe(true)
+  expect(host.querySelector('.companion-bar')).toBeNull()
+  const controls = bar.lastElementChild!
+  expect(controls.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   expect(
-    [...bar.querySelectorAll(':scope > .header-actions button')].map((element) =>
-      element.getAttribute('aria-label'),
-    ),
-  ).toEqual(['Focus mode', 'Pin note', 'Table of contents', 'Find in note', 'Note actions'])
+    [...controls.querySelectorAll('button')].map((element) => element.getAttribute('aria-label')),
+  ).toEqual(['Focus mode', 'Table of contents', 'Find in note', 'Note actions'])
   for (const label of ['Table of contents', 'Find in note', 'Note actions']) {
-    expect(button(label).closest('.note-tab-bar')).not.toBeNull()
-    expect(button(label).closest('.title-bar')).toBeNull()
+    expect(controls.contains(button(label))).toBe(true)
     expect(button(label).disabled).toBe(false)
   }
   await hoverTooltip(button('Table of contents'))
@@ -324,9 +340,9 @@ it('keeps note actions at the end of the tab strip and preserves toggle shortcut
   const findSlot = host.querySelector('#note-find-slot')!
   const workspace = host.querySelector('.editor-workspace')!
   expect(findSlot.nextElementSibling).toBe(workspace)
-  expect(findSlot.querySelector('.note-find-bar')).not.toBeNull()
+  expect(findSlot.querySelector('[role="search"]')).not.toBeNull()
   await act(async () => button('Show replacement').click())
-  expect(findSlot.querySelector('.note-replace-row')).not.toBeNull()
+  expect(findSlot.querySelector('input[aria-label="Replace with"]')).not.toBeNull()
   expect(findSlot.nextElementSibling).toBe(workspace)
   await act(async () => button('Close find').click())
   expect(button('Find in note').getAttribute('aria-pressed')).toBe('false')
@@ -346,7 +362,7 @@ it('opens note actions from the tab strip by keyboard and returns focus on Escap
       new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
     ),
   )
-  const menu = document.querySelector<HTMLElement>('.note-actions-menu')!
+  const menu = document.querySelector<HTMLElement>('[role="menu"]')!
   expect(menu).not.toBeNull()
   expect(launcher.getAttribute('aria-expanded')).toBe('true')
   await act(async () => {
@@ -371,11 +387,16 @@ it.each(['empty', 'loading', 'quitting', 'syncing', 'converting'] as const)(
           : { [state]: true },
     )
     for (const label of ['Table of contents', 'Find in note', 'Note actions']) {
-      expect(button(label).closest('.note-tab-bar')).not.toBeNull()
+      expect(button(label).closest('main')).not.toBeNull()
       expect(button(label).disabled).toBe(true)
     }
     expect(button('New note').disabled).toBe(['quitting', 'syncing', 'converting'].includes(state))
-    if (state === 'loading') expect(host.querySelector('.note-opening')).not.toBeNull()
+    if (state === 'loading')
+      expect(
+        [...host.querySelectorAll('main [role="status"]')].some(
+          (element) => element.textContent === 'Opening note…',
+        ),
+      ).toBe(true)
   },
 )
 it('shows the filtered note count beside the desktop heading and hides zero', async () => {
@@ -396,11 +417,35 @@ it('shows the filtered note count beside the desktop heading and hides zero', as
 })
 it('collapses sidebar sections independently and keeps their actions available', async () => {
   await mount(
-    [{ ...notes[0], pinned: true, quickAccess: true, tags: ['design'] }],
+    [
+      {
+        ...notes[0],
+        pinned: true,
+        quickAccess: true,
+        tags: ['design'],
+        text: '#design',
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: '#design',
+                  marks: [{ type: 'bodyTag', attrs: { tag: 'design' } }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
     [{ id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' }],
   )
+  // The Tags section only renders while some note has a tag.
   const toggle = (name: string) =>
-    [...host.querySelectorAll<HTMLButtonElement>('.section-toggle')].find(
+    [...host.querySelectorAll<HTMLButtonElement>('.sidebar button[aria-controls]')].find(
       (element) => element.textContent === name,
     )!
   const content = (name: string) =>
@@ -434,22 +479,22 @@ it('toggles Notes independently and preserves its mounted search, scroll and pre
   await mount()
   const preferredWidths = library.getSnapshot().workspace?.paneWidths
   await type('Filter this view', 'Alpha')
-  const list = host.querySelector<HTMLElement>('.note-list')!
+  const list = noteList()
   const rows = host.querySelector<HTMLElement>('.note-rows')!
   rows.scrollTop = 87
-  await act(() => button('Hide notes list').click())
-  expect(host.querySelector('.note-list')).toBe(list)
+  await hideNotesList()
+  expect(noteList()).toBe(list)
   expect(list.hasAttribute('inert')).toBe(true)
-  expect(list.getAttribute('aria-hidden')).toBe('true')
-  expect(button('Show notes list').getAttribute('aria-expanded')).toBe('false')
-  expect(host.querySelector('.pane-resizer--noteList')).toBeNull()
-  expect(host.querySelector('.pane-resizer--sidebar')).not.toBeNull()
+  expect(host.querySelector('[role="separator"][aria-controls="note-list"]')).toBeNull()
+  expect(host.querySelector('[role="separator"][aria-controls="notebook-sidebar"]')).not.toBeNull()
   await act(() => button('Hide sidebar').click())
-  expect(host.querySelector('.app')?.classList.contains('no-note-list')).toBe(true)
-  expect(host.querySelector('.app')?.classList.contains('no-sidebar')).toBe(true)
+  expect(appWindow().classList.contains('no-note-list')).toBe(true)
+  expect(appWindow().classList.contains('no-sidebar')).toBe(true)
+  expect(button('Show notes list').getAttribute('aria-expanded')).toBe('false')
+  expect(button('Show notes list').getAttribute('aria-controls')).toBe('note-list')
   await act(() => button('Show notes list').click())
   expect(list.hasAttribute('inert')).toBe(false)
-  expect(host.querySelector('.app')?.classList.contains('no-sidebar')).toBe(true)
+  expect(appWindow().classList.contains('no-sidebar')).toBe(true)
   expect(host.querySelector('.note-rows')).toBe(rows)
   expect(rows.scrollTop).toBe(87)
   expect(host.querySelector<HTMLInputElement>('[aria-label="Filter this view"]')?.value).toBe(
@@ -457,7 +502,15 @@ it('toggles Notes independently and preserves its mounted search, scroll and pre
   )
   expect(library.getSnapshot().workspace?.paneWidths).toEqual(preferredWidths)
   await act(() => button('Show sidebar').click())
-  expect(button('Hide notes list').getAttribute('aria-expanded')).toBe('true')
+  expect(appWindow().classList.contains('no-note-list')).toBe(false)
+  expect(button('Show notes list')).toBeNull()
+})
+// The Sort menu's modal aria-hiding cleanup (Radix hideOthers) runs inside the list it hides.
+it('marks Notes aria-hidden after hiding it from the Sort and view options menu', async () => {
+  await mount()
+  await hideNotesList()
+  expect(noteList().hasAttribute('inert')).toBe(true)
+  expect(noteList().getAttribute('aria-hidden')).toBe('true')
 })
 
 it('reopens Notes for every sidebar note view, including repeated and empty notebook selections', async () => {
@@ -491,7 +544,7 @@ it('reopens Notes for every sidebar note view, including repeated and empty note
       { id: 'empty', name: 'Empty', color: '', icon: 'notebook' },
     ],
   )
-  const design = [...host.querySelectorAll<HTMLButtonElement>('.tag-list button')].find(
+  const design = [...host.querySelectorAll<HTMLButtonElement>('.sidebar button')].find(
     (element) => element.textContent === '#design',
   )!
   for (const target of [
@@ -508,23 +561,16 @@ it('reopens Notes for every sidebar note view, including repeated and empty note
     ].map(navItem),
     design,
   ]) {
-    await act(() => button('Hide notes list').click())
+    await hideNotesList()
+    expect(notesListHidden()).toBe(true)
     await act(() => target.click())
-    expect(button('Hide notes list').getAttribute('aria-expanded')).toBe('true')
-    expect(host.querySelector('.note-list')?.hasAttribute('inert')).toBe(false)
+    expect(notesListHidden()).toBe(false)
+    expect(appWindow().classList.contains('no-note-list')).toBe(false)
   }
-  await act(() => button('Hide notes list').click())
-  await act(() =>
-    button('Account menu').dispatchEvent(
-      new PointerEvent('pointerdown', { bubbles: true, button: 0 }),
-    ),
-  )
-  await act(() =>
-    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-      .find((element) => element.textContent?.startsWith('Trash'))!
-      .click(),
-  )
-  expect(button('Hide notes list')).not.toBeNull()
+  await hideNotesList()
+  await act(() => button('Trash').click())
+  expect(notesListHidden()).toBe(false)
+  expect(button('Trash').getAttribute('aria-pressed')).toBe('true')
   expect(selectedSection()).toBe('Trash')
 })
 
@@ -533,30 +579,33 @@ it('keeps Notes hidden for disclosure controls and notebook row actions', async 
     { id: 'work', name: 'Work', color: '', icon: 'notebook' },
     { id: 'child', parentId: 'work', name: 'Child', color: '', icon: 'notebook' },
   ])
-  await act(() => button('Hide notes list').click())
-  await act(() => host.querySelector<HTMLButtonElement>('.notebook-disclosure')!.click())
-  expect(button('Show notes list')).not.toBeNull()
-  await act(() => host.querySelector<HTMLButtonElement>('.notebook-row-action')!.click())
-  expect(button('Show notes list')).not.toBeNull()
-  for (const section of host.querySelectorAll<HTMLButtonElement>('.section-toggle')) {
+  await hideNotesList()
+  await act(() => button('Collapse Work').click())
+  expect(notesListHidden()).toBe(true)
+  await act(() => button('New note in Work').click())
+  expect(notesListHidden()).toBe(true)
+  for (const section of host.querySelectorAll<HTMLButtonElement>(
+    '.sidebar section button[aria-controls]',
+  )) {
     await act(() => section.click())
-    expect(button('Show notes list')).not.toBeNull()
+    expect(notesListHidden()).toBe(true)
   }
 })
 
 it('restores chosen pane visibility after focus mode and reveals Notes explicitly from focus mode', async () => {
   await mount()
   await act(() => button('Hide sidebar').click())
-  await act(() => button('Hide notes list').click())
+  await hideNotesList()
   await act(() => button('Focus mode').click())
   await act(() => button('Exit focus mode').click())
   expect(button('Show sidebar')).not.toBeNull()
   expect(button('Show notes list')).not.toBeNull()
   await act(() => button('Focus mode').click())
   await act(() => button('Show notes list').click())
-  expect(host.querySelector('.app')?.classList.contains('focus-mode')).toBe(false)
+  expect(appWindow().classList.contains('focus-mode')).toBe(false)
   expect(button('Show sidebar')).not.toBeNull()
-  expect(button('Hide notes list')).not.toBeNull()
+  expect(button('Show notes list')).toBeNull()
+  expect(notesListHidden()).toBe(false)
 })
 
 it('does not reopen Notes when switching tabs or navigating history and resets visibility on remount', async () => {
@@ -565,51 +614,60 @@ it('does not reopen Notes when switching tabs or navigating history and resets v
     row('Beta').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })),
   )
   await act(() => row('Gamma').click())
-  await act(() => button('Hide notes list').click())
+  await hideNotesList()
+  expect(notesListHidden()).toBe(true)
   await act(() => button('Back to previous note').click())
-  expect(button('Show notes list')).not.toBeNull()
+  expect(notesListHidden()).toBe(true)
   await act(() => button('Forward to next note').click())
-  expect(button('Show notes list')).not.toBeNull()
+  expect(notesListHidden()).toBe(true)
   await act(() => host.querySelector<HTMLButtonElement>('[role="tab"]')!.click())
-  expect(button('Show notes list')).not.toBeNull()
+  expect(notesListHidden()).toBe(true)
   await act(() => root.unmount())
   host.remove()
   await mount()
-  expect(button('Hide notes list')).not.toBeNull()
+  expect(notesListHidden()).toBe(false)
+  expect(button('Show notes list')).toBeNull()
   expect(button('Hide sidebar')).not.toBeNull()
 })
-it('formats local update date and 24-hour time in desktop note rows', async () => {
-  const today = new Date()
-  const updatedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 21, 18)
+it('formats relative update dates in desktop note rows', async () => {
+  const now = new Date()
+  const at = (daysAgo: number) =>
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, 21, 18)
   const scopedNotes = [
-    { ...notes[0], notebookIds: ['work'], updated: updatedToday.getTime() },
+    { ...notes[0], notebookIds: ['work'], updated: at(0).getTime() },
+    { ...notes[1], notebookIds: ['work', 'personal'], updated: at(1).getTime() },
+    { ...notes[2], notebookIds: [], updated: at(3).getTime() },
     {
-      ...notes[1],
-      notebookIds: ['work', 'personal'],
-      updated: new Date(2026, 8, 9, 21, 18).getTime(),
+      ...notes[2],
+      id: 'delta',
+      title: 'Delta',
+      notebookIds: [],
+      updated: new Date(2024, 8, 9, 0, 5).getTime(),
     },
-    { ...notes[2], notebookIds: [], updated: new Date(2026, 8, 12, 0, 5).getTime() },
   ]
   await mount(scopedNotes, [
     { id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' },
     { id: 'personal', name: 'Personal', color: '#999999', icon: 'notebook' },
   ])
+  const date = (title: string) => row(title).querySelector('.note-row-date')?.textContent
 
-  const todayDate = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-  }).format(updatedToday)
-  expect(row('Alpha').querySelector('.note-row-date')?.textContent).toBe(`${todayDate}, 21:18`)
-  expect(row('Beta').querySelector('.note-row-date')?.textContent).toBe('Sep 9, 21:18')
-  expect(row('Gamma').querySelector('.note-row-date')?.textContent).toBe('Sep 12, 00:05')
+  expect(date('Alpha')).toBe(
+    new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(at(0)),
+  )
+  expect(date('Beta')).toBe('Yesterday')
+  expect(date('Gamma')).toBe(new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(at(3)))
+  expect(date('Delta')).toBe(
+    new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(
+      new Date(2024, 8, 9),
+    ),
+  )
 })
 it('keeps edited tabs, editor state, and filters while previewing and closing notes', async () => {
   await mount()
   expect(
-    document.querySelector('[aria-label="Filter this view"]')?.classList.contains('text-field'),
-  ).toBe(true)
-  expect(document.querySelector('.search-box')?.classList.contains('text-field-shell')).toBe(true)
-  expect(host.querySelector('.note-title')?.classList.contains('text-field')).toBe(false)
+    document.querySelector('[aria-label="Filter this view"]')?.closest('.field-shell'),
+  ).not.toBeNull()
+  expect(host.querySelector('[aria-label="Note title"]')?.closest('.field-shell')).toBeNull()
   const editor = getEditor('alpha', notes[0].content)
   await act(async () => {
     editor.commands.insertContent('Edited ')
@@ -618,7 +676,7 @@ it('keeps edited tabs, editor state, and filters while previewing and closing no
   const selection = editor.state.selection.toJSON()
   await act(async () => row('Beta').click())
   expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
-  expect(host.querySelector('.note-tab.preview')?.textContent).toContain('Beta')
+  expect(host.querySelector('.tab.is-preview')?.textContent).toContain('Beta')
   await act(async () => (host.querySelector('[role="tab"]') as HTMLButtonElement).click())
   expect(title()).toBe('Alpha')
   expect(host.querySelector('.note-scroll')?.scrollTop).toBe(123)
@@ -647,46 +705,48 @@ it('keeps edited tabs, editor state, and filters while previewing and closing no
 it('replaces one preview, keeps metadata changes replaceable, and promotes double-clicked rows', async () => {
   await mount()
   await act(async () => row('Beta').click())
-  expect(host.querySelectorAll('.note-tab')).toHaveLength(2)
-  expect(host.querySelector('.note-tab.preview')?.textContent).toContain('Beta')
+  expect(host.querySelectorAll('.tab')).toHaveLength(2)
+  expect(host.querySelector('.tab.is-preview')?.textContent).toContain('Beta')
   expect(library.getSnapshot().workspace?.tabs[1].preview).toBe(true)
-  await act(async () => button('Pin note').click())
-  expect(host.querySelector('.note-tab.preview')?.textContent).toContain('Beta')
+  await openMenu('Note actions')
+  await act(async () => menuItem('Pin to top').click())
+  expect(library.getSnapshot().notes.find((note) => note.id === 'beta')?.pinned).toBe(true)
+  expect(host.querySelector('.tab.is-preview')?.textContent).toContain('Beta')
   await act(async () => row('Gamma').click())
-  expect(host.querySelectorAll('.note-tab')).toHaveLength(2)
-  expect(host.querySelector('.note-tab.preview')?.textContent).toContain('Gamma')
+  expect(host.querySelectorAll('.tab')).toHaveLength(2)
+  expect(host.querySelector('.tab.is-preview')?.textContent).toContain('Gamma')
   await act(async () => row('Gamma').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
-  expect(host.querySelector('.note-tab.preview')).toBeNull()
+  expect(host.querySelector('.tab.is-preview')).toBeNull()
   await act(async () => row('Beta').click())
-  expect(host.querySelectorAll('.note-tab')).toHaveLength(3)
-  expect(host.querySelector('.note-tab.preview')?.textContent).toContain('Beta')
+  expect(host.querySelectorAll('.tab')).toHaveLength(3)
+  expect(host.querySelector('.tab.is-preview')?.textContent).toContain('Beta')
 })
 it('promotes previews from the tab, keyboard, title, and body edits', async () => {
   await mount()
   await act(async () => row('Beta').click())
-  const betaTab = host.querySelector('.note-tab.preview [role="tab"]') as HTMLButtonElement
+  const betaTab = host.querySelector('.tab.is-preview [role="tab"]') as HTMLButtonElement
   await act(async () => betaTab.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
-  expect(host.querySelector('.note-tab.preview')).toBeNull()
+  expect(host.querySelector('.tab.is-preview')).toBeNull()
   await act(async () => row('Gamma').click())
-  const gammaTab = host.querySelector('.note-tab.preview [role="tab"]') as HTMLButtonElement
+  const gammaTab = host.querySelector('.tab.is-preview [role="tab"]') as HTMLButtonElement
   await act(async () =>
     gammaTab.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
     ),
   )
-  expect(host.querySelector('.note-tab.preview')).toBeNull()
+  expect(host.querySelector('.tab.is-preview')).toBeNull()
   await act(async () => row('Alpha').click())
-  expect(host.querySelectorAll('.note-tab')).toHaveLength(3)
+  expect(host.querySelectorAll('.tab')).toHaveLength(3)
   await act(async () => button('Close Beta').click())
   await act(async () => row('Beta').click())
-  expect(host.querySelector('.note-tab.preview')).toBeTruthy()
+  expect(host.querySelector('.tab.is-preview')).toBeTruthy()
   await type('Note title', 'Beta edited')
-  expect(host.querySelector('.note-tab.preview')).toBeNull()
+  expect(host.querySelector('.tab.is-preview')).toBeNull()
   await act(async () => button('Close Gamma').click())
   await act(async () => row('Gamma').click())
-  expect(host.querySelector('.note-tab.preview')).toBeTruthy()
+  expect(host.querySelector('.tab.is-preview')).toBeTruthy()
   await act(async () => getEditor('gamma', notes[2].content).commands.insertContent('Edited '))
-  expect(host.querySelector('.note-tab.preview')).toBeNull()
+  expect(host.querySelector('.tab.is-preview')).toBeNull()
 })
 it('keeps the current section when activating a note tab opened from another section', async () => {
   const scopedNotes = [
@@ -729,21 +789,19 @@ it('finds title and body, wraps matches, updates outlines, and keeps find open a
   )
   await type('Find in current note', 'heading')
   expect(
-    host
-      .querySelector('input[aria-label="Find in current note"]')
-      ?.classList.contains('text-field'),
-  ).toBe(true)
-  expect(host.querySelector('.note-find-bar [role="status"]')?.textContent).toBe('1 of 2')
+    host.querySelector('input[aria-label="Find in current note"]')?.closest('.field-shell'),
+  ).not.toBeNull()
+  expect(host.querySelector('.find-bar [role="status"]')?.textContent).toBe('1 of 2')
   expect(host.querySelectorAll('.note-find-match')).toHaveLength(2)
   await act(async () => button('Previous match').click())
-  expect(host.querySelector('.note-find-bar [role="status"]')?.textContent).toBe('2 of 2')
+  expect(host.querySelector('.find-bar [role="status"]')?.textContent).toBe('2 of 2')
   await type('Find in current note', 'alpha')
   expect(host.querySelector('.note-title-highlights mark')?.textContent).toBe('Alpha')
   await act(async () => row('Beta').click())
   expect(
     document.querySelector<HTMLInputElement>('input[aria-label="Find in current note"]')?.value,
   ).toBe('alpha')
-  expect(host.querySelector('.note-find-bar [role="status"]')?.textContent).toBe('No matches')
+  expect(host.querySelector('.find-bar [role="status"]')?.textContent).toBe('No matches')
   await act(async () => button('Close find').click())
   expect(host.querySelectorAll('.note-find-match')).toHaveLength(0)
   const editor = getEditor('beta', notes[1].content)
@@ -753,12 +811,11 @@ it('finds title and body, wraps matches, updates outlines, and keeps find open a
 it('creates new tabs from the labeled notes-panel button and handles keyboard switching/closing', async () => {
   await mount()
   const launcher = button('New note')
-  expect(launcher.closest('.list-heading')).not.toBeNull()
-  expect(launcher.textContent).toBe('New note')
+  expect(launcher.closest('#note-list')).not.toBeNull()
+  expect(document.querySelectorAll('button[aria-label="New note"]')).toHaveLength(1)
   await hoverTooltip(launcher, 'mouse', 700)
   expect(tooltipLabel()).toBe('New note')
   expect(tooltipShortcut()).toBe('Ctrl+N')
-  expect(host.querySelector('.title-bar [aria-label="New note"]')).toBeNull()
   const count = library.getSnapshot().notes.length
   await act(async () => launcher.click())
   expect(library.getSnapshot().notes).toHaveLength(count + 1)
@@ -804,7 +861,7 @@ it('creates in the selected notebook while preserving the list search', async ()
   expect(created.notebookIds).toEqual(['work'])
   expect(created.title).toBe('')
   expect(selectedSection()).toBe('Work')
-  expect(button('New note').closest('.list-heading')).not.toBeNull()
+  expect(button('New note').closest('#note-list')).not.toBeNull()
   expect(document.querySelector<HTMLInputElement>('[aria-label="Filter this view"]')?.value).toBe(
     'Alpha',
   )
@@ -910,17 +967,19 @@ it('keeps the editor, selection, undo history and scroll through animated layout
   const selection = editor.state.selection.toJSON()
   const scroll = host.querySelector('.note-scroll')!
   scroll.scrollTop = 123
-  for (const label of [
-    'Hide sidebar',
-    'Show sidebar',
-    'Hide notes list',
-    'Show notes list',
-    'Focus mode',
-    'Exit focus mode',
-    'Table of contents',
-    'Table of contents',
+  const click = (label: string) => () => act(() => button(label).click())
+  for (const step of [
+    click('Hide sidebar'),
+    click('Show sidebar'),
+    hideNotesList,
+    // With the sidebar visible, Notes reopens from a sidebar view.
+    () => act(() => navItem('All notes').click()),
+    click('Focus mode'),
+    click('Exit focus mode'),
+    click('Table of contents'),
+    click('Table of contents'),
   ]) {
-    await act(() => button(label).click())
+    await step()
     expect(getEditor('alpha', notes[0].content)).toBe(editor)
     expect(editor.getJSON()).toEqual(content)
     expect(editor.state.selection.toJSON()).toEqual(selection)
@@ -1003,7 +1062,7 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
   expect(
     host.querySelector<HTMLInputElement>('input[aria-label="Find in current note"]')?.value,
   ).toBe('fix')
-  expect(host.querySelector('.note-find-bar [role="status"]')?.textContent).toBe('3 of 4')
+  expect(host.querySelector('.find-bar [role="status"]')?.textContent).toBe('3 of 4')
   expect(host.querySelectorAll('.note-find-match')).toHaveLength(3)
   const editor = getEditor(target.id, target.content)
   const { findKey } = await import('./editor/noteTools')
@@ -1018,16 +1077,25 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
   await act(async () => host.querySelector<HTMLButtonElement>('[role="tab"]')!.click())
   expect(library.getSnapshot().workspace?.recentNoteIds?.[0]).toBe('alpha')
 })
-it('pins the formatting toolbar from the note status bar and saves the choice', async () => {
+it('pins the formatting toolbar from Settings › Editor and saves the choice', async () => {
   library.setAppearance({ ...library.getSnapshot().appearance, showFormattingToolbar: false })
   await mount()
-  const toggle = button('Always show formatting toolbar')
-  expect(toggle.closest('.editor-status')).not.toBeNull()
-  expect(toggle.getAttribute('aria-pressed')).toBe('false')
-  await act(async () => toggle.click())
+  await act(async () => button('Settings').click())
+  const editorCategory = [
+    ...document.querySelectorAll<HTMLButtonElement>('.settings-category'),
+  ].find((element) => element.textContent === 'Editor')!
+  await act(async () => editorCategory.click())
+  const toggle = () =>
+    document.querySelector<HTMLButtonElement>(
+      'button[role="switch"][aria-label="Always show formatting toolbar"]',
+    )!
+  expect(toggle().getAttribute('aria-checked')).toBe('false')
+  await act(async () => toggle().click())
   expect(library.getSnapshot().appearance.showFormattingToolbar).toBe(true)
-  expect(button('Always show formatting toolbar').getAttribute('aria-pressed')).toBe('true')
-  expect(host.querySelector('.desktop-writing-toolbar')?.hasAttribute('data-collapsed')).toBe(false)
-  await act(async () => button('Always show formatting toolbar').click())
+  expect(toggle().getAttribute('aria-checked')).toBe('true')
+  const toolbar = host.querySelector('.desktop-writing-toolbar')
+  expect(toolbar?.hasAttribute('data-collapsed')).toBe(false)
+  expect(toolbar?.getAttribute('data-placement')).toBe('docked')
+  await act(async () => toggle().click())
   expect(library.getSnapshot().appearance.showFormattingToolbar).toBe(false)
 })

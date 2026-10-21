@@ -179,7 +179,7 @@ export function useNoteDrag<T extends DragNote>({
           s.ghost.append(s.hint)
         }
         // Keep the ghost under the themed app, outside scrolling/animated rows.
-        ;(rows.current?.closest('.app') ?? rows.current)?.append(s.ghost)
+        ;(rows.current?.closest('.window, .app') ?? rows.current)?.append(s.ghost)
         setDraggedId(s.id)
         setPreview(s.preview)
       }

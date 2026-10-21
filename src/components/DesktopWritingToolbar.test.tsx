@@ -39,14 +39,20 @@ beforeEach(() => {
       28,
     )
   })
+  // The toolbar observes the dock for both fitting and bubble placement, so
+  // notify every live observer.
+  const observers = new Set<() => void>()
+  resize = () => observers.forEach((callback) => callback())
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      constructor(callback: () => void) {
-        resize = callback
+      constructor(private callback: () => void) {}
+      observe() {
+        observers.add(this.callback)
       }
-      observe() {}
-      disconnect() {}
+      disconnect() {
+        observers.delete(this.callback)
+      }
     },
   )
 })
@@ -150,12 +156,21 @@ it('moves icons into overflow and brings them back in stable order after resizin
   const initial = [...toolbar().querySelectorAll('[data-tool]')].map((node) =>
     node.getAttribute('data-tool'),
   )
+  // Even in a wide pane the floating toolbar is capped at 460px, so the
+  // lowest-priority tools always live in the overflow menu.
+  const widths = Object.fromEntries(toolbarTools.map((tool) => [tool.id, 28]))
+  Object.assign(widths, { style: 76, overflow: 28 })
+  const capped = fitToolbar(460, widths, 0, 0, false)
+  expect(initial).toEqual([
+    'style',
+    ...toolbarTools.filter((tool) => !capped.has(tool.id)).map((tool) => tool.id),
+  ])
   await act(async () => {
     dockWidth = 310
     resize()
   })
   expect(button('More writing tools', toolbar())).toBeDefined()
-  expect(toolbar().querySelector('[data-tool="superscript"]')).toBeNull()
+  expect(toolbar().querySelector('[data-tool="highlight"]')).toBeNull()
   expect(toolbar().lastElementChild?.getAttribute('aria-label')).toBe('More writing tools')
   await act(async () => {
     dockWidth = 1000
@@ -164,7 +179,7 @@ it('moves icons into overflow and brings them back in stable order after resizin
   expect(
     [...toolbar().querySelectorAll('[data-tool]')].map((node) => node.getAttribute('data-tool')),
   ).toEqual(initial)
-  expect(toolbar().querySelector('[aria-label="More writing tools"]')).toBeNull()
+  expect(toolbar().lastElementChild?.getAttribute('aria-label')).toBe('More writing tools')
 })
 
 it('keeps custom list controls enabled and checking availability never changes the document', async () => {
@@ -294,10 +309,11 @@ it('closes menus and blocks saved portal actions when the note becomes read-only
 
 it('shows all table actions and cell backgrounds in the focused table picker', async () => {
   await mount()
-  await click('Table', toolbar())
+  // Table is beyond the 460px toolbar cap, so it is reached from overflow.
+  await chooseOverflow('Table')
   await click('Insert table')
   expect(editor.isActive('table')).toBe(true)
-  await click('Table', toolbar())
+  await chooseOverflow('Table')
   expect(document.querySelectorAll('[aria-label="Table actions"] button')).toHaveLength(12)
   await click('Cell background Green')
   expect(editor.getAttributes('tableHeader').backgroundColor).toBe('#64ae7040')
@@ -312,7 +328,7 @@ it('keeps contextual quote background available even when all toolbar icons fit'
 
 it('inserts images at the captured selection and ignores a file read after deactivation', async () => {
   await mount()
-  await click('Insert image', toolbar())
+  await chooseOverflow('Insert image')
   let finish!: (src: string) => void
   vi.mocked(readImage).mockImplementationOnce(
     () =>
@@ -333,7 +349,7 @@ it('inserts images at the captured selection and ignores a file read after deact
 
 it('inserts selected image files and exposes width and removal actions', async () => {
   await mount()
-  await click('Insert image', toolbar())
+  await chooseOverflow('Insert image')
   const field = document.querySelector<HTMLInputElement>('#desktop-writing-image')!
   Object.defineProperty(field, 'files', {
     value: [new File(['image'], 'test.png', { type: 'image/png' })],
@@ -342,14 +358,14 @@ it('inserts selected image files and exposes width and removal actions', async (
   await settle()
   expect(editor.getJSON().content![0].content![0].type).toBe('image')
   await act(async () => editor.commands.setNodeSelection(1))
-  await click('Insert image', toolbar())
+  await chooseOverflow('Insert image')
   await click('600px')
   expect(editor.getJSON().content![0].content![0]).toMatchObject({
     type: 'image',
     attrs: { width: 600 },
   })
   await act(async () => editor.commands.setNodeSelection(1))
-  await click('Insert image', toolbar())
+  await chooseOverflow('Insert image')
   await click('Remove image')
   expect(editor.getHTML()).not.toContain('<img')
 })
@@ -362,10 +378,10 @@ it('uses highlight colors and keeps the section actions and contextual backgroun
   await click('Highlight', toolbar())
   await click('Remove highlight')
   expect(editor.isActive('highlight')).toBe(false)
-  await click('Sections', toolbar())
+  await chooseOverflow('Sections')
   await click('Wrap selection in section')
   expect(editor.isActive('collapsibleHeader')).toBe(true)
-  await click('Sections', toolbar())
+  await chooseOverflow('Sections')
   expect(document.querySelector('[aria-label="Header background"]')).not.toBeNull()
   await click('Header background Purple')
   expect(editor.getAttributes('collapsibleHeader').backgroundColor).toBe('#a885cc40')
@@ -375,10 +391,10 @@ it('uses highlight colors and keeps the section actions and contextual backgroun
   })
   expect(bodyPosition).toBeGreaterThan(0)
   await act(async () => editor.commands.setTextSelection(bodyPosition))
-  await click('Sections', toolbar())
+  await chooseOverflow('Sections')
   await click('Body background Green')
   expect(editor.getAttributes('collapsibleBody').backgroundColor).toBe('#64ae7040')
-  await click('Sections', toolbar())
+  await chooseOverflow('Sections')
   await click('Unwrap section')
   expect(editor.isActive('collapsible')).toBe(false)
 })
@@ -398,25 +414,15 @@ it('closes the previous note picker when the editor instance changes', async () 
   editor = next
 })
 
-it('carries the current palette and UI font into portaled menus and displays writing errors', async () => {
+it('displays writing errors in the portaled picker', async () => {
   await mount()
-  await act(async () =>
-    root.render(
-      <DesktopWritingToolbar
-        editor={editor}
-        readOnly={false}
-        appearance={{ ...defaultAppearance, dark: true, theme: 'zen', uiFont: 'system' }}
-      />,
-    ),
-  )
   await act(async () =>
     editor.view.dom.dispatchEvent(
       new CustomEvent('writing-error', { detail: 'Image could not be read.' }),
     ),
   )
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
-  expect(dialog.dataset.theme).toBe('dark')
-  expect(dialog.dataset.palette).toBe('zen')
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Writing error"]')!
+  expect(dialog.classList.contains('popover')).toBe(true)
   expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Image could not be read.')
 })
 
@@ -473,6 +479,13 @@ it('disables title editing across blocks while still allowing an address', async
 it('stays collapsed until text is selected, a picker opens, or the toolbar is pinned', async () => {
   await mount()
   const collapsed = () => toolbar().hasAttribute('data-collapsed')
+  // A selection reveals the toolbar only while the editor has focus.
+  expect(collapsed()).toBe(true)
+  await act(async () => {
+    editor.view.focus()
+    editor.commands.setTextSelection({ from: 1, to: 6 })
+  })
+  expect(editor.isFocused).toBe(true)
   expect(collapsed()).toBe(false)
   await act(async () => {
     editor.commands.setTextSelection(3)

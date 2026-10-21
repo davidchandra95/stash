@@ -15,13 +15,27 @@ import AppTooltip from '../components/AppTooltip'
 import { MotionPresence, motion } from '../motion'
 import { notePreview } from '../noteListPresentation'
 
-const noteListDateTime = new Intl.DateTimeFormat('en-US', {
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+const dayFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
+const fullDayFormat = new Intl.DateTimeFormat(undefined, {
   month: 'short',
   day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
+  year: 'numeric',
 })
+
+/** Finder-style relative dates: time today, then Yesterday, weekday, and date. */
+export function noteListDate(timestamp: number, now = Date.now()) {
+  const date = new Date(timestamp)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  const days = Math.floor((today.getTime() - new Date(date).setHours(0, 0, 0, 0)) / 86_400_000)
+  if (days <= 0) return timeFormat.format(date)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return weekdayFormat.format(date)
+  if (date.getFullYear() === today.getFullYear()) return dayFormat.format(date)
+  return fullDayFormat.format(date)
+}
 
 function shellState(state: LibraryState) {
   const {
@@ -109,7 +123,7 @@ export function LiveNoteRow({
     return {
       title: note?.title ?? '',
       preview: preview && note ? notePreview(note.text) : undefined,
-      date: note ? noteListDateTime.format(note.updated) : '',
+      date: note ? noteListDate(note.updated) : '',
     }
   }, shallowEqual)
   return children(row)
@@ -117,12 +131,13 @@ export function LiveNoteRow({
 export function NoteStatistics({ noteId }: { noteId: string }) {
   const text = useLibrarySelector((state) => libraryProjection.note(state, noteId)?.text ?? '')
   const trimmed = text.trim()
+  const words = trimmed ? trimmed.split(/\s+/).length : 0
   return (
-    <span>
-      {(trimmed ? trimmed.split(/\s+/).length : 0).toLocaleString('en-US')} words
-      <span className="status-dot">·</span>
-      {text.length.toLocaleString('en-US')} characters
-    </span>
+    <AppTooltip label={`${text.length.toLocaleString('en-US')} characters`}>
+      <span>
+        {words.toLocaleString('en-US')} {words === 1 ? 'word' : 'words'}
+      </span>
+    </AppTooltip>
   )
 }
 export function SaveStatus({ empty = false }: { empty?: boolean }) {
@@ -147,7 +162,7 @@ export function SaveStatus({ empty = false }: { empty?: boolean }) {
     <p role="status">{label}</p>
   ) : (
     <AppTooltip label={state.path}>
-      <span role="status" className="save-status">
+      <span role="status" className="note-save-status">
         {label}
       </span>
     </AppTooltip>
@@ -173,10 +188,13 @@ export function SaveFeedback({ syncNow }: { syncNow: () => void }) {
         open={!!(state.error || state.quitFailed || state.syncError)}
         duration={motion.notice}
       >
-        <div className="save-error" role="alert">
-          <strong>{syncFailure ? 'Couldn’t sync' : 'Couldn’t save'}</strong>
-          <span>{state.error || (state.quitFailed ? 'Quit was cancelled.' : state.syncError)}</span>
+        <div className="notice" role="alert">
+          <span>
+            <strong>{syncFailure ? 'Couldn’t sync.' : 'Couldn’t save.'}</strong>{' '}
+            {state.error || (state.quitFailed ? 'Quit was cancelled.' : state.syncError)}
+          </span>
           <button
+            className="btn"
             onClick={() =>
               syncFailure
                 ? syncNow()
@@ -186,17 +204,24 @@ export function SaveFeedback({ syncNow }: { syncNow: () => void }) {
             {syncFailure
               ? state.syncStatus?.configured
                 ? 'Retry sync'
-                : 'Open sync settings'
+                : 'Sync settings'
               : state.quitFailed
                 ? 'Retry and quit'
-                : 'Retry save'}
+                : 'Retry'}
           </button>
-          {state.quitFailed && <button onClick={library.keepEditing}>Keep editing</button>}
+          {state.quitFailed && (
+            <button className="btn" onClick={library.keepEditing}>
+              Keep editing
+            </button>
+          )}
         </div>
       </MotionPresence>
       {(state.quitting || state.syncing) && (
-        <div className="saving-overlay" role="status">
-          {state.syncing ? state.syncProgress : 'Saving before quitting…'}
+        <div className="notice" role="status">
+          <span className="spinner" aria-hidden="true" />
+          <span>
+            {state.syncing ? state.syncProgress || 'Syncing…' : 'Saving before quitting…'}
+          </span>
         </div>
       )}
     </>

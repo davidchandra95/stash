@@ -9,6 +9,17 @@ import type { Notebook, NotebookIcon } from '../model'
 import { isNotebookIcon, notebookIconOptions } from '../notebookIcons'
 
 const defaultColor = '#82936f'
+/** Muted notebook colors that read well on both light and dark surfaces. */
+const presetColors = [
+  '#82936f',
+  '#7f93b5',
+  '#b08bc4',
+  '#c09a72',
+  '#d27d7d',
+  '#d4a849',
+  '#5fa3a0',
+  '#8e8e93',
+]
 const colorPattern = /^#[0-9a-f]{6}$/i
 
 function notebookColor(color: string) {
@@ -22,9 +33,6 @@ export default function NotebookDialog({
   notebook,
   onCreated,
   onUpdated,
-  fontFamily,
-  dark,
-  palette,
   allowFolderLinking = true,
 }: {
   allowFolderLinking?: boolean
@@ -37,9 +45,6 @@ export default function NotebookDialog({
     id: string,
     patch: { name: string; icon: NotebookIcon; color: string },
   ) => void | Promise<void>
-  fontFamily: string
-  dark: boolean
-  palette: string
 }) {
   const editing = !!notebook
   const nameInput = useRef<HTMLInputElement>(null)
@@ -161,10 +166,7 @@ export default function NotebookDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content
-          className="settings-dialog notebook-dialog"
-          style={{ fontFamily }}
-          data-theme={dark ? 'dark' : 'light'}
-          data-palette={palette}
+          className="dialog notebook-dialog"
           data-notebook-id={notebook?.id}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
@@ -180,85 +182,125 @@ export default function NotebookDialog({
             trigger.focus({ preventScroll: true })
           }}
         >
-          <Dialog.Title>
-            {editing ? 'Edit notebook' : parent ? 'New sub-notebook' : 'New notebook'}
-          </Dialog.Title>
-          <Dialog.Description className="muted">
-            {editing
-              ? `Update ${notebook?.name}.`
-              : parent
-                ? `Inside ${parent.name}`
-                : 'Give a collection of thoughts a home.'}
-          </Dialog.Description>
-          <form className="notebook-dialog-form" onSubmit={(event) => void submit(event)}>
-            <label className="notebook-field-label" htmlFor="notebook-name">
-              Name
-            </label>
-            <input
-              ref={nameInput}
-              id="notebook-name"
-              className="text-field"
-              aria-label="Notebook name"
-              placeholder="Notebook name"
-              maxLength={80}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              disabled={busy}
-            />
+          <form onSubmit={(event) => void submit(event)}>
+            <div className="dialog-header">
+              <Dialog.Title className="dialog-title">
+                {editing ? 'Edit notebook' : parent ? 'New sub-notebook' : 'New notebook'}
+              </Dialog.Title>
+              <Dialog.Description className="dialog-description">
+                {editing
+                  ? `Change how ${notebook?.name} looks in the sidebar.`
+                  : parent
+                    ? `Inside ${parent.name}.`
+                    : 'A home for a collection of notes.'}
+              </Dialog.Description>
+            </div>
+            <div className="dialog-body">
+              <div className="notebook-name-row">
+                <span
+                  className="notebook-preview"
+                  style={{ color } as React.CSSProperties}
+                  aria-hidden="true"
+                >
+                  {(() => {
+                    const Icon = notebookIconOptions.find((option) => option.id === icon)!.icon
+                    return <Icon />
+                  })()}
+                </span>
+                <input
+                  ref={nameInput}
+                  id="notebook-name"
+                  className="field"
+                  aria-label="Notebook name"
+                  placeholder="Name"
+                  maxLength={80}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={busy}
+                />
+              </div>
 
-            <fieldset className="notebook-icon-picker" disabled={busy}>
-              <legend>Icon</legend>
-              <div className="notebook-icon-options">
-                {notebookIconOptions.map(({ id, label, icon: Icon }) => (
-                  <AppTooltip instant label={label} disabled={busy} key={id}>
+              <fieldset className="notebook-fieldset" disabled={busy}>
+                <legend className="field-label">Color</legend>
+                <div className="notebook-colors">
+                  {presetColors.map((preset) => (
                     <button
                       type="button"
-                      className={`notebook-icon-option ${icon === id ? 'selected' : ''}`}
-                      aria-label={label}
-                      aria-pressed={icon === id}
-                      onClick={() => setIcon(id)}
+                      key={preset}
+                      className="color-swatch"
+                      style={{ '--swatch': preset } as React.CSSProperties}
+                      aria-label={`Color ${preset.toUpperCase()}`}
+                      aria-pressed={color.toLowerCase() === preset}
+                      onClick={() => setColor(preset)}
+                    />
+                  ))}
+                  <AppTooltip label="Custom color">
+                    <label
+                      className="color-swatch is-custom"
+                      aria-pressed={!presetColors.includes(color.toLowerCase())}
+                      style={{ '--swatch': color } as React.CSSProperties}
                     >
-                      <Icon size={18} aria-hidden="true" />
-                    </button>
+                      <input
+                        id="notebook-color"
+                        type="color"
+                        aria-label="Notebook color"
+                        value={color}
+                        onChange={(event) => setColor(event.target.value)}
+                        disabled={busy}
+                      />
+                    </label>
                   </AppTooltip>
-                ))}
-              </div>
-            </fieldset>
+                </div>
+              </fieldset>
 
-            <label className="notebook-color-field" htmlFor="notebook-color">
-              <span>Color</span>
-              <span className="notebook-color-value">{color.toUpperCase()}</span>
-              <input
-                id="notebook-color"
-                type="color"
-                aria-label="Notebook color"
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                disabled={busy}
-              />
-            </label>
+              <fieldset className="notebook-fieldset" disabled={busy}>
+                <legend className="field-label">Icon</legend>
+                <div className="notebook-icons">
+                  {notebookIconOptions.map(({ id, label, icon: Icon }) => (
+                    <AppTooltip instant label={label} disabled={busy} key={id}>
+                      <button
+                        type="button"
+                        className="icon-btn notebook-icon"
+                        aria-label={label}
+                        aria-pressed={icon === id}
+                        style={icon === id ? ({ color } as React.CSSProperties) : undefined}
+                        onClick={() => setIcon(id)}
+                      >
+                        <Icon aria-hidden="true" />
+                      </button>
+                    </AppTooltip>
+                  ))}
+                </div>
+              </fieldset>
 
-            {editing ? (
-              notebook?.rootId && (
-                <p className="muted folder-help">
-                  This folder-linked notebook keeps its disk folder. Changing the name only changes
-                  the label in Stash and does not rename the folder.
-                </p>
-              )
-            ) : parent?.rootId ? (
-              <p className="muted folder-help">This creates a folder inside the linked notebook.</p>
-            ) : allowFolderLinking ? (
-              <div className="folder-picker">
-                {path ? (
-                  <>
-                    <div className="folder-path">
-                      <FolderOpen size={18} />
+              {editing ? (
+                notebook?.rootId && (
+                  <p className="field-help">
+                    This notebook is linked to a folder. Renaming it here doesn’t rename the folder
+                    on disk.
+                  </p>
+                )
+              ) : parent?.rootId ? (
+                <p className="field-help">This creates a folder inside the linked notebook.</p>
+              ) : allowFolderLinking ? (
+                <div className="folder-link">
+                  {path ? (
+                    <div className="folder-link-path">
+                      <FolderOpen aria-hidden="true" />
                       <AppTooltip label={path}>
-                        <span>{path}</span>
+                        <span className="truncate">{path}</span>
                       </AppTooltip>
                       <button
                         type="button"
-                        className="icon-button"
+                        className="btn btn-plain btn-sm"
+                        disabled={busy}
+                        onClick={() => void pick()}
+                      >
+                        Change…
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn icon-btn-sm"
                         aria-label="Remove folder"
                         disabled={busy}
                         onClick={() => {
@@ -268,62 +310,49 @@ export default function NotebookDialog({
                           setError('')
                         }}
                       >
-                        <X size={16} />
+                        <X aria-hidden="true" />
                       </button>
                     </div>
+                  ) : (
                     <button
                       type="button"
-                      className="quiet-button"
-                      disabled={busy}
+                      className="btn btn-plain folder-link-button"
                       onClick={() => void pick()}
+                      disabled={busy}
                     >
-                      Change folder
+                      <FolderOpen aria-hidden="true" />
+                      Link a folder of Markdown files…
                     </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="folder-pick-button"
-                    onClick={() => void pick()}
-                    disabled={busy}
-                  >
-                    <FolderOpen size={18} />
-                    <span>Link a folder from this computer</span>
-                  </button>
-                )}
-                {summary && (
-                  <div role="status" className="muted">
-                    {summary}
-                  </div>
-                )}
-                {path && (
-                  <p className="muted folder-help">
-                    Edits in Stash update the original Markdown files. The notebook name does not
-                    rename the folder.
-                  </p>
-                )}
-              </div>
-            ) : null}
-            {error && (
-              <p role="alert" className="folder-error">
-                {error}
-              </p>
-            )}
-            <div className="dialog-buttons">
-              <button
-                type="button"
-                className="quiet-button"
-                disabled={busy}
-                onClick={() => close(false)}
-              >
+                  )}
+                  {summary && (
+                    <p role="status" className="field-help">
+                      {summary}
+                    </p>
+                  )}
+                  {path && (
+                    <p className="field-help">
+                      Edits in Stash update the original Markdown files. Renaming the notebook
+                      doesn’t rename the folder.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+              {error && (
+                <p role="alert" className="field-error">
+                  {error}
+                </p>
+              )}
+            </div>
+            <div className="dialog-footer">
+              <button type="button" className="btn" disabled={busy} onClick={() => close(false)}>
                 Cancel
               </button>
               <button
                 type="submit"
-                className="primary-button"
+                className="btn btn-primary"
                 disabled={!name.trim() || busy || !!(path && error)}
               >
-                {busy ? 'Working…' : editing ? 'Save changes' : 'Create notebook'}
+                {busy ? 'Working…' : editing ? 'Save' : 'Create'}
               </button>
             </div>
           </form>

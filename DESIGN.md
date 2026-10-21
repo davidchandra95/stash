@@ -1,186 +1,208 @@
 # Stash UI design
 
-Stash is a compact desktop notes app with a touch-friendly mobile interface. Keep navigation and controls quiet, readable, and consistent so the note remains the main content. Preserve the user's chosen palette, app style, and fonts.
-
-Desktop startup keeps the native window hidden until the saved appearance is applied to the workspace and native background. Show startup failures with the existing dark error surface and Retry action. Later appearance changes must not reopen a hidden window. Mobile retains its normal startup visibility.
-
-Desktop sidebar navigation starts directly with All notes, using the pane's normal top spacing. Do not add an app-name or logo heading above it.
-
-Desktop restores the last selected sidebar note view from local workspace preferences, independently of open note and PDF tabs. Empty notebooks and built-in views retain their selection. If the saved notebook or tag no longer exists, or the saved view is invalid, select All notes. Restore only after the library loads; mobile keeps its existing navigation behavior.
-
-## Shared sizing
-
-The `--ui-*` variables at the start of `src/styles.css` are the implementation source for UI geometry. They live on the document root so dialogs and menus rendered through portals receive the same sizes. Touch-friendly defaults are overridden by `:root[data-platform='desktop']`. Use the platform attribute, not window width, to choose input-target sizes.
-
-| Element                          | Desktop                               | Token                                     |
-| -------------------------------- | ------------------------------------- | ----------------------------------------- |
-| Main UI text / line height       | 13px / 18px                           | `--ui-font-size`, `--ui-line-height`      |
-| Supporting text                  | 12px                                  | `--ui-font-small`                         |
-| Counts, dates, shortcuts         | 11px                                  | `--ui-font-meta`                          |
-| Dialog and page titles           | 18px                                  | `--ui-font-title`                         |
-| UI icons / secondary indicators  | 16px / 16px                           | `--ui-icon`, `--ui-icon-small`            |
-| Form controls and action buttons | At least 30px                         | `--ui-control-height`                     |
-| Icon and toolbar buttons         | At least 28px square                  | `--ui-target`                             |
-| Navigation and menu rows         | At least 28px high                    | `--ui-menu-height`                        |
-| Simple settings rows             | At least 44px, including padding      | `--ui-settings-row`                       |
-| Settings rows with descriptions  | At least 56px, including padding      | `--ui-settings-description`               |
-| Settings control column          | 160px, constrained by available width | `--ui-settings-column`                    |
-| App-style / color-mode previews  | 48px / 40px                           | `--ui-preview-style`, `--ui-preview-mode` |
-| Ordinary dialog padding          | 20px                                  | `--ui-dialog-padding`                     |
-
-Use the 4, 8, 12, 16, and 24px spacing scale (`--ui-space-1/2/3/4/6`). Menu containers have 4px padding; controls and menu items use their shared padding tokens. Settings groups have 16px horizontal padding and 16px section gaps. Item wrappers do not add another layer of vertical padding around setting rows.
-
-The desktop Settings dialog is at most 780px wide with a 200px sidebar. A quiet divider separates the sidebar from the content; below 700px, the stacked layout uses a horizontal divider. Keep each pane's intended scrolling behavior.
-
-Desktop interface icons and secondary indicators share one 16px square, including toolbar actions, tab documents and close buttons, search, menu arrows and checkmarks, breadcrumbs, and note-list pins. The shared platform icon wrapper marks ordinary icons with `.ui-icon`; explicit sizes of 24px or larger remain illustration sizes. Keep button backgrounds and target sizes unchanged. Mobile retains its existing icon sizes and touch targets, and document content keeps its own geometry.
-
-Desktop notebook disclosure controls use an 18px-wide column with a centered 16px chevron, retaining the 28px minimum target height. The notebook icon follows the disclosure column without extra left padding, with a 4px gap between the notebook icon and title. Leaf placeholders use the same column width. Keep the 14px child indentation, visible muted chevrons, and individual hover and keyboard-focus states. Mobile disclosure targets and notebook spacing retain the shared touch sizing.
-
-Desktop sidebar navigation and notebook rows use a shared 4px gap between the icon and label and between the label and count badge. Note counts sit directly beside their labels in a quiet, rounded badge. Hide zero counts. Keep notebook badges and both action buttons visible when a long title truncates. Hidden desktop notebook actions take no layout width, so idle labels can use the available row space, including in resized navigation panes. Reserve action space only on row hover, focus within the row, or while its menu is open; keep row height and each 28px action target unchanged. Actions remain in the tab order while hidden and reveal when focus enters. Show a New note button immediately before the three-dot menu button in these states; selection alone does not reveal them. The New note button creates a note in that notebook, and the menu keeps its New note action. The two buttons form one visual group with a shared rounded hover background when either button is hovered or the menu is open. Notebook disclosure icons use `--muted` when idle. Notebook action icons use the readable `--control-ink` role; only the enabled control being hovered or keyboard-focused uses `--text`. Row hover, selection, and an open menu do not brighten neighboring controls. Preserve the notebook symbol's chosen color. Keep each action independently clickable with its own keyboard focus indicator; neither button adds its own hover fill. Mobile drawer counts keep their existing layout.
-
-The desktop Notes-pane heading uses the same badge beside its title for the current filtered note count. Hide the badge when the filtered list is empty, and let long titles truncate while the badge remains visible. Keep an always-visible plus icon and "New note" label at the right of this 36px header, using the shared action-button sizing and palette. Reserve space for the full button label and count badge in narrow panes. The button uses the current notebook/tag context, opens a new tab, and focuses the title; it keeps the list filters and search text. Disable it while syncing, converting, or quitting. The title bar has no creation button. Focus mode hides the Notes pane and its button, while the configured New note shortcut remains available. Mobile keeps its existing creation controls.
-
-Desktop workspace pane boundaries are keyboard-focusable resize separators below the title bar. Keep their visual divider quiet until hover or focus and preserve a useful writing area when widths are clamped. App-bar controls remain centered independently of pane widths. Navigation and Notes-pane titles must stay on one line and use ellipsis instead of widening or wrapping a narrow pane. Saved pane widths are workspace preferences; mobile does not render these separators.
-
-Desktop has independent navigation and Notes-list toggles beside each other at the left of the title bar, with 4px spacing and shared 28px targets. The Notes toggle uses Hide notes list / Show notes list tooltips and accessible expanded state. Both panels start visible each session. Selecting any sidebar note view, including the current or an empty view and Trash from the account menu, reopens Notes; disclosure controls and row actions do not. Collapsing Notes preserves its mounted content, search, filters, scroll, and preferred width while removing its resize boundary and keyboard/accessibility access. Focus mode temporarily hides both panels without changing their chosen visibility; Show notes list exits focus mode and reveals Notes. PDF tabs disable the Notes toggle and keep their existing layout; returning to a note restores the chosen visibility. Hidden panels leave no borders or card gaps. Keep title-bar controls centered and preserve native traffic-light clearance and mobile navigation.
-
-The desktop note table of contents adapts inside the writing pane without changing navigation or Notes-pane widths. Dock it only when the pane can fit the preferred outline width plus 280px for the document; otherwise overlay it on the right, constrained to the writing pane. Docked outlines retain their quiet, keyboard-focusable resize boundary. Overlay outlines have no resize boundary and retain the preferred width for later docking. Keep one outline mounted while switching modes so expansion state and keyboard focus on headings survive. The header uses sentence case and a Close table of contents button. Keyboard opening focuses the first heading, or Close when empty. In overlay mode, Escape, an outside click, and choosing a heading close it; Close and Escape return focus to the launcher without scrolling. Portaled menus and dialogs own their dismissal before the outline. Choosing a heading still scrolls to it. Resizing and opening/closing the outline preserve document scroll and saved pane widths. Mobile keeps its existing overlay and close control.
-
-Note lists offer Compact (the default) and Preview, saved on the current device independently of sorting and the selected view. Desktop chooses the mode beside sorting; mobile uses the list's existing actions sheet. Preview adds one plain-text body line, with whitespace collapsed and ellipsis for overflow; text-free notes show No text preview. All notes shows notebook context in both modes: the first saved membership's name plus a visible +N for additional memberships, or Uncategorized. Full notebook paths are available through the row tooltip and accessible description. Notebook views omit this repeated context. Desktop keeps the timestamp on the metadata line; mobile retains its title/pin and separate action target. Titles, preview, and metadata stay on individual lines without widening the pane. Switching modes preserves the selected note, filter, sorting, and scroll position (clamped to the new scroll range). Preserve existing row separation, selection, and theme roles in both app styles. This list-body preview is independent of desktop preview tabs.
-
-Large note lists mount only the visible rows and a small buffer. Measure row heights for the current mode, font, and app style. Keep native scrolling and the full logical note order for actions, drag targets, and Tab navigation. Retain selected, dragged, focused, and open-menu rows until their interaction ends; closing a row menu returns focus to its note. Virtual row placement must stay separate from row motion. Mobile Back restores the saved list offset, including notebook content before the notes.
-
-Desktop note-list clicks and title/body search results use one replaceable preview tab with an italic title, preserving permanent tabs. Selecting an already open note activates its tab. Double-clicking a note row or its preview tab, or editing the note title or body, keeps that tab open. Ctrl/Cmd-click and explicit new-tab actions open permanent tabs; Ctrl/Cmd+Enter does the same in search. Keep the preview state when restoring the workspace, and preserve each tab's Back/Forward history.
-
-Desktop note tabs form a fixed 32px row at the top of the writing pane, above note-specific notices and the note document. They span the whole pane, including the table of contents, and stay visible while the document scrolls and in focus mode. When no tabs are open, the strip remains only to hold the note controls. All palettes use rounded top corners in both layouts. The active tab joins the writing surface without an accent underline or vertical divider. Center tab icons, labels, and close buttons on the same vertical line. Tabs size to their titles between 120px and 240px and do not shrink as more notes open. Overflow scrolls horizontally without a visible scrollbar; vertical wheel input over the tabs moves left or right, while horizontal trackpad input and zoom gestures stay native. Keep the selected tab visible when switching or opening tabs. Reserve close-button space to avoid label movement, showing the button on the active tab, hover, or keyboard focus. Use the editor surface for the active tab so it joins the content below without a gap or horizontal divider, and preserve full-title tooltips and italic preview titles. Tabs are not window drag regions.
-
-The desktop navigation pane has an independently scrolling content area and a fixed bottom account control. Keep 4px of right padding between its scrollbar and the pane edge, including narrow desktop layouts. Its default avatar and name form one button. The compact account menu opens above it and contains Sync, Trash with its count, and Settings. Keep the footer itself free of extra status labels. Mobile navigation retains its separate drawer pattern.
-
-Quick access, Notebooks, PDFs, and Tags have independent disclosure buttons in the desktop navigation pane. Their equal-level headings align at the left edge without extra left padding and use the shared UI font size, weight 700, and text color, including on hover. Muted disclosure arrows occupy a consistent 18px column. Indent section contents by 8px, retaining the additional 14px indentation for nested notebooks. Their headings stay visible when closed, and section action buttons stay at the right. Closing a section only hides its contents; it does not change the selected view or reset nested notebook disclosure state. Mobile keeps its existing styling.
-
-Use radii by purpose: 4px for menu items, 6px for controls, 8px for groups and popovers, and 12px for dialogs. Modern cards retains separate workspace panels with 8px gaps and 4px gaps between note cards. Changing app style must not enlarge menus or controls.
-
-Use minimum heights for rows and controls that contain text. Long labels, descriptions, errors, and custom fonts must be able to increase their height. Keep titles, metadata, and action buttons visible in note rows; use 8px vertical padding. Workspace headers remain 36px high. The 44px macOS title bar and native traffic-light clearance are separate platform constraints.
-
-Desktop note controls sit at the right end of the note-tab strip; ordinary notes have no separate breadcrumb or header row, since the tab names the note and the chips under the title name its notebooks. Keep the order Focus mode, Pin, Table of contents, Find in note, and Note actions, with the shared 28px targets, 4px gaps, and active highlighting. Tabs scroll and truncate before the controls, so the controls stay visible in narrow panes. Table of contents, Find, and Note actions stay visible but disabled when no note is loaded or the workspace is busy. While a PDF tab is active its toolbar owns the strip, and the companion note keeps its own 36px header with breadcrumbs and these controls. The 44px app bar keeps the sidebar toggle at its existing left position and centers Back, Forward, and the command-palette button as one group. The button is at most 420px wide and shrinks with available space. Preserve macOS traffic-light clearance and empty window drag regions. Mobile retains its existing note controls.
-
-The desktop Notes-pane field is labeled "Filter this view" and filters titles and note text only within the selected view. An empty filtered view states that scope and offers "Search all notes" when a narrower view is selected. This action switches to All notes, preserves the query and open note, and returns focus to the filter.
-
-Desktop has one command palette for global search and actions. Cmd/Ctrl+P, or the single "Search notes or run a command" button centered in the title bar, opens a modal dialog below the app bar using the shared floating-surface geometry. Plain typing fuzzy-matches note titles across all notebooks except Trash, showing recently opened notes when empty. Tab (and Shift+Tab) toggles to note-body search; the Titles / Note bodies chips show the current scope and Cmd/Ctrl+Shift+F opens directly in body search. Typing `>` as the first character switches to commands (Open Settings, New note, New notebook, Open PDF, Toggle sidebar / notes list / focus mode, Sync now, light/dark mode, and one Theme command per palette), matched fuzzily against label and hidden keywords. Commands show their bound shortcut and mark the current theme; disabled commands do nothing. Removing the `>` or pressing Backspace in an empty body search returns to the previous scope, and Cmd/Ctrl+P / Cmd/Ctrl+Shift+F inside the dialog switch scope instead of reopening it. Enter opens or runs the selected result and Ctrl/Cmd+Enter opens a note in a permanent tab. Content results group literal, case-insensitive body matches by note, show one highlighted snippet per occurrence, and open the clicked occurrence through Find in note. Show usable matches and partial counts while remaining notes are read, and only show No matches after reading and matching finish. Keep unreadable-note errors visible alongside results. New result groups must preserve the selected occurrence. Render visible snippets with a small scroll buffer, retaining complete counts, variable row heights, keyboard access to every occurrence, and a mounted active descendant for the search field. Search excludes Trash and uses displayed text in linked Markdown notes. Constrain scrolling to the results, keep Tab from leaving the field, and return focus to the title-bar button on dismissal unless a result moved focus. "Filter this view" and Find in note remain separate scoped tools. Mobile retains its existing search layout.
-
-On desktop, the Find in note section sits at the top of the note column (below the tab strip, or below the companion-note header beside a PDF) and above the editor workspace. Find in note has a disclosure button for a second replacement row. Keep the query, match count, navigation, and close controls in the first row; the second row contains Replace with, Replace, and Replace all. Rows may wrap in a narrow pane, with shared desktop or touch target sizes. Search includes the title and embedded reference/source labels, but replacement only edits body text. Disable replacement actions for read-only or busy notes and for a current title/object match. Keep field focus after replacement.
-
-Palette title results use one compact line with an icon, title, and smaller muted notebook context aligned right. The active result uses `--row-selected`, the continuous 1px `--selected-edge` inset outline, and `--focus-ring` icon color. Mix its notebook context from 80% `--muted` and 20% `--text` to preserve readable contrast on the selected surface. Keep this selection visible over neutral hover without shifting row geometry. Limit context to 40% of the text area and let the title take the remaining width; truncate both with ellipsis and retain their full text in tooltips and accessible names. Highlight only the title characters used by the fuzzy match in the palette accent color and bold, without a background. Empty-query recent results have no highlights. This makes matching clear while keeping notebook names as quiet context.
-
-## PDF reading
-
-Desktop has a collapsible PDFs sidebar section immediately below Notebooks, with an Open PDF action and a flat list of imported filenames. Use the same section disclosure, row density, truncation, focus, and palette rules. Closing a PDF tab leaves its sidebar entry available. Browser preview labels PDFs as session-only; mobile does not show PDF import controls.
-
-The shared 32px writing-pane tab strip holds notes and PDFs. PDF tabs are permanent. Load each PDF when first selected, then keep its viewer session until its tab closes. Switching tabs preserves reading position, zoom, search results, and expanded table of contents. Inactive readers are hidden and cannot receive focus or shortcuts. Closing a tab releases its viewer; reopening uses saved reading preferences. Restored inactive tabs wait until selected to load. While a PDF is active, hide the middle Notes pane and its resize separator without clearing its filters, scroll position, or saved width. Restore them when returning to a note. Keep the sidebar and tabs available, and preserve the existing focus-mode behavior.
-
-PDF controls use shared UI tokens. Keep the desktop top toolbar 36px high with no vertical padding and the shared 28px icon-button targets. Use one top row with Table of contents, Add page reference, Add quote to note, and Focus mode on the left, and Find followed by Notes at the far right. Both PDF toolbars use 4px gaps between controls and 8px horizontal outer padding. Every icon button has an accessible action label and an instant tooltip on hover or keyboard focus, including hover on disabled controls. Replace native title tooltips on icon buttons with shared Radix tooltips with zero delay and no entrance animation, below the top toolbar and above the bottom toolbar with viewport collision handling and Escape dismissal. Notes retains Take notes, Show notes, Hide notes, and Restore note states. Take notes and Show notes use Lucide PanelRightOpen; Hide notes uses PanelRightClose, including on macOS. Restore note retains its existing icon. Keep the filename in its tab and full-title tooltip; do not add a separate PDF title row. Find opens a 320px right sidebar with a query, match count, previous/next controls, and all matching snippets grouped in collapsible page sections. Clicking a snippet selects and scrolls to that occurrence. The results scroll independently; below 720px of reading-pane width, the sidebar overlays the pages. Escape closes search and focuses the pages. Use the current palette for snippet highlights and selection. A fixed toolbar below the scrolling PDF pages contains first/previous/next/last page navigation and a page/count jump input centered in the PDF pane, with zoom buttons, a percentage selector, and separate Fit page, Fit height, Fit width, and Actual size (100%) icon buttons on the right. Give fit controls tooltips and selected states. Move zoom controls to a second row in panes at most 960px wide so page navigation stays centered without overlapping them, and keep the footer inside the PDF pane, separated by a quiet top divider. Fit modes follow available width and height changes and persist with the reading position; numeric zoom stays fixed. Table of contents, Find, and note-capture actions remain at the top. Cmd/Ctrl+F targets the active document. Bottom controls can wrap in narrow desktop panes; keep the compact top toolbar on one row. Keep page artwork and text colors unchanged; theme only the surrounding app surfaces. The continuous page pane uses native scrolling and horizontal/zoom gestures. PDF.js styles are scoped inside the reader so its generic classes cannot change Stash's sidebar, menus, or editor.
-
-The PDF toolbar includes a Table of contents toggle. Its left reading sidebar shows the PDF's embedded bookmarks as nested, independently collapsible sections. Section buttons navigate using the PDF destination; entries without a local destination do not open external links. Show loading, unavailable, and empty states inside the sidebar. Use shared navigation sizing and theme surfaces with an independently scrolling list. Its right edge uses the same quiet, keyboard-focusable resize boundary as note contents, with a 160px minimum, 480px maximum, and the shared saved contents width. PDFs start at 240px when no width is saved. Drag right to widen; Left/Right arrow keys adjust by 8px or 32px with Shift. Escape cancels an active drag before closing the sidebar. Temporarily clamp the width to leave at least 280px for pages, allowing for a docked search panel, without overwriting the saved preference. In reading panes narrower than 560px, overlay the sidebar so pages keep their width. Escape and the close button return focus to the toggle.
-
-PDF notes use the same writing-pane tab strip and normal note editor. Take notes creates one normal companion note; Show notes and Hide notes control its pane without opening a second tab. Use a 60% PDF / 40% note starting split with at least 360px per pane and an 8px keyboard-focusable resize target with a quiet 1px divider. Below 728px of available content width, use a PDF / Notes switch and keep both documents mounted so their positions and editor history survive. Focus mode keeps this reading-and-writing layout. Save visibility, split width, compact pane choice, and companion scroll position as workspace preferences.
-
-Keep Add quote to note visible in the reader controls and enable it only when valid PDF text is selected and capture is allowed. Deselecting text clears the stored quote and retained range immediately; revalidate the live selection before pointer or keyboard capture. Preserve a valid selection through toolbar activation and PDF reflow, but never restore a deselected range. After a successful quote capture, clear the PDF selection and its retained range, and disable Add quote to note until text is selected again. Block repeated activation while capture is running; retain the selection on failure so the user can retry. Add page reference works without text selection. New quote captures append an ordinary blockquote with a linked citation after the final quoted paragraph’s text, separated by one space. Preserve quote paragraph and line breaks. Citation labels use `(p. 252)` or `(pp. 252–253)` without the filename; standalone page references use the same labels in an ordinary paragraph. Keep an empty writing paragraph after each capture, preserve the reader anchor and note cursor, and leave existing captures unchanged. Successful captures do not show a notification or add a feedback row. Keep the PDF layout stable; the existing note footer reports disk-save status separately. Use normal editor Undo to undo a capture. Clicking a citation navigates the source with a temporary region outline and preserves note focus. Find and document commands follow the focused pane. Keep unavailable-source and malformed-citation errors inside Stash. A companion opened as a normal note has Open PDF in its header.
-
-## Drawings
-
-Ordinary desktop notes offer Drawing in the writing toolbar (or its overflow) and `/drawing`, searchable by Excalidraw, diagram, and sketch. Drawings are selectable blocks with a contained PNG preview; clicking or double-clicking the preview selects the block without opening it. An always-visible Edit button sits at the top right in its own row above the preview and opens the large drawing dialog. Enter on a selected drawing also opens it. The button uses shared UI sizing and keyboard-focus styles. Mobile and read-only previews keep their click-to-open behavior without an Edit button. Empty and unavailable previews have text placeholders. The dialog follows the app's UI font, palette, shared control targets, and light/dark mode. Excalidraw owns its canvas controls and keyboard shortcuts inside the dialog. Keep its styles contained and online libraries, collaboration, and embeds unavailable.
-
-Changes autosave; the dialog shows the existing save status and retry actions. Closing retains edits and restores the drawing selection. Outside clicks do not dismiss the canvas. Escape dismisses an active canvas tool/menu before closing the dialog. PNG previews preserve the drawing's own background and colors, independently of the app's theme. Android opens a full-screen, safe-area-aware preview with a 48px close target and no editing controls. Linked Markdown notes do not offer Drawing and cannot accept an editable drawing through a note move; clipboard paste into Markdown uses the preview image.
-
-## Surfaces and states
-
-- Aster keeps its established colors within the shared surface and state roles. It keeps the shared geometry and independent fonts, but uses separate navigation, list, writing, toolbar, input, group, card, and floating surfaces. Light navigation/list/editor colors are `#DCE3EE` / `#EDF0F6` / `#F9FAFD`; dark colors are `#181C29` / `#222838` / `#1C2230`. Floating surfaces are white in light mode and `#30394C` in dark mode. Older palettes use their existing sidebar tone for navigation and panel tone for browsing, with independent writing and floating surfaces.
-- All palettes use a quiet selection fill with an inset edge and neutral hover fills. Action buttons and navigation retain a separate strong keyboard-focus ring; text fields and dropdowns use the focus treatment below. Aster keeps its violet selection colors. Selection wins over hover and open menus. In both desktop layouts, the active tab and document share the writing background with no visible horizontal divider. Inactive tabs and the unused strip keep the contrasting toolbar surface. Tabs have rounded top corners and no accent edge on the active tab; no underline or vertical tab dividers interrupts the connection to the document. PDF tabs and their top controls follow the same surface treatment; PDF pages retain their original colors. Inputs have visible boundaries and filled controls have dedicated foreground colors. Teal identifies default links, amber identifies search matches, and the current match also has an outline. Success, warning, and error colors are separate. Floating surfaces use shadows; writing stays flat. Preserve authored colors, highlights, notebook colors, drawing content, and PDF pages.
-- Ordinary app-owned UI text, metadata, and placeholders must reach 4.5:1 contrast against their actual surfaces in every palette; essential control indicators, field boundaries, and focus rings must reach 3:1. Authored document colors and notebook color choices remain independent. Disabled controls remain visibly distinct. Check actual rendered states, including hover, selection, and portaled menus, in both layouts and on mobile. Theme selection never applies fonts; Aster has no font-preset shortcut. Native macOS menus keep their system appearance.
-- Use the existing semantic roles: `--surface-app` for the workspace background, `--surface-navigation` for navigation, `--surface-list` for browsing, `--surface-panel` for shared panel tones, `--surface-editor` for writing, `--surface-card` for note cards, and `--surface-floating` for dialogs and menus.
-- Scrollbars in navigation and Notes panes and slash menus stay visible but quiet: use a transparent track, a narrow rounded thumb based on `--line`, and only brighten it through existing semantic theme tokens on hover. Slash menus share the Notes-pane scrollbar rules, including the 5px WebKit width.
-- Use `--text`, `--soft`, and `--muted` for text hierarchy. Use `--row-selected` and `--selected-edge` for app-owned selection, `--control-hover` for neutral hover, and `--focus-ring` for keyboard focus. Keep the existing palette temperature and quiet surfaces, reserving the strongest accent for primary creation. The Notes-pane New note button and filled primary actions use `--control-accent` and `--on-accent`; their enabled hover uses `--control-accent-hover`, mixing 90% control accent with text. Keyboard focus preserves the filled colors and adds the existing focus ring. Selected desktop built-in navigation icons use `--focus-ring` ink; notebook symbols retain their chosen colors. Light palettes with bright accents can use a darker control variant to meet contrast. Error text and filled destructive actions use `--danger`, `--danger-fill`, and `--on-danger`. Document accents and authored colors remain separate.
-- Settings groups should be close to the surrounding dialog color: mix 4% text color into `--surface-floating`. Search fields, selectors, font pickers, and heading rows use `--surface-input`, `--border-control`, and `--control-hover`. Text fields and compound field shells show focus by changing their existing border color, without an extra outer ring. Nested inputs do not add a second border. Selectors, dropdown triggers, and dropdown items use a background change for hover, open, and keyboard focus without an extra outline. Mobile keeps touch geometry and its keyboard-focus rules. Separate settings with a subtle 8% text-color divider. Keep previews representative of their actual palette and layout.
-- Default desktop note lists use 1px `--line` dividers inset to the row text. Show dividers only between unselected notes, with no trailing divider. Modern cards and mobile retain their existing separation.
-- Active desktop notes use `--row-selected` and the shared continuous 1px `--selected-edge` inset outline in both Default and Modern cards. The outline follows the row's existing radius without shifting its content. Keep selection distinct from hover without a heavy leading stripe; keyboard focus retains its separate outer ring.
-- Provide visible hover, selected, keyboard-focus, disabled, and error states. Selection must remain visible in neutral palettes. Ordinary action buttons keep their individual keyboard-focus rings, including inside compound controls. Text fields use their existing border and dropdowns use their background to show focus.
-- Note and notebook rows keep their hover background while their context menu is open. Selected rows keep their selected background instead.
-- Account menu actions use the shared menu row geometry and the current palette. Surface sync failures in the workspace alert area after the menu closes; keep progress visible during sync.
-- Keep existing reduced-motion behavior. Size changes must not change animation timing, menu placement logic, or focus restoration.
-- Desktop panes, floating menus, and dialogs use native wheel and trackpad scrolling, including momentum and direction changes. Do not intercept scrolling to add JavaScript easing or tie scrolling to the animation setting. Keep horizontal scrolling, zoom gestures, mobile touch scrolling, caret movement, and saved scroll positions native. The note-tab strip retains its vertical-wheel-to-horizontal navigation.
-- Desktop document panes contain painting within their viewport so WebKit does not rebuild mouse-interaction regions across an entire long note. Keep this boundary on `.editor-document`, the toolbar's existing containing block, rather than `.note-scroll`. Editor popovers that escape the pane must use the existing portals.
-- The desktop outer page stays fixed with overscroll disabled on `html`, `body`, and `#root`. Match its background to the active workspace surface so strong scroll gestures cannot expose a white strip above the title bar. Scrolling belongs to the inner panes.
-
-## Component patterns
-
-On macOS, note context menus, the editor’s Note actions three-dot menu, and notebook action menus use the native system menu through Tauri. macOS owns their surface, sizing, highlight color, and icon tint, independent of the app palette. All app-owned interface icons use Lucide on every platform, tinted by the current UI color. Native menu icons use the same monochrome Lucide artwork, rasterized to transparent 48px PNGs and displayed as 16-point AppKit template images so they follow light, dark, selected, and disabled states. Color swatches retain their own colors. Notebook creation controls and the desktop Open PDF action use Lucide BookPlus. Keep icons within the shared UI sizing rules. If native icon preparation fails, report the failure and open the menu without that icon. Do not use colored stock folder or document images. Preserve actions, disabled states, shortcuts, keyboard opening, and row highlighting during menu tracking. Browser, mobile, and other platforms retain the themed Radix menus.
-
-Use sentence-case labels in notebook forms, deletion choices, and outline headers. Notebook membership chips use a quiet control surface and supporting text color. A removable chip shows its × only on hover or keyboard focus, keeping its space so the label does not shift; file-folder chips stay disabled without one. One always-visible Notebooks menu button, a secondary text-and-icon action with a chevron, follows the chips and offers Add to notebooks and Move to another notebook (Move file to notebook for file notes). It uses the native menu on macOS like other note menus; the chosen picker anchors to and returns focus to this button, which also anchors Move when it is opened by shortcut. Selected controls share the palette selection fill and inset edge, while hover remains neutral. Ordinary action buttons retain a separate keyboard-focus ring; text fields and dropdowns use their existing border or background for focus. Filled actions use `--control-accent` and `--on-accent`; bright palettes may use a deeper action tone for readable text while retaining their original accent. Error text uses `--danger`, independently of destructive button fills.
-
-Reuse the existing React components and Radix behavior. Shared CSS classes own visual geometry; feature-specific rules own layout. Edit the relevant existing rule instead of appending competing blanket overrides.
-
-All Stash-owned hover hints use the shared `AppTooltip` Radix component, including full titles and paths. Use the rounded Search reference: an 8px rounded floating surface, 4px vertical and 8px horizontal padding, shared 13px UI text, a quiet border and shadow, and no arrow. Pass keyboard shortcuts separately from labels and show assigned bindings in an 11px rounded badge with a stronger theme-derived background. Cap width at 320px and the viewport, wrapping long labels and paths. Only icon-only controls opt into instant hover with `instant`; text buttons (including buttons with both an icon and a visible label), titles, paths, menu rows, color swatches, zoom selectors, and DOM-created editor hints use the normal 700ms hover delay. Keep delay state local to each tooltip so hovering an icon does not make the next text hint instant. Keyboard focus opens hints immediately for accessibility. Tooltips have no entrance or exit animation. Disabled native controls retain hover hints through a non-focusable wrapper. Touch taps activate controls without opening hover hints. Keep tooltips within the appropriate workspace or dialog surface, 6px from the trigger with 8px viewport clearance; PDF bottom controls place them above. Preserve Radix hover movement, Escape dismissal, accessible descriptions, control activation, and editor selection. Replace native UI `title` attributes rather than showing both versions; preserve user-authored document metadata, native system menus, and Excalidraw's own controls. DOM-created editor hints use the shared adapter with explicit update and teardown.
-
-```css
-/* A form control can grow with its label and inherits mobile sizing. */
-.example-control {
-  min-height: var(--ui-control-height);
-  padding: var(--ui-control-padding);
-  border-radius: var(--ui-radius-control);
-  font-size: var(--ui-font-size);
-  line-height: var(--ui-line-height);
-}
-```
-
-A setting uses a `.setting-row` containing a label span and a trailing control. Put explanatory text in `small` inside the label span so the description-row minimum applies. Controls align to the shared column, while switches keep their intrinsic visual size. Use `.text-field-shell` for compound search inputs: the shell owns the border and height, and its nested `.text-field` does not add padding again.
-
-Keep Radix titles, labels, keyboard navigation, scrolling, focus return, and disabled semantics. Multi-line menu/search results grow naturally. Icons should not determine the row height. Limit any icon-sizing rule to interface controls so note content and illustrations retain their own sizes.
-
-Desktop note autosave is silent during normal editing and after successful writes. Keep save failures, file conflicts, browser-preview limitations, and save-before-quit recovery visible. Debounce desktop writes for 750ms after the last edit, with a 2-second maximum wait during continuous typing; switching notes, window blur, and quitting flush pending edits. Mobile retains immediate scheduling.
-
-## Mobile and writing boundaries
-
-Ordinary desktop notes use one row of formatting icons that fits the editor pane. It stays hidden while writing and appears in its usual place when text is selected, a writing picker or its overflow menu is open (including from slash commands and shortcuts), or keyboard focus is inside it; read-only selections do not reveal it. Hidden tools keep their layout so fitting and picker anchors are unchanged, and they cannot be clicked or reached with Tab. The status bar's Format toggle and Settings › Editor › Always show formatting toolbar pin it, saved with the appearance settings. This includes PDF companion notes; linked Markdown notes and mobile keep their existing always-visible tools. Keep text style, Bold, Italic, Underline, Undo, and Redo visible. Move lower-priority controls into the rightmost three-dot menu when space is limited, keeping icon order stable and avoiding toolbar scrolling. Text color, highlight, alignment, links, tables, images, and sections open focused menus above their launcher. Preserve the editor selection while menus are open, use named color rows with a selected checkmark and removal action, and retain contextual table, image, quote, and section controls. On macOS, the three-dot overflow menu and writing action lists (color, highlight, alignment, sections, and quote background) use native AppKit menus with Lucide template images, system selected checkmarks, and color swatches. macOS owns their appearance and screen-edge placement. Link, image, and table pickers retain themed Radix form popovers because they contain inputs. Browser and other platforms keep the themed Radix writing menus. Native menu tracking must be cancelled when switching notes or entering read-only mode, and late results must not apply commands to another note. Mobile and linked Markdown-note controls keep their existing layout.
-
-Link forms show Link title above Link address. Capture the selected text or complete existing link label and keep that target mapped while the form is open. Address-only changes preserve the label's formatting; title changes use the label's initial formatting. Disable title editing for selections across blocks or containing embedded objects, with a short explanation. Empty titles on new links use the address. Keep URL validation, dismissal, and read-only behavior consistent across desktop and mobile.
-
-Mobile uses at least 48px action targets and 44px form/menu targets, including portals outside `.mobile-app`. Small checkbox or switch graphics can sit inside a larger clickable label. Retain safe-area and virtual-keyboard handling. Shared styles load before mobile styles so explicit mobile layout rules win.
-
-At narrow widths, let settings controls wrap and keep categories and dialog actions reachable. A narrow desktop window still uses desktop density. Long content should scroll inside its intended pane instead of widening the page.
-
-Editor content is a separate typography system. Preserve note/title/code fonts, heading styles, note size, line and paragraph spacing, writing width, checklists, and cursor geometry. Compact UI tokens apply to the editor's tools, not the document. Typography previews intentionally show the user's content styles.
-
-Mermaid code blocks keep their editable source and show a live, non-editable diagram immediately below it in ordinary and linked Markdown notes. Use the current note font and palette, constrain diagrams to the document width, and keep loading, empty, and syntax-error messages inside the preview. Mobile and read-only notes also render previews. Store and copy only the original code block; rendering and appearance changes do not alter saved content or undo history. Render locally with links and executable content disabled.
-
-Desktop ordinary notes keep the saved Writing width percentage of the available document area, inside the scroll pane's padding. Center the title and body together. Honor this setting at narrow window sizes, in focus mode, and with either a docked or overlay table of contents. Mobile and PDF companion notes retain their full-width writing layout.
-
-Desktop notes reserve half the visible scroll-pane height plus the saved extra bottom space below the document, with at least 112px total clearance for the fixed writing toolbar. Measure on mount before restoring saved scrolling and update on pane resize. This applies in focus mode, linked Markdown notes, and PDF companion notes. Scrolling stays native and manual; the blank space never becomes document content or an undo action. The desktop setting is labeled Extra space below the note and explains the automatic room. Mobile keeps its existing bottom-space setting, safe areas, and keyboard layout.
-
-Body tags require explicit confirmation. Typing a hashtag opens matching tags and a Create new tag choice beside the cursor; Enter or clicking confirms it without adding a newline. Escape, whitespace, and leaving the text dismiss the choice. Plain hashtags, including pasted colors, remain ordinary text. Only confirmed tags receive tag styling and navigation. Editing inside a tag removes confirmation; typing at an edge does not extend it. Normal copy/paste preserves confirmed tags between notes, while plain-text paste removes confirmation. Linked Markdown uses explicit span markers to preserve tag identity. Tag suggestions use the shared floating menu surface, platform target sizes, and viewport constraints.
-
-Slash `/today` keeps the current nine date and time format choices. Both its manually opened submenu and typed format results size their width to the longest single-line preview, with the normal 228px menu minimum. Constrain the width to the viewport and use ellipsis when a preview cannot fit; do not wrap Today rows. Search Today formats only through a prefix of the Today command, so `/da` shows Date without Today previews. Typing exactly `/date` opens a themed calendar beside the cursor without taking typing focus. ArrowDown or Tab enters the calendar; Enter chooses today. Selecting Date from the slash menu focuses the calendar. Use a Sunday-first grid with localized labels, month navigation, Today, and six date-only format previews after selecting a day. Back returns to the selected day. Escape and outside clicks leave the slash text unchanged; Escape restores editor focus. Continued typing closes the calendar and resumes slash search. Insert normal text as one undoable edit, and dismiss pending insertion when switching notes or entering read-only mode. Desktop, mobile, and linked Markdown notes share this picker. Keep the desktop calendar width at 252px; mobile calendar width accommodates seven 48px day targets plus the shared container padding and scrollbar space. The date-format list fits its longest single-line preview or Back button, with width capped to the viewport and ellipsis for previews that cannot fit. Retain the shared surface and platform target sizes.
-
-List buttons, shortcuts, and slash actions toggle the chosen kind off when all selected items already use it; mixed selections convert to that kind. Applying a kind through a typed prefix preserves completed checklist items. New checklist items are unchecked. Typed numbered prefixes retain their starting number without changing neighboring lists. Bullet markers cycle solid dot, hollow dot, square by nesting depth, repeating every three levels. This is display styling and does not add saved document attributes.
-
-List item spacing applies consistently between sibling items and across indent levels for bullets, numbered lists, and checklists. Nested lists do not add an extra bottom margin. Preserve the separate spacing around a whole list and between paragraphs within an item.
-
-List markers follow the first text line's baseline. Bullets and numbers inherit its typography and use natural height. List and inline checkboxes share a one-em square centered halfway up the font's capital height (`cap`), with a zero-height inline anchor so the graphic does not add line spacing. Keep at least a 22px checkbox click area independent of the graphic, and allow the list gutter to grow with larger text. Do not add font-specific offsets or align markers to the full height of a wrapped item.
-
-Text selection highlights list content only. Bullets, numbers, and checklist boxes keep their normal appearance.
-
-Desktop text selection paints only selected inline content, excluding paragraph boundaries, and expands the system selection background to the current line height without changing document spacing. Mobile keeps native selection painting and touch handles.
-
-Desktop editable notes keep native selection backgrounds transparent across focus and selection changes, using the inline selection layer for visible highlights. Read-only notes and mobile retain native selection. Clear stale selection highlights when the focused browser loses its selection range. Escape dismisses a text selection after any open editor picker has handled the key. Preserve the selected formatting target while focus is in toolbar inputs or menus, and keep document content and undo history unchanged when clearing selection.
+Stash should feel like a well-made Mac app: quiet, compact, precise. Chrome stays out of the
+way so the note is the main content. Density comes from tight, consistent geometry, not from
+small type. The writing surface is the one roomy place, and it follows the user's own
+typography settings.
+
+The reference mockups are `documents/ui-v2/mockup.html` (desktop) and
+`documents/ui-v2/mobile-mockup.html` (Android). These rules cover both; [Android](#android)
+lists what changes for touch. Shared components must keep working on both.
+
+## Principles
+
+1. **Native first.** Use macOS conventions: system font, traffic lights, translucent sidebar,
+   accent-colored selection, native context menus, 38px unified toolbar rows.
+2. **Compact by default.** 24px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
+   to make something look important.
+3. **One way to do each thing.** Tokens and shared classes own geometry and color. Area
+   stylesheets own layout only.
+4. **Quiet until needed.** Hover reveals secondary actions. Notices appear only for problems,
+   progress and undo. Successful saves are silent.
+
+## Where things live
+
+| Area                     | Code                                                     | Styles                                              |
+| ------------------------ | -------------------------------------------------------- | --------------------------------------------------- |
+| Tokens, base, controls   | –                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
+| Menus, popovers, dialogs | Radix + `components/*`                                   | `src/styles/floating.css`, `dialogs.css`            |
+| Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`              | `src/styles/shell.css`                              |
+| Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`     | `src/styles/sidebar.css`                            |
+| Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows` | `src/styles/notelist.css`                           |
+| Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`             | `src/styles/editor.css`                             |
+| Note content             | `src/editor/*`, `components/NoteEditor.tsx`              | `src/styles/document.css`                           |
+| Writing tools and menus  | `components/DesktopWritingToolbar.tsx`, editor menus     | `src/styles/writing.css`                            |
+| Command palette          | `components/CommandPalette.tsx`                          | `src/styles/palette.css`                            |
+| Settings                 | `src/app/Settings.tsx`                                   | `src/styles/settings.css`                           |
+| Android                  | `src/mobile/*`                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
+| PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
+
+All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
+`useApp()` and render; they don't own workspace logic.
+
+## Tokens
+
+Defined in `src/styles/tokens.css`. Never hard-code a color or size in a component stylesheet
+when a token exists.
+
+- **Type:** `--text-xs` 11 (counts, dates, section headers), `--text-sm` 12 (secondary),
+  `--text-md` 13 (default UI), `--text-lg` 15, `--text-xl` 17 (palette input).
+  `--font-ui` is the system font. The interface font is not configurable.
+- **Geometry:** `--bar` 38px (pane title bars), `--row` 24px (sidebar rows), `--control` 24px
+  (buttons, fields, icon buttons), `--control-sm` 20px, `--icon` 16px, `--icon-sm` 14px.
+- **Spacing:** `--space-1…8` = 2, 4, 6, 8, 12, 16, 20, 24px.
+- **Radii:** `--radius-xs` 4 (menu items), `-sm` 5 (rows), `-md` 6 (controls), `-lg` 8 (groups,
+  menus), `-xl` 10 (popovers), `-2xl` 12 (dialogs, palette, settings).
+- **Color roles:** surfaces `--bg-window`, `--bg-sidebar`, `--bg-sidebar-translucent`,
+  `--bg-content`, `--bg-elevated` (menus, popovers, palette; translucent with blur),
+  `--bg-input`, `--bg-control`, `--bg-code`. Text `--text`, `--text-2` (secondary),
+  `--text-3` (tertiary: counts, dates, section headers), `--text-4` (disabled, placeholders on
+  titles). Lines `--line`, `--line-strong`. Neutral fills `--fill-1` (hover), `--fill-2`
+  (pressed/open), `--fill-3` (inactive selection). Status `--danger`, `--warning`,
+  `--success`. Search `--mark`, `--mark-current`.
+- **Accent:** `--accent` and `--on-accent` are set at runtime by `useDocumentTheme`
+  (`src/appearance.ts`) from the user's accent choice. `system` follows the macOS accent color
+  (read natively, refreshed when the window regains focus). Derived: `--accent-soft`,
+  `--accent-text`, `--focus-ring`, `--text-selection`.
+- **Color mode** is `<html data-theme="light|dark">`. Portaled menus and dialogs inherit it;
+  never put `data-theme` on individual surfaces.
+
+## Surfaces
+
+- The sidebar is the only translucent pane. With the native Mac app and "Translucent sidebar"
+  on, the window uses the macOS sidebar material and the page is transparent behind the
+  sidebar (`:root[data-vibrancy]`). Otherwise it is `--bg-sidebar`.
+- The notes list and editor are `--bg-content` with 1px `--line` dividers. No cards, no gaps.
+- Floating surfaces (menus, popovers, palette, notices, tooltips) use `--bg-elevated`,
+  backdrop blur and `--shadow-pop`. Dialogs and Settings use `--bg-content` and
+  `--shadow-window`.
+- PDF pages, drawings and authored note colors keep their own colors.
+
+## Selection, hover, focus
+
+- Sidebar selection: `--fill-3` with accent-colored icons (notebook icons keep their color).
+- Notes list selection: accent fill with `--on-accent` text while the list is the active pane
+  (`.window[data-active-pane='list']`) and the window is key; otherwise `--fill-3`.
+- Menus, palette rows and slash menus highlight with the accent fill.
+- Hover is always a neutral `--fill-1`. Pressed or open controls use `--fill-2`.
+- Keyboard focus: a 2px `--focus-ring` outline. Text fields show focus with an accent border and
+  a soft accent ring instead.
+- A row whose context menu is open gets an inset accent outline.
+- Radix tooltip triggers overwrite `data-state`, so style open popup buttons with
+  `[aria-haspopup][aria-expanded='true']`, not `[data-state='open']`.
+
+## Window layout
+
+- Three columns: sidebar (default 216px), notes list (280px), editor. Widths are saved; pane
+  resizers are invisible until focused.
+- No global title bar. Each pane has a 38px `.pane-bar` that is also a window drag region
+  (`data-tauri-drag-region` on the bar and on empty filler elements).
+- The leftmost visible pane hosts the window controls: 70px traffic-light clearance in the native
+  app (`--window-controls`), the sidebar toggle, and, in the editor when the notes list is
+  hidden, the notes-list toggle.
+- Sidebar bar: traffic lights and the sidebar toggle. Notes bar: view title, count, "Sort and
+  view options" menu, New note. Editor bar: Back/Forward, tabs, note controls (Focus mode, Table
+  of contents, Find in note, Note actions).
+- Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
+- The sidebar footer holds sync status, Trash and Settings. There is no account menu.
+
+## Components
+
+Use the shared classes before writing new CSS:
+
+- Buttons: `.btn` (push button), `.btn-primary`, `.btn-danger`, `.btn-plain`, `.btn-link`,
+  `.btn-sm`; `.icon-btn` (24px) and `.icon-btn-sm` (20px).
+- Fields: `.field` for plain inputs; `.field-shell` for an input with an icon or trailing
+  buttons (the shell owns the border, the inner input has none). Labels `.field-label`, help
+  `.field-help`, errors `.field-error`.
+- Toggles: `button.switch[role=switch][aria-checked]`. Segmented control `.segmented` with
+  `aria-pressed` buttons. Native `<select>` in Settings (`.select-native`); `.select` for a
+  custom popup trigger.
+- Menus: Radix content `.menu`, items `.menu-item` containing `.menu-icon`, `.menu-text`,
+  optional `.menu-shortcut`; `.menu-separator`, `.menu-label`. `MenuActionContent` renders icon
+  and text.
+- Popovers `.popover`; dialogs `.dialog` with `.dialog-header`, `.dialog-title`,
+  `.dialog-description`, `.dialog-body`, `.dialog-footer` (buttons right-aligned, primary last).
+- Notices: `.notice` inside `.notices` at the bottom of the window, for errors with Retry,
+  progress, and Undo.
+- Chips `.chip` for tags and notebook memberships; counts `.count`; key hints `kbd`.
+- Icons are Lucide through `src/icons.tsx` (stroke 1.6, sized by CSS). On macOS, note and
+  notebook context menus, Note actions and writing action lists use native menus
+  (`src/nativeContextMenu.ts`); keep their actions identical to the Radix menus.
+- All hover hints use `AppTooltip`. Icon-only buttons pass `instant`; everything else uses the
+  700ms delay.
+
+## Writing surface
+
+- Note typography is the user's: `--note-font`, `--title-font`, `--code-font`, `--note-size`,
+  `--line-spacing`, `--paragraph-spacing`, `--list-item-spacing`, heading style variables, and
+  `--writing-width` (percentage of the scroll pane). Defaults: system fonts, 15px, 1.6.
+- Above the title: a meta line with the edited date, word count and save problems. Below the
+  title: notebook chips and the "Notebook" menu chip.
+- The formatting toolbar floats beside the selection (above it, or below near the top edge) and
+  shows only while the editor has focus and a selection, or while one of its pickers is open.
+  "Always show formatting toolbar" docks it at the bottom center. It is at most 460px wide;
+  lower-priority tools move to its overflow menu.
+- The editor's caret and selection are drawn by layers (`.writing-cursor-layer`,
+  `.selection-highlight`); native selection paint stays transparent in editable notes.
+- Find in note sits under the editor bar; the table of contents docks on the right or overlays
+  when the pane is narrow.
+
+## Behavior that must not regress
+
+- Note list clicks open a replaceable preview tab (italic title); editing or double-clicking keeps
+  it. Tabs can be pinned and reordered (drag after 6px, or Ctrl+Shift+Left/Right).
+- The sidebar view, pane widths, list mode, sorting, tabs and contents width are workspace
+  preferences restored on launch.
+- Autosave is silent; failures, conflicts and preview-only storage are always visible.
+- Command palette: Cmd/Ctrl+P titles, Tab toggles note text, `>` for commands,
+  Cmd/Ctrl+Enter opens in a new tab. Trash is excluded.
+- Reduced motion and the Animations setting disable transitions (`:root[data-motion='off']`).
+- Panes scroll natively; the page itself never scrolls.
+
+## Android
+
+Android uses the same tokens, color roles, accent and color mode, at touch size.
+`src/mobile/index.css` loads the shared stylesheets (all but the sidebar and command palette),
+then `src/mobile/mobile.css`, which raises the geometry and type tokens and lays out the mobile
+surfaces. Don't add colors there; use the tokens.
+
+- **Touch tokens** (on `html[data-platform='mobile']`): `--text-md` 16, `--text-sm` 14,
+  `--text-lg` 18; `--bar` 56, `--row` 48, `--control` 44, `--control-sm` 36, `--icon` 22,
+  `--target` 48, `--radius-sheet` 16.
+- **Targets:** anything that acts on tap is at least 48px (`--target`); rows and fields are at
+  least 44px. Controls that draw smaller (push buttons, switches, swatches) extend their tap
+  area with a transparent `::before`.
+- **Feedback:** touch screens keep `:hover` after a tap, so mobile neutralizes hover fills under
+  `(hover: none)` and shows pressed states (`:active`) instead: `--fill-1` on rows, `--fill-2`
+  in sheets and on buttons.
+- **App bar:** 56px, 48px round icon buttons. In a note the bar is only the drawer and Note
+  actions buttons, on `--fill-1`.
+- **Drawer** is the desktop sidebar: `--bg-sidebar`, the same view icons in accent, notebook
+  colors kept, selection `--fill-3`, counts follow "Show note counts".
+- **Bottom sheets** (note, notebook and list actions) are floating surfaces: `--bg-elevated`,
+  blur, `--shadow-pop`, 16px top radius, 48px rows with 20px `--text-2` icons. They sit above
+  the keyboard and center at 560px wide on wide screens. Dialogs stay centered in the space
+  above the keyboard.
+- **Note:** the formatting bar floats above the keyboard on `--bg-elevated-solid` (no blur, so
+  the writing-tools sheet inside it isn't clipped) and scrolls sideways. The table of contents
+  is an overlay panel. Mobile keeps the native caret and selection.
+- **Settings** are pages with the desktop Settings content and groups, minus desktop-only items
+  (translucent sidebar, writing width, formatting toolbar, cursor drawing, shortcuts). Sliders
+  stack under their label.
+- Keep the safe-area padding, the visual-viewport variables (`--mobile-height`, `--mobile-top`,
+  `--mobile-bottom`) and the short-screen rules that keep a writing line visible with the
+  keyboard open in landscape.
 
 ## Review checklist
 
-- Compare matching before/after screenshots at 1280×800 and 900×650; also check the settings breakpoint below 700px.
-- Inspect every settings category, ordinary dialogs, menus, search, notebook organization, sync forms, and editor tools. Check long labels, descriptions, empty/error states, disabled actions, focus visibility, Escape, and focus return.
-- Check all palettes in light and dark modes and both Default and Modern cards layouts. Confirm that theme and typography choices remain independent.
-- Check mobile at 390×844 and landscape, including portal menus, form targets, safe areas, and scrolling. No horizontal page overflow or inaccessible actions.
-- Run the existing frontend tests and production build. Add behavioral tests when markup or interaction changes need coverage; do not use CSS-text assertions as a substitute for rendered checks.
-- Report browser and rebuilt native-bundle verification separately. A browser preview or successful build does not prove the installed app was updated. Keep release/install actions explicit.
-
-Desktop note and PDF tabs can be reordered by dragging their icon or title after 6px of movement. Keep the current document active, show a horizontally moving tab with nearby tabs sliding into place, and scroll at the strip edges. Close controls do not initiate dragging. Commit only on release inside the strip; Escape, window blur, pointer cancellation, or changing/disabled tabs cancel. A successful position change keeps a preview tab open and saves the order locally without changing document history or scroll. Ctrl+Shift+Left/Right moves the focused tab without wrapping, retains focus, and announces its position. Suppress tooltips during dragging and honor reduced motion. Mobile navigation is unchanged.
-
-Desktop note and PDF tabs offer Pin tab / Unpin tab and Close in their context menu. Pinned tabs form the left group and keep an always-visible pin in the close-control position; clicking it unpins without closing. Pinning appends to the pinned group, and unpinning places the tab first in the unpinned group without changing the active document. Drag and keyboard reordering stay within each group. Pinning a preview makes it permanent. Save pin state and order locally, independently of note-list pinning. Cmd/Ctrl+W leaves pinned tabs open; context-menu Close closes them immediately. Keep tab widths, history, scroll, and editor focus unchanged. Mobile navigation is unchanged.
+- Check 1280×800 and 900×650 in light and dark, with two or more accent colors.
+- For Android changes, check `?mobile=1` at 390×844 and 844×390 in light and dark, plus a short
+  viewport (about 844×260) for the keyboard-open case.
+- Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, and Settings at a
+  narrow width.
+- Check hover, selection (active and inactive pane), keyboard focus, disabled and error states,
+  and menus opened from both the mouse and the keyboard.
+- Run `npm test` and `npm run build`. Report browser-preview checks and native-app checks
+  separately; a browser preview doesn't show vibrancy, traffic lights or native menus.
+- Update this file when an approved change alters these conventions.

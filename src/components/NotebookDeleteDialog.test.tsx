@@ -3,7 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import NotebookDeleteDialog from './NotebookDeleteDialog'
-import { defaultAppearance } from '../storage/library'
 import type { Note, Notebook } from '../model'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -49,7 +48,6 @@ async function mount(notebooks: Notebook[], onConfirm = vi.fn()) {
         notebook={parent}
         notebooks={notebooks}
         notes={[note]}
-        appearance={{ ...defaultAppearance, dark: false, theme: 'classic' }}
         onConfirm={onConfirm}
         onClose={vi.fn()}
       />,

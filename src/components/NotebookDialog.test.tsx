@@ -3,7 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import NotebookDialog from './NotebookDialog'
-import { defaultAppearance } from '../storage/library'
 import type { Notebook } from '../model'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -39,9 +38,6 @@ async function mount(onUpdated = vi.fn()) {
         notebook={book}
         onCreated={vi.fn()}
         onUpdated={onUpdated}
-        fontFamily="system"
-        dark={defaultAppearance.dark}
-        palette={defaultAppearance.theme}
       />,
     ),
   )
@@ -64,14 +60,14 @@ it('prefills edit values, selects a built-in icon, updates color, and explains l
   expect(document.querySelector<HTMLInputElement>('[aria-label="Notebook color"]')?.value).toBe(
     '#899ab4',
   )
-  expect(document.body.textContent).toContain('does not rename the folder')
+  expect(document.body.textContent).toContain('doesn’t rename the folder on disk')
   expect(
     document
       .querySelector<HTMLButtonElement>('[aria-label="Briefcase"]')
       ?.getAttribute('aria-pressed'),
   ).toBe('true')
 
-  expect(document.querySelectorAll('.notebook-icon-option')).toHaveLength(24)
+  expect(document.querySelectorAll('button.notebook-icon')).toHaveLength(24)
   await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Shopping bag"]')!.click())
   await setInput('Notebook name', ' Projects ')
   await setInput('Notebook color', '#c56a5d', 'change')

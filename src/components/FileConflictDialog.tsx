@@ -7,13 +7,9 @@ export default function FileConflictDialog({
   note,
   error,
   onClose,
-  dark,
-  palette,
 }: {
   note: Note | null
   error: string
-  dark: boolean
-  palette: string
   onClose: () => void
 }) {
   const [loaded, setLoaded] = useState(false)
@@ -65,68 +61,65 @@ export default function FileConflictDialog({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content
-          className="settings-dialog file-conflict-dialog"
-          data-theme={dark ? 'dark' : 'light'}
-          data-palette={palette}
-        >
-          <Dialog.Title>Resolve file changes</Dialog.Title>
-          <Dialog.Description>
-            {error.replace(/^(FILE_CONFLICT|NAME_COLLISION):\s*/, '')}
-          </Dialog.Description>
-          <div className="conflict-versions">
-            <section>
-              <h3>Your Stash edits</h3>
-              <pre>{note?.text}</pre>
-            </section>
-            <section>
-              <h3>Current file on disk</h3>
-              <pre>
-                {disk?.source?.markdown ??
-                  disk?.text ??
-                  (loaded ? 'No saved file exists yet.' : 'Loading…')}
-              </pre>
-            </section>
+        <Dialog.Content className="dialog conflict-dialog">
+          <div className="dialog-header">
+            <Dialog.Title className="dialog-title">Resolve file changes</Dialog.Title>
+            <Dialog.Description className="dialog-description">
+              {error.replace(/^(FILE_CONFLICT|NAME_COLLISION):\s*/, '')}
+            </Dialog.Description>
           </div>
-          <label>
-            Filename
-            <input
-              className="text-field"
-              aria-label="Conflict filename"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={busy}
-            />
-          </label>
-          {failure && (
-            <p role="alert" className="folder-error">
-              {failure}
-            </p>
-          )}
-          <div className="dialog-buttons">
-            <button className="quiet-button" disabled={busy} onClick={onClose}>
+          <div className="dialog-body">
+            <div className="conflict-versions">
+              <section>
+                <h3 className="field-label">Your edits in Stash</h3>
+                <pre className="selectable">{note?.text}</pre>
+              </section>
+              <section>
+                <h3 className="field-label">File on disk</h3>
+                <pre className="selectable">
+                  {disk?.source?.markdown ??
+                    disk?.text ??
+                    (loaded ? 'No saved file exists yet.' : 'Loading…')}
+                </pre>
+              </section>
+            </div>
+            <label className="field-label">
+              Filename
+              <input
+                className="field"
+                aria-label="Conflict filename"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            {failure && (
+              <p role="alert" className="field-error">
+                {failure}
+              </p>
+            )}
+          </div>
+          <div className="dialog-footer">
+            <button className="btn" disabled={busy} onClick={onClose}>
               Later
             </button>
+            <span className="spacer" />
             <button
-              className="quiet-button"
-              disabled={busy || !loaded}
-              onClick={() => void resolve('disk')}
-            >
-              Load disk version
-            </button>
-            <button
-              className="primary-button"
-              disabled={busy || !loaded}
-              onClick={() => void resolve('copy')}
-            >
-              Save my edits as a copy
-            </button>
-            <button
-              className="quiet-button"
+              className="btn"
               disabled={busy || !disk}
               onClick={() => void resolve('overwrite')}
             >
-              Overwrite disk version
+              Overwrite file
+            </button>
+            <button className="btn" disabled={busy || !loaded} onClick={() => void resolve('disk')}>
+              Use file version
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={busy || !loaded}
+              onClick={() => void resolve('copy')}
+            >
+              Save edits as copy
             </button>
           </div>
         </Dialog.Content>

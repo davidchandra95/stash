@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stash UI v2 Mockup</title>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+/* ───────────── Tokens ───────────── */
+:root {
+  --font: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fs: 13px; --fs-sm: 12px; --fs-meta: 11px;
+  --row: 24px; --btn: 24px; --bar: 38px;
+  --r-row: 5px; --r-ctl: 6px; --r-pop: 8px; --r-dlg: 10px;
+
+  --accent: #007aff;
+  --on-accent: #fff;
+}
+[data-theme='light'] {
+  --wall: linear-gradient(135deg, #c9d6e8 0%, #e6d9e6 45%, #f1e2cf 100%);
+  --sidebar: rgba(236, 236, 238, 0.78);
+  --sidebar-solid: #ececee;
+  --content: #ffffff;
+  --chrome: #ffffff;
+  --text: #1d1d1f;
+  --text-2: rgba(0, 0, 0, 0.56);
+  --text-3: rgba(0, 0, 0, 0.36);
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.14);
+  --fill: rgba(0, 0, 0, 0.05);
+  --fill-2: rgba(0, 0, 0, 0.08);
+  --fill-3: rgba(0, 0, 0, 0.11);
+  --input: rgba(0, 0, 0, 0.045);
+  --floating: rgba(252, 252, 253, 0.92);
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 8px 28px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-win: 0 0 0 0.5px rgba(0, 0, 0, 0.22), 0 24px 70px rgba(0, 0, 0, 0.28), 0 6px 18px rgba(0, 0, 0, 0.1);
+  --code-bg: rgba(0, 0, 0, 0.035);
+  --mark: rgba(255, 204, 0, 0.35);
+  --sel: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+[data-theme='dark'] {
+  --wall: linear-gradient(135deg, #1b2235 0%, #2b2034 50%, #33291f 100%);
+  --sidebar: rgba(38, 38, 40, 0.74);
+  --sidebar-solid: #29292b;
+  --content: #1e1e1f;
+  --chrome: #1e1e1f;
+  --text: rgba(255, 255, 255, 0.9);
+  --text-2: rgba(255, 255, 255, 0.56);
+  --text-3: rgba(255, 255, 255, 0.32);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --fill: rgba(255, 255, 255, 0.06);
+  --fill-2: rgba(255, 255, 255, 0.09);
+  --fill-3: rgba(255, 255, 255, 0.13);
+  --input: rgba(255, 255, 255, 0.06);
+  --floating: rgba(44, 44, 46, 0.94);
+  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-win: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 24px 70px rgba(0, 0, 0, 0.55);
+  --code-bg: rgba(255, 255, 255, 0.045);
+  --mark: rgba(255, 214, 10, 0.28);
+  --sel: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: var(--fs) / 1.38 var(--font);
+  color: var(--text);
+  background: #f2f2f4;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+body[data-theme='dark'] { background: #121214; }
+svg.lucide { width: var(--i, 16px); height: var(--i, 16px); stroke-width: 1.6; flex: none; display: block; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: default; }
+
+/* ───────────── Mockup controls (not part of the app) ───────────── */
+.controls {
+  position: fixed; inset: 0 0 auto 0; height: 44px; z-index: 50;
+  display: flex; align-items: center; gap: 18px; padding: 0 16px;
+  font-size: 12px; color: var(--text-2);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--content) 80%, transparent);
+  backdrop-filter: blur(20px);
+}
+.controls b { color: var(--text); font-weight: 600; margin-right: 4px; }
+.controls .grp { display: flex; align-items: center; gap: 6px; }
+.seg { display: inline-flex; padding: 2px; border-radius: 7px; background: var(--fill-2); gap: 2px; }
+.seg button { height: 20px; padding: 0 10px; border-radius: 5px; font-size: 12px; color: var(--text-2); }
+.seg button[aria-pressed='true'] { background: var(--content); color: var(--text); box-shadow: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0,0,0,.08); }
+[data-theme='dark'] .seg button[aria-pressed='true'] { background: rgba(255,255,255,.16); }
+.swatches { display: flex; gap: 6px; }
+.swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.2); }
+.swatch[aria-pressed='true'] { outline: 2px solid var(--c); outline-offset: 2px; }
+
+.stage {
+  position: absolute; inset: 44px 0 0 0;
+  background: var(--wall);
+  display: grid; place-items: center; overflow: hidden;
+}
+.scaler { transform-origin: center; }
+
+/* ───────────── Window ───────────── */
+.window {
+  position: relative;
+  width: 1180px; height: 740px;
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow-win);
+  display: grid; grid-template-columns: 216px 272px 1fr;
+  background: transparent;
+}
+.lights { display: flex; gap: 8px; padding-left: 13px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.18); }
+.lights i:nth-child(1) { background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+
+.icon-btn {
+  width: var(--btn); height: var(--btn); border-radius: var(--r-ctl);
+  display: grid; place-items: center; color: var(--text-2); --i: 16px;
+}
+.icon-btn:hover { background: var(--fill); color: var(--text); }
+.icon-btn[aria-pressed='true'] { background: var(--fill-2); color: var(--text); }
+.icon-btn:disabled { color: var(--text-3); }
+
+/* Sidebar */
+.sidebar {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--sidebar);
+  backdrop-filter: blur(40px) saturate(1.6);
+  border-right: 1px solid var(--line);
+}
+.sb-top { height: var(--bar); display: flex; align-items: center; justify-content: space-between; padding-right: 8px; flex: none; }
+.sb-scroll { flex: 1; overflow: auto; padding: 2px 8px 8px; }
+.nav-row {
+  width: 100%; height: var(--row); display: flex; align-items: center; gap: 7px;
+  padding: 0 8px; border-radius: var(--r-row); color: var(--text); --i: 15px; text-align: left;
+}
+.nav-row svg { color: var(--accent); }
+.nav-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-row .count { font-size: var(--fs-meta); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nav-row .kbd { font-size: var(--fs-meta); color: var(--text-3); letter-spacing: .02em; }
+.nav-row:hover { background: var(--fill); }
+.nav-row[aria-current='true'] { background: var(--fill-3); }
+.nav-row.muted svg { color: var(--text-2); }
+.sb-section { margin-top: 12px; }
+.sb-head {
+  height: 22px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 4px 0 8px; font-size: var(--fs-meta); font-weight: 600; color: var(--text-3);
+}
+.sb-head .icon-btn { width: 20px; height: 20px; --i: 14px; color: var(--text-3); opacity: 0; }
+.sb-section:hover .sb-head .icon-btn { opacity: 1; }
+.disc { width: 12px; display: grid; place-items: center; color: var(--text-3); --i: 11px; margin-left: -4px; margin-right: -3px; }
+.nb-dot { width: 15px; height: 15px; display: grid; place-items: center; }
+.nb-dot span { width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 8px; }
+.tag { height: 20px; padding: 0 7px; border-radius: 10px; background: var(--fill); color: var(--text-2); font-size: var(--fs-sm); display: inline-flex; align-items: center; }
+.tag:hover { background: var(--fill-2); color: var(--text); }
+.sb-foot {
+  height: 34px; flex: none; display: flex; align-items: center; gap: 6px;
+  padding: 0 8px 0 16px; border-top: 1px solid var(--line);
+  font-size: var(--fs-meta); color: var(--text-2); --i: 14px;
+}
+.sb-foot { gap: 0; }
+.sb-foot .status { flex: 1; display: flex; align-items: center; gap: 6px; }
+.sb-foot .status svg { color: #34c759; }
+
+/* Column toolbars */
+.bar {
+  height: var(--bar); flex: none; display: flex; align-items: center; gap: 2px;
+  padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--chrome);
+}
+
+/* Note list */
+.list { display: flex; flex-direction: column; min-height: 0; background: var(--content); border-right: 1px solid var(--line); }
+.list .bar { padding-left: 14px; }
+.list .title { font-weight: 600; font-size: 13px; }
+.list .title-count { margin-left: 6px; font-size: var(--fs-meta); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.list .spacer { flex: 1; }
+.filter { padding: 8px 8px 4px; }
+.field {
+  height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 8px;
+  border-radius: var(--r-ctl); background: var(--input); color: var(--text-3); --i: 14px;
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.field span { flex: 1; font-size: var(--fs-sm); }
+.rows { flex: 1; overflow: auto; padding: 2px 8px 8px; }
+.row { position: relative; padding: 6px 8px 7px; border-radius: 6px; }
+.row + .row::before { content: ''; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: var(--line); }
+.row[aria-selected='true']::before, .row[aria-selected='true'] + .row::before { display: none; }
+.row:hover:not([aria-selected='true']) { background: var(--fill); }
+.row:hover::before, .row:hover + .row::before { opacity: 0; }
+.row .t { display: flex; align-items: center; gap: 5px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.row .t span { overflow: hidden; text-overflow: ellipsis; }
+.row .t svg { --i: 12px; color: var(--text-3); }
+.row .m { margin-top: 1px; font-size: var(--fs-meta); color: var(--text-2); display: flex; gap: 6px; white-space: nowrap; overflow: hidden; }
+.row .m .when { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.row .m .nb { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; }
+.row .p { margin-top: 1px; font-size: var(--fs-sm); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list:not(.preview) .row .p { display: none; }
+.list.focused .row[aria-selected='true'] { background: var(--accent); color: var(--on-accent); }
+.list.focused .row[aria-selected='true'] :is(.m, .when, .nb, .p, .t svg) { color: color-mix(in srgb, var(--on-accent) 78%, transparent); }
+.list:not(.focused) .row[aria-selected='true'] { background: var(--fill-3); }
+.list-foot { height: 0; }
+
+/* Editor column */
+.editor { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--content); }
+.editor .bar { gap: 4px; }
+.nav-btns { display: flex; gap: 0; }
+.tabs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; overflow: hidden; padding: 0 4px; }
+.tab {
+  height: 24px; min-width: 96px; max-width: 200px; display: flex; align-items: center; gap: 6px;
+  padding: 0 4px 0 8px; border-radius: var(--r-ctl); color: var(--text-2); font-size: 12.5px; --i: 14px;
+}
+.tab .tl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .x { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; --i: 12px; opacity: 0; color: var(--text-2); }
+.tab:hover { background: var(--fill); }
+.tab:hover .x, .tab[aria-selected='true'] .x { opacity: 1; }
+.tab .x:hover { background: var(--fill-2); }
+.tab[aria-selected='true'] { background: var(--fill-2); color: var(--text); }
+.tab.preview .tl { font-style: italic; }
+.tab.pinned { min-width: 0; padding: 0 7px; }
+.tab-sep { width: 1px; height: 14px; background: var(--line-strong); margin: 0 3px; }
+.tools { display: flex; gap: 0; }
+.doc-scroll { flex: 1; overflow: auto; }
+.doc { max-width: 660px; margin: 0 auto; padding: 28px 40px 140px; font-size: 15px; line-height: 1.62; }
+.doc .meta { font-size: var(--fs-meta); color: var(--text-3); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.doc h1 { font-size: 27px; line-height: 1.2; letter-spacing: -0.015em; margin: 0 0 8px; font-weight: 700; }
+.chips { display: flex; gap: 4px; align-items: center; margin-bottom: 18px; }
+.chip {
+  height: 20px; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px 0 6px;
+  border-radius: 10px; background: var(--fill); font-size: var(--fs-sm); color: var(--text-2);
+}
+.chip i.d { width: 7px; height: 7px; border-radius: 2px; background: var(--c); }
+.chip.add { background: none; color: var(--text-3); --i: 12px; padding-left: 4px; }
+.chip.add:hover { background: var(--fill); color: var(--text-2); }
+.doc h2 { font-size: 18px; margin: 26px 0 6px; letter-spacing: -0.01em; }
+.doc p { margin: 0 0 10px; }
+.doc blockquote { margin: 12px 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--line-strong); color: var(--text-2); }
+.doc a { color: var(--accent); text-decoration: none; }
+.checklist { list-style: none; padding: 0; margin: 4px 0 10px; }
+.checklist li { display: flex; align-items: flex-start; gap: 9px; }
+.cb { width: 15px; height: 15px; margin-top: 5px; border-radius: 4px; flex: none; box-shadow: inset 0 0 0 1px var(--line-strong); display: grid; place-items: center; --i: 11px; }
+.cb.on { background: var(--accent); box-shadow: none; color: #fff; }
+.cb.on svg { stroke-width: 3; }
+.checklist li.done span { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-3); }
+pre { font: 12.5px/1.6 var(--mono); background: var(--code-bg); padding: 10px 12px; border-radius: 6px; margin: 10px 0 12px; box-shadow: inset 0 0 0 0.5px var(--line); }
+pre .k { color: #ad3da4; } pre .s { color: #c41a16; } pre .c { color: var(--text-3); }
+[data-theme='dark'] pre .k { color: #fc5fa3; } [data-theme='dark'] pre .s { color: #fc6a5d; }
+code.inl { font: 13px var(--mono); background: var(--code-bg); padding: 1px 4px; border-radius: 4px; box-shadow: inset 0 0 0 0.5px var(--line); }
+.doc .hashtag { color: var(--accent); }
+.selwrap { position: relative; }
+.sel { background: var(--sel); border-radius: 2px; }
+.fmt {
+  position: absolute; right: -24px; bottom: calc(100% + 8px);
+  display: flex; align-items: center; gap: 1px; padding: 3px; border-radius: 8px;
+  background: var(--floating); backdrop-filter: blur(24px); box-shadow: var(--shadow-pop);
+  white-space: nowrap; line-height: 1;
+}
+.fmt .icon-btn { width: 26px; height: 24px; --i: 15px; color: var(--text); }
+.fmt .icon-btn[aria-pressed='true'] { background: var(--fill-2); }
+.fmt .txt { height: 24px; padding: 0 6px 0 8px; display: flex; align-items: center; gap: 2px; font-size: 12.5px; border-radius: 6px; --i: 12px; color: var(--text); }
+.fmt .txt:hover { background: var(--fill); }
+.fmt .div { width: 1px; height: 16px; background: var(--line-strong); margin: 0 3px; }
+
+/* ───────────── Floating: menu ───────────── */
+.menu {
+  position: absolute; z-index: 20; min-width: 208px; padding: 5px;
+  border-radius: var(--r-pop); background: var(--floating); backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-pop); font-size: 13px;
+}
+.menu .mh { padding: 4px 8px 2px 24px; font-size: var(--fs-meta); font-weight: 600; color: var(--text-3); }
+.menu .mi { height: 22px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 6px; border-radius: 4px; --i: 13px; }
+.menu .mi .ck { width: 13px; }
+.menu .mi .ck svg { stroke-width: 2.4; }
+.menu .mi .lb { flex: 1; }
+.menu .mi .sc { color: var(--text-3); font-size: 12px; }
+.menu .mi.hl { background: var(--accent); color: var(--on-accent); }
+.menu .mi.hl .sc { color: color-mix(in srgb, var(--on-accent) 75%, transparent); }
+.menu .ms { height: 1px; background: var(--line-strong); margin: 5px 8px; }
+
+/* ───────────── Floating: command palette ───────────── */
+.scrim { position: absolute; inset: 0; z-index: 30; }
+.palette {
+  position: absolute; left: 50%; top: 72px; transform: translateX(-50%); width: 580px;
+  border-radius: 12px; background: var(--floating); backdrop-filter: blur(30px) saturate(1.5);
+  box-shadow: var(--shadow-pop), 0 30px 80px rgba(0,0,0,.18); overflow: hidden;
+}
+.pal-input { height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; border-bottom: 1px solid var(--line); --i: 18px; }
+.pal-input svg { color: var(--text-3); }
+.pal-input .q { flex: 1; font-size: 17px; letter-spacing: -0.01em; }
+.pal-input .q .caret { display: inline-block; width: 1.5px; height: 19px; background: var(--accent); vertical-align: -3px; margin-left: 1px; }
+.pal-input .seg button { height: 20px; font-size: 11.5px; padding: 0 8px; }
+.pal-body { padding: 6px; max-height: 340px; overflow: auto; }
+.pal-h { padding: 6px 8px 3px; font-size: var(--fs-meta); font-weight: 600; color: var(--text-3); }
+.pal-row { height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 10px; border-radius: 6px; --i: 15px; }
+.pal-row svg { color: var(--text-2); }
+.pal-row .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-row .lb b { font-weight: 650; color: var(--accent); }
+.pal-row .ctx { max-width: 40%; font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-row kbd { font: 11px var(--font); color: var(--text-3); padding: 1px 5px; border-radius: 4px; background: var(--fill); }
+.pal-row.hl { background: var(--accent); color: var(--on-accent); }
+.pal-row.hl :is(svg, .ctx, .lb b) { color: var(--on-accent); }
+.pal-row.hl kbd { background: rgba(255,255,255,.2); color: var(--on-accent); }
+.pal-foot { height: 30px; display: flex; align-items: center; gap: 14px; padding: 0 14px; border-top: 1px solid var(--line); font-size: var(--fs-meta); color: var(--text-3); }
+.pal-foot kbd { font: 10.5px var(--font); padding: 1px 4px; border-radius: 3px; background: var(--fill-2); color: var(--text-2); margin-right: 4px; }
+.pal-foot .sp { flex: 1; }
+
+/* ───────────── Settings window ───────────── */
+.settings {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40;
+  width: 700px; height: 500px; border-radius: 12px; overflow: hidden;
+  display: grid; grid-template-columns: 196px 1fr; box-shadow: var(--shadow-win);
+}
+.settings .s-side { background: var(--sidebar-solid); backdrop-filter: blur(40px) saturate(1.6); border-right: 1px solid var(--line); padding-bottom: 8px; }
+.settings .s-side .field { margin: 2px 8px 8px; }
+.s-cat { margin: 0 8px; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 6px; border-radius: var(--r-row); }
+.s-cat .ic { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: #fff; background: var(--c); --i: 12px; }
+.s-cat .ic svg { stroke-width: 2; }
+.s-cat[aria-current='true'] { background: var(--fill-3); }
+.s-main { background: var(--content); display: flex; flex-direction: column; min-height: 0; }
+.s-main .bar { padding-left: 16px; font-weight: 600; border-bottom: 0; }
+.s-body { flex: 1; overflow: auto; padding: 4px 20px 20px; }
+.s-group-title { font-size: var(--fs-meta); font-weight: 600; color: var(--text-3); margin: 14px 4px 5px; }
+.s-group { border-radius: var(--r-pop); background: var(--fill); box-shadow: inset 0 0 0 0.5px var(--line); }
+.s-row { min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 6px 12px; }
+.s-row + .s-row { border-top: 1px solid var(--line); }
+.s-row .lbl { flex: 1; }
+.s-row .lbl small { display: block; font-size: var(--fs-meta); color: var(--text-3); margin-top: 1px; }
+.switch { width: 30px; height: 17px; border-radius: 9px; background: var(--fill-3); position: relative; }
+.switch::after { content: ''; position: absolute; top: 1.5px; left: 1.5px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 0 0 0.5px rgba(0,0,0,.06); }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 14.5px; }
+.select { height: 22px; display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 9px; border-radius: 5px; background: var(--content); box-shadow: 0 0 0 0.5px var(--line-strong), 0 1px 1.5px rgba(0,0,0,.06); font-size: 12.5px; --i: 12px; }
+[data-theme='dark'] .select { background: rgba(255,255,255,.1); }
+.select svg { color: var(--text-2); }
+.modes { display: flex; gap: 12px; }
+.mode { display: grid; gap: 5px; justify-items: center; font-size: var(--fs-meta); color: var(--text-2); }
+.mode .pv { width: 64px; height: 42px; border-radius: 6px; overflow: hidden; display: grid; grid-template-columns: 18px 1fr; box-shadow: 0 0 0 0.5px var(--line-strong); }
+.mode .pv.l { background: #fff; } .mode .pv.l i { background: #e5e5e8; }
+.mode .pv.d { background: #1e1e1f; } .mode .pv.d i { background: #333336; }
+.mode .pv.a { background: linear-gradient(90deg, #fff 50%, #1e1e1f 50%); } .mode .pv.a i { background: #e5e5e8; }
+.mode[aria-pressed='true'] .pv { box-shadow: 0 0 0 2px var(--accent); }
+.mode[aria-pressed='true'] { color: var(--text); }
+.accents { display: flex; gap: 7px; align-items: center; }
+.accents .swatch { width: 16px; height: 16px; }
+.accents .multi { background: conic-gradient(#e0383e, #f7821b, #fcb827, #62ba46, #007aff, #953d96, #e0383e); }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="controls">
+  <div class="grp"><b>Screen</b>
+    <div class="seg" id="view">
+      <button data-v="workspace" aria-pressed="true">Workspace</button>
+      <button data-v="palette">Command palette</button>
+      <button data-v="menu">Menu</button>
+      <button data-v="settings">Settings</button>
+    </div>
+  </div>
+  <div class="grp"><b>Mode</b>
+    <div class="seg" id="mode">
+      <button data-m="light" aria-pressed="true">Light</button>
+      <button data-m="dark">Dark</button>
+    </div>
+  </div>
+  <div class="grp"><b>List</b>
+    <div class="seg" id="density">
+      <button data-d="compact" aria-pressed="true">Compact</button>
+      <button data-d="preview">Preview</button>
+    </div>
+    <div class="seg" id="focus">
+      <button data-f="1" aria-pressed="true">Focused</button>
+      <button data-f="0">Unfocused</button>
+    </div>
+  </div>
+  <div class="grp"><b>Accent</b>
+    <div class="swatches" id="accent">
+      <button class="swatch" style="--c:#007aff" data-c="#007aff" aria-pressed="true"></button>
+      <button class="swatch" style="--c:#953d96" data-c="#953d96"></button>
+      <button class="swatch" style="--c:#f74f9e" data-c="#f74f9e"></button>
+      <button class="swatch" style="--c:#e0383e" data-c="#e0383e"></button>
+      <button class="swatch" style="--c:#f7821b" data-c="#f7821b"></button>
+      <button class="swatch" style="--c:#62ba46" data-c="#4fa83a"></button>
+      <button class="swatch" style="--c:#8c8c8c" data-c="#8c8c8c"></button>
+    </div>
+  </div>
+</div>
+
+<div class="stage"><div class="scaler" id="scaler">
+<div class="window" id="win">
+
+  <!-- ═════════ Sidebar ═════════ -->
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <button class="icon-btn" title="Hide sidebar"><i data-lucide="panel-left"></i></button>
+    </div>
+    <div class="sb-scroll">
+      <button class="nav-row muted"><i data-lucide="search"></i><span class="label">Search</span><span class="kbd">⌘P</span></button>
+      <div style="height:6px"></div>
+      <button class="nav-row" aria-current="true"><i data-lucide="notebook-text"></i><span class="label">All notes</span><span class="count">8</span></button>
+      <button class="nav-row"><i data-lucide="calendar"></i><span class="label">Today</span><span class="count">3</span></button>
+      <button class="nav-row"><i data-lucide="list-checks"></i><span class="label">To-do</span><span class="count">4</span></button>
+      <button class="nav-row"><i data-lucide="inbox"></i><span class="label">Uncategorized</span><span class="count">1</span></button>
+
+      <div class="sb-section">
+        <div class="sb-head">Quick access</div>
+        <button class="nav-row"><i data-lucide="pin"></i><span class="label">Pinned</span><span class="count">2</span></button>
+        <button class="nav-row"><i data-lucide="star"></i><span class="label">Weekly review</span></button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-head">Notebooks <button class="icon-btn" title="New notebook"><i data-lucide="plus"></i></button></div>
+        <button class="nav-row"><span class="disc"></span><span class="nb-dot"><span style="--c:#82936f"></span></span><span class="label">Personal</span><span class="count">3</span></button>
+        <button class="nav-row"><span class="disc"><i data-lucide="chevron-down"></i></span><span class="nb-dot"><span style="--c:#7f93b5"></span></span><span class="label">Work</span><span class="count">2</span></button>
+        <button class="nav-row" style="padding-left:22px"><span class="disc"></span><span class="nb-dot"><span style="--c:#b08bc4"></span></span><span class="label">Meetings</span><span class="count">1</span></button>
+        <button class="nav-row"><span class="disc"></span><span class="nb-dot"><span style="--c:#c09a72"></span></span><span class="label">Learning</span><span class="count">2</span></button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-head">PDFs <button class="icon-btn" title="Open PDF"><i data-lucide="plus"></i></button></div>
+        <button class="nav-row muted"><i data-lucide="file-text"></i><span class="label">Design of Everyday Things.pdf</span></button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-head">Tags</div>
+        <div class="tags"><span class="tag">#code</span><span class="tag">#design</span><span class="tag">#ideas</span><span class="tag">#planning</span><span class="tag">#reading</span><span class="tag">#writing</span></div>
+      </div>
+    </div>
+    <div class="sb-foot">
+      <span class="status"><i data-lucide="circle-check"></i>Synced 2 min ago</span>
+      <button class="icon-btn" title="Trash (3)"><i data-lucide="trash-2"></i></button>
+      <button class="icon-btn" title="Settings"><i data-lucide="settings"></i></button>
+    </div>
+  </aside>
+
+  <!-- ═════════ Note list ═════════ -->
+  <section class="list focused" id="list">
+    <div class="bar">
+      <span class="title">All notes</span><span class="title-count">8</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="sortBtn" title="Sort and view"><i data-lucide="arrow-down-wide-narrow"></i></button>
+      <button class="icon-btn" title="New note"><i data-lucide="square-pen"></i></button>
+    </div>
+    <div class="filter"><div class="field"><i data-lucide="list-filter"></i><span>Filter</span></div></div>
+    <div class="rows">
+      <div class="row"><div class="t"><i data-lucide="pin"></i><span>Notes on a quieter interface</span></div><div class="m"><span class="when">10:05</span><span class="nb">Work</span></div><div class="p">Every control should earn its place on screen.</div></div>
+      <div class="row" aria-selected="true"><div class="t"><i data-lucide="pin"></i><span>A little room to think</span></div><div class="m"><span class="when">10:05</span><span class="nb">Personal</span></div><div class="p">A place for the things you want to remember.</div></div>
+      <div class="row"><div class="t"><span>A garden journal</span></div><div class="m"><span class="when">10:05</span><span class="nb">Learning</span></div><div class="p">Tomatoes are finally turning. Basil bolted again.</div></div>
+      <div class="row"><div class="t"><span>Monday catch-up</span></div><div class="m"><span class="when">Yesterday</span><span class="nb">Work · Meetings</span></div><div class="p">Roadmap review moved to Thursday afternoon.</div></div>
+      <div class="row"><div class="t"><span>The week ahead</span></div><div class="m"><span class="when">Yesterday</span><span class="nb">Personal</span></div><div class="p">Dentist on Tuesday, call Mum, finish the draft.</div></div>
+      <div class="row"><div class="t"><span>Useful little snippets</span></div><div class="m"><span class="when">Oct 19</span><span class="nb">Learning</span></div><div class="p">git switch -c, git restore --staged, git log -p</div></div>
+      <div class="row"><div class="t"><span>Between the pages</span></div><div class="m"><span class="when">Oct 18</span><span class="nb">Personal</span></div><div class="p">Quotes and margins from the books I'm reading.</div></div>
+      <div class="row"><div class="t"><span>Something worth remembering</span></div><div class="m"><span class="when">Oct 17</span><span class="nb">Uncategorized</span></div><div class="p">No text</div></div>
+    </div>
+  </section>
+
+  <!-- ═════════ Editor ═════════ -->
+  <main class="editor">
+    <div class="bar">
+      <div class="nav-btns">
+        <button class="icon-btn" title="Back"><i data-lucide="chevron-left"></i></button>
+        <button class="icon-btn" disabled title="Forward"><i data-lucide="chevron-right"></i></button>
+      </div>
+      <div class="tabs">
+        <div class="tab pinned" title="Weekly review (pinned)"><i data-lucide="pin"></i></div>
+        <div class="tab-sep"></div>
+        <div class="tab" aria-selected="true"><i data-lucide="file-text"></i><span class="tl">A little room to think</span><button class="x"><i data-lucide="x"></i></button></div>
+        <div class="tab"><i data-lucide="file-text"></i><span class="tl">Monday catch-up</span><button class="x"><i data-lucide="x"></i></button></div>
+        <div class="tab preview"><i data-lucide="file-text"></i><span class="tl">A garden journal</span><button class="x"><i data-lucide="x"></i></button></div>
+      </div>
+      <div class="tools">
+        <button class="icon-btn" title="Focus mode"><i data-lucide="maximize-2"></i></button>
+        <button class="icon-btn" title="Table of contents"><i data-lucide="list-tree"></i></button>
+        <button class="icon-btn" title="Find in note"><i data-lucide="text-search"></i></button>
+        <button class="icon-btn" title="Note actions"><i data-lucide="ellipsis"></i></button>
+      </div>
+    </div>
+    <div class="doc-scroll">
+      <article class="doc">
+        <div class="meta">October 21, 2026 at 10:05 AM</div>
+        <h1>A little room to think</h1>
+        <div class="chips">
+          <span class="chip"><i class="d" style="--c:#82936f"></i>Personal</span>
+          <span class="chip add"><i data-lucide="plus"></i>Notebook</span>
+        </div>
+        <p>A place for the things you want to remember, the ideas you are still working through, and the occasional very good sentence.</p>
+        <h2>Make yourself at home</h2>
+        <p>This is your working notebook. Start with a thought, turn it into a list, or give it a <span class="selwrap"><span class="sel">little structure</span><span class="fmt" id="fmt">
+            <button class="txt">Body <i data-lucide="chevron-down"></i></button><span class="div"></span>
+            <button class="icon-btn" aria-pressed="true"><i data-lucide="bold"></i></button>
+            <button class="icon-btn"><i data-lucide="italic"></i></button>
+            <button class="icon-btn"><i data-lucide="underline"></i></button>
+            <button class="icon-btn"><i data-lucide="strikethrough"></i></button>
+            <button class="icon-btn"><i data-lucide="code"></i></button><span class="div"></span>
+            <button class="icon-btn"><i data-lucide="link"></i></button>
+            <button class="icon-btn"><i data-lucide="highlighter"></i></button>
+            <button class="icon-btn"><i data-lucide="list"></i></button>
+            <button class="icon-btn"><i data-lucide="ellipsis"></i></button>
+          </span></span>. There is no right way to begin.</p>
+        <blockquote>Keep the tools quiet. Give the ideas room.</blockquote>
+        <h2>A few things to try</h2>
+        <ul class="checklist">
+          <li class="done"><span class="cb on"><i data-lucide="check"></i></span><span>Find a comfortable writing space</span></li>
+          <li><span class="cb"></span><span>Choose a different font for your notes</span></li>
+          <li><span class="cb"></span><span>Add a table or a snippet of code</span></li>
+        </ul>
+        <p>Open <b>Settings</b> to make the writing area yours. Your notes, titles, and <code class="inl">code</code> each have their own font.</p>
+<pre><span class="c">// a tiny habit tracker</span>
+<span class="k">const</span> streak = days.<span class="k">filter</span>((d) =&gt; d.wrote).length
+console.<span class="k">log</span>(<span class="s">`${streak} days in a row`</span>)</pre>
+        <p><span class="hashtag">#ideas</span> <span class="hashtag">#writing</span></p>
+      </article>
+    </div>
+  </main>
+
+  <!-- ═════════ Sort / view menu ═════════ -->
+  <div class="menu hidden" id="menu" style="left: 386px; top: 34px;">
+    <div class="mh">Sort by</div>
+    <div class="mi"><span class="ck"><i data-lucide="check"></i></span><span class="lb">Date edited</span></div>
+    <div class="mi hl"><span class="ck"></span><span class="lb">Date created</span></div>
+    <div class="mi"><span class="ck"></span><span class="lb">Title</span></div>
+    <div class="mi"><span class="ck"></span><span class="lb">Manual</span></div>
+    <div class="ms"></div>
+    <div class="mi"><span class="ck"><i data-lucide="check"></i></span><span class="lb">Newest first</span></div>
+    <div class="mi"><span class="ck"></span><span class="lb">Oldest first</span></div>
+    <div class="ms"></div>
+    <div class="mh">View</div>
+    <div class="mi"><span class="ck"><i data-lucide="check"></i></span><span class="lb">Compact</span><span class="sc">⌥⌘1</span></div>
+    <div class="mi"><span class="ck"></span><span class="lb">Preview</span><span class="sc">⌥⌘2</span></div>
+  </div>
+
+  <!-- ═════════ Command palette ═════════ -->
+  <div class="scrim hidden" id="palette">
+    <div class="palette">
+      <div class="pal-input">
+        <i data-lucide="search"></i>
+        <span class="q">room<span class="caret"></span></span>
+        <div class="seg"><button aria-pressed="true">Titles</button><button>Note text</button></div>
+      </div>
+      <div class="pal-body">
+        <div class="pal-h">Notes</div>
+        <div class="pal-row hl"><i data-lucide="file-text"></i><span class="lb">A little <b>room</b> to think</span><span class="ctx">Personal</span></div>
+        <div class="pal-row"><i data-lucide="file-text"></i><span class="lb"><b>R</b>eading <b>roo</b>m <b>m</b>arginalia</span><span class="ctx">Learning</span></div>
+        <div class="pal-row"><i data-lucide="file-text"></i><span class="lb">Living <b>room</b> paint colours</span><span class="ctx">Personal · Home</span></div>
+        <div class="pal-h">Commands</div>
+        <div class="pal-row"><i data-lucide="square-pen"></i><span class="lb">New note</span><kbd>⌘N</kbd></div>
+        <div class="pal-row"><i data-lucide="maximize-2"></i><span class="lb">Toggle focus mode</span><kbd>⇧⌘F</kbd></div>
+      </div>
+      <div class="pal-foot">
+        <span><kbd>↵</kbd>Open</span><span><kbd>⌘↵</kbd>New tab</span><span><kbd>⇥</kbd>Search note text</span>
+        <span class="sp"></span><span><kbd>&gt;</kbd>Commands</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════ Settings window ═════════ -->
+  <div class="settings hidden" id="settings">
+    <div class="s-side">
+      <div class="sb-top"><div class="lights"><i></i><i></i><i></i></div></div>
+      <div class="field"><i data-lucide="search"></i><span>Search</span></div>
+      <div class="s-cat" aria-current="true"><span class="ic" style="--c:#007aff"><i data-lucide="palette"></i></span>Appearance</div>
+      <div class="s-cat"><span class="ic" style="--c:#f7821b"><i data-lucide="type"></i></span>Typography</div>
+      <div class="s-cat"><span class="ic" style="--c:#62ba46"><i data-lucide="pen-line"></i></span>Editor</div>
+      <div class="s-cat"><span class="ic" style="--c:#8c8c8c"><i data-lucide="keyboard"></i></span>Shortcuts</div>
+      <div class="s-cat"><span class="ic" style="--c:#30b0c7"><i data-lucide="refresh-cw"></i></span>Sync</div>
+    </div>
+    <div class="s-main">
+      <div class="bar">Appearance</div>
+      <div class="s-body">
+        <div class="s-group">
+          <div class="s-row"><span class="lbl">Appearance</span>
+            <div class="modes">
+              <button class="mode" aria-pressed="true"><span class="pv l"><i></i></span>Light</button>
+              <button class="mode"><span class="pv d"><i></i></span>Dark</button>
+              <button class="mode"><span class="pv a"><i></i></span>Auto</button>
+            </div>
+          </div>
+          <div class="s-row"><span class="lbl">Accent color<small>Multicolor follows your macOS setting</small></span>
+            <div class="accents">
+              <span class="swatch multi"></span>
+              <span class="swatch" style="--c:#007aff" aria-pressed="true"></span>
+              <span class="swatch" style="--c:#953d96"></span>
+              <span class="swatch" style="--c:#f74f9e"></span>
+              <span class="swatch" style="--c:#e0383e"></span>
+              <span class="swatch" style="--c:#f7821b"></span>
+              <span class="swatch" style="--c:#fcb827"></span>
+              <span class="swatch" style="--c:#62ba46"></span>
+              <span class="swatch" style="--c:#8c8c8c"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-group-title">Window</div>
+        <div class="s-group">
+          <div class="s-row"><span class="lbl">Translucent sidebar</span><span class="switch on"></span></div>
+          <div class="s-row"><span class="lbl">Note list<small>Preview adds one line of note text</small></span><span class="select">Compact <i data-lucide="chevrons-up-down"></i></span></div>
+          <div class="s-row"><span class="lbl">Show note counts in sidebar</span><span class="switch on"></span></div>
+        </div>
+
+        <div class="s-group-title">Motion</div>
+        <div class="s-group">
+          <div class="s-row"><span class="lbl">Animations<small>Reduce Motion in macOS always turns these off</small></span><span class="switch on"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div></div>
+
+<script>
+lucide.createIcons()
+const $ = (s) => document.querySelector(s)
+const group = (id, attr, apply) => {
+  const el = document.getElementById(id)
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b))
+    apply(b.dataset[attr])
+  })
+}
+group('mode', 'm', (m) => (document.body.dataset.theme = m))
+group('density', 'd', (d) => $('#list').classList.toggle('preview', d === 'preview'))
+group('focus', 'f', (f) => $('#list').classList.toggle('focused', f === '1'))
+group('accent', 'c', (c) => document.documentElement.style.setProperty('--accent', c))
+group('view', 'v', (v) => {
+  $('#menu').classList.toggle('hidden', v !== 'menu')
+  $('#palette').classList.toggle('hidden', v !== 'palette')
+  $('#settings').classList.toggle('hidden', v !== 'settings')
+  $('#fmt').classList.toggle('hidden', v !== 'workspace')
+  $('#sortBtn').setAttribute('aria-pressed', v === 'menu')
+  $('#list').classList.toggle('focused', v === 'workspace' || v === 'menu' ? $('#focus [data-f="1"]').getAttribute('aria-pressed') === 'true' : false)
+})
+const fit = () => {
+  const s = $('.stage'), k = Math.min((s.clientWidth - 48) / 1180, (s.clientHeight - 48) / 740, 1)
+  $('#scaler').style.transform = `scale(${k})`
+}
+addEventListener('resize', fit); fit()
+</script>
+</body>
+</html>

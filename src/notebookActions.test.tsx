@@ -54,9 +54,15 @@ async function mount() {
 }
 
 function row(name: string) {
-  return [...host!.querySelectorAll<HTMLElement>('.notebook-tree-row')].find((item) =>
-    item.textContent?.includes(name),
+  return [...host!.querySelectorAll<HTMLElement>('.side-row.has-actions')].find(
+    (item) => item.querySelector('.side-row-main .side-label')?.textContent === name,
   )!
+}
+
+function builtIn(label: string) {
+  return [...host!.querySelectorAll<HTMLButtonElement>('button.side-row')].find(
+    (button) => button.querySelector('.side-label')?.textContent === label,
+  )
 }
 
 it('shows direct active note counts beside notebook titles and omits empty badges', async () => {
@@ -81,15 +87,12 @@ it('shows direct active note counts beside notebook titles and omits empty badge
     ['Personal', '2'],
     ['Child', '1'],
   ]) {
-    const button = row(name).querySelector<HTMLButtonElement>('.notebook-nav-item')!
-    expect(button.querySelector('span')?.textContent).toBe(name)
-    expect(button.querySelector('.notebook-count')?.textContent).toBe(count)
+    const button = row(name).querySelector<HTMLButtonElement>('.side-row-main')!
+    expect(button.querySelector('.side-label')?.textContent).toBe(name)
+    expect(button.querySelector('.count')?.textContent).toBe(count)
   }
-  expect(row('Empty').querySelector('.notebook-count')).toBeNull()
-  const allNotes = [...host!.querySelectorAll<HTMLButtonElement>('.nav-item')].find((button) =>
-    button.textContent?.startsWith('All notes'),
-  )!
-  expect(allNotes.querySelector('.notebook-count')?.textContent).toBe('4')
+  expect(row('Empty').querySelector('.count')).toBeNull()
+  expect(builtIn('All notes')!.querySelector('.count')?.textContent).toBe('4')
 })
 
 it('shows nonzero desktop navigation counts in badges and updates them with notes', async () => {
@@ -115,10 +118,7 @@ it('shows nonzero desktop navigation counts in badges and updates them with note
     ])
   })
 
-  const countFor = (label: string) =>
-    [...host!.querySelectorAll<HTMLButtonElement>('.nav-item:not(.notebook-nav-item)')]
-      .find((button) => button.querySelector('span')?.textContent === label)
-      ?.querySelector('.notebook-count')?.textContent
+  const countFor = (label: string) => builtIn(label)?.querySelector('.count')?.textContent
   expect([
     countFor('All notes'),
     countFor('Today'),
@@ -162,28 +162,26 @@ async function setText(label: string, value: string) {
 
 it('creates a note in the clicked notebook even when another notebook is selected', async () => {
   await mount()
-  await act(async () => row('Personal').querySelector<HTMLButtonElement>('.nav-item')!.click())
+  await act(async () => row('Personal').querySelector<HTMLButtonElement>('.side-row-main')!.click())
   await openMenu('Work')
   await selectMenu('New note')
 
   const created = library.getSnapshot().notes.find((note) => note.title === '')!
   expect(created.notebookIds).toEqual(['work'])
-  expect(
-    [...host!.querySelectorAll<HTMLButtonElement>('.nav-item')]
-      .find((button) => button.textContent?.startsWith('Work'))
-      ?.getAttribute('aria-current'),
-  ).toBe('page')
+  expect(row('Work').querySelector('.side-row-main')?.getAttribute('aria-current')).toBe('page')
 })
 
 it('creates a note from the notebook hover shortcut even when another notebook is selected', async () => {
   await mount()
-  await act(async () => row('Personal').querySelector<HTMLButtonElement>('.nav-item')!.click())
-  const shortcut = row('Work').querySelector<HTMLButtonElement>('.notebook-new-note')!
+  await act(async () => row('Personal').querySelector<HTMLButtonElement>('.side-row-main')!.click())
+  const shortcut = row('Work').querySelector<HTMLButtonElement>(
+    'button[aria-label="New note in Work"]',
+  )!
   await act(async () => shortcut.click())
 
   const created = library.getSnapshot().notes.find((note) => note.title === '')!
   expect(created.notebookIds).toEqual(['work'])
-  expect(row('Work').querySelector('.nav-item')?.getAttribute('aria-current')).toBe('page')
+  expect(row('Work').querySelector('.side-row-main')?.getAttribute('aria-current')).toBe('page')
   expect(document.activeElement?.getAttribute('aria-label')).toBe('Note title')
 })
 
@@ -218,7 +216,7 @@ it('edits a notebook name, built-in icon, and color from its menu', async () => 
 it('opens the new-notebook dialog from the aligned sidebar control', async () => {
   await mount()
   const trigger = document.querySelector<HTMLButtonElement>('[aria-label="New notebook"]')!
-  expect(trigger.classList.contains('new-notebook-button')).toBe(true)
+  expect(trigger.classList.contains('side-section-action')).toBe(true)
   await act(async () => trigger.click())
   expect(document.querySelector('[role="dialog"]')).toBeTruthy()
   expect(document.querySelector('[aria-label="Notebook name"]')).toBeTruthy()
@@ -226,7 +224,7 @@ it('opens the new-notebook dialog from the aligned sidebar control', async () =>
 
 it('deletes the selected notebook, moves its notes to Trash, and navigates away', async () => {
   await mount()
-  await act(async () => row('Work').querySelector<HTMLButtonElement>('.nav-item')!.click())
+  await act(async () => row('Work').querySelector<HTMLButtonElement>('.side-row-main')!.click())
   await openMenu('Work')
   await selectMenu('Delete notebook')
 
@@ -248,9 +246,5 @@ it('deletes the selected notebook, moves its notes to Trash, and navigates away'
     trashed: true,
     notebookIds: [],
   })
-  expect(
-    [...host!.querySelectorAll<HTMLButtonElement>('.nav-item')]
-      .find((button) => button.textContent?.startsWith('All notes'))
-      ?.getAttribute('aria-current'),
-  ).toBe('page')
+  expect(builtIn('All notes')?.getAttribute('aria-current')).toBe('page')
 })

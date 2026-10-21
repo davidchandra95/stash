@@ -52,21 +52,26 @@ export default function KeyboardShortcuts({
   }
   return (
     <div className="keyboard-shortcuts">
-      <div className="shortcut-heading">
-        <p>Choose one shortcut per action. Changes save automatically.</p>
+      <div className="shortcuts-header">
+        <p className="field-help">Choose one shortcut per action. Changes save automatically.</p>
         <button
+          className="btn btn-sm"
           onClick={() => {
             close()
             setConfirmReset(true)
           }}
         >
-          Reset all to defaults
+          Reset all…
         </button>
       </div>
       {confirmReset && (
-        <div className="shortcut-confirm" role="group" aria-label="Reset shortcut confirmation">
+        <div className="inline-confirm" role="group" aria-label="Reset shortcut confirmation">
           <p>Reset all keyboard shortcuts? Your custom assignments will be removed.</p>
+          <button className="btn btn-sm" onClick={() => setConfirmReset(false)}>
+            Cancel reset
+          </button>
           <button
+            className="btn btn-sm btn-danger"
             onClick={() => {
               onChange({})
               setConfirmReset(false)
@@ -75,65 +80,74 @@ export default function KeyboardShortcuts({
           >
             Reset shortcuts
           </button>
-          <button onClick={() => setConfirmReset(false)}>Cancel reset</button>
         </div>
       )}
       {error && (
-        <p role="alert" className="shortcut-error">
+        <p role="alert" className="field-error">
           {error}
         </p>
       )}
-      {!rows.length && <p role="status">No shortcuts found.</p>}
+      {!rows.length && (
+        <p role="status" className="field-help">
+          No shortcuts found.
+        </p>
+      )}
       {(['Application', 'Navigation', 'Notes', 'Writing'] as const).map((category) => {
         const commands = rows.filter((c) => c.category === category)
         return (
           commands.length > 0 && (
-            <section className="shortcut-section" key={category} aria-label={category}>
-              <h3>{category}</h3>
-              <div className="shortcut-rows">
+            <section key={category} aria-label={category}>
+              <h3 className="settings-group-title">{category}</h3>
+              <div className="settings-group">
                 {commands.map((command) => (
-                  <div className="shortcut-row" key={command.id}>
-                    <div className="shortcut-description">
-                      <strong>{command.label}</strong>
-                      <small>{command.description}</small>
+                  <div className="settings-item" key={command.id}>
+                    <div className="settings-row shortcut-row">
+                      <span className="settings-label">
+                        {command.label}
+                        <small>{command.description}</small>
+                      </span>
+                      <kbd className="shortcut-key">
+                        {shortcutLabel(bindingFor(command.id, value), mac)}
+                      </kbd>
+                      <span className="shortcut-actions">
+                        <button
+                          className="icon-btn icon-btn-sm"
+                          aria-label={`Edit ${command.label} shortcut`}
+                          onClick={(event) => {
+                            trigger.current = event.currentTarget
+                            setEditing(command.id)
+                            setCandidate(null)
+                            setError('')
+                            setConfirmReset(false)
+                          }}
+                        >
+                          <Pencil aria-hidden="true" />
+                        </button>
+                        <button
+                          className="icon-btn icon-btn-sm"
+                          aria-label={`Clear ${command.label} shortcut`}
+                          disabled={!bindingFor(command.id, value)}
+                          onClick={() => {
+                            close()
+                            setError('')
+                            onChange({ ...value, [command.id]: null })
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </button>
+                        <button
+                          className="icon-btn icon-btn-sm"
+                          aria-label={`Reset ${command.label} shortcut`}
+                          disabled={!Object.hasOwn(value, command.id)}
+                          onClick={() => {
+                            close()
+                            reset(command.id)
+                          }}
+                        >
+                          <RotateCcw aria-hidden="true" />
+                        </button>
+                      </span>
                     </div>
-                    <kbd>{shortcutLabel(bindingFor(command.id, value), mac)}</kbd>
-                    <button
-                      className="icon-button"
-                      aria-label={`Edit ${command.label} shortcut`}
-                      onClick={(event) => {
-                        trigger.current = event.currentTarget
-                        setEditing(command.id)
-                        setCandidate(null)
-                        setError('')
-                        setConfirmReset(false)
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      aria-label={`Clear ${command.label} shortcut`}
-                      disabled={!bindingFor(command.id, value)}
-                      onClick={() => {
-                        close()
-                        setError('')
-                        onChange({ ...value, [command.id]: null })
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      aria-label={`Reset ${command.label} shortcut`}
-                      disabled={!Object.hasOwn(value, command.id)}
-                      onClick={() => {
-                        close()
-                        reset(command.id)
-                      }}
-                    >
-                      <RotateCcw size={14} />
-                    </button>
                     {editing === command.id && (
                       <div
                         className="shortcut-recording"
@@ -166,10 +180,15 @@ export default function KeyboardShortcuts({
                           setError(bindingError(command.id, key, value, mac) ?? '')
                         }}
                       >
-                        <span>
-                          {candidate ? shortcutLabel(candidate, mac) : 'Press a key combination…'}
-                        </span>
+                        <kbd className="shortcut-candidate">
+                          {candidate ? shortcutLabel(candidate, mac) : 'Type a shortcut…'}
+                        </kbd>
+                        <span className="spacer" />
+                        <button className="btn btn-sm" onClick={close}>
+                          Cancel
+                        </button>
                         <button
+                          className="btn btn-sm btn-primary"
                           disabled={!candidate || !!bindingError(command.id, candidate, value, mac)}
                           onClick={() => {
                             if (candidate && !bindingError(command.id, candidate, value, mac)) {
@@ -180,7 +199,6 @@ export default function KeyboardShortcuts({
                         >
                           Save shortcut
                         </button>
-                        <button onClick={close}>Cancel</button>
                       </div>
                     )}
                   </div>

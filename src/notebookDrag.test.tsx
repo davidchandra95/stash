@@ -76,18 +76,18 @@ async function drop() {
   await act(async () => row.dispatchEvent(pointer('pointerdown', 300, 250)))
   now = 20
   await act(async () => window.dispatchEvent(pointer('pointermove', 100, 350)))
-  expect(target.classList.contains('notebook-drop-target')).toBe(true)
+  expect(target.classList.contains('is-drop-target')).toBe(true)
   expect(host.querySelector('.note-drag-hint')?.textContent).toBeTruthy()
   await act(async () => window.dispatchEvent(pointer('pointerup', 100, 350)))
   expect(host.querySelector('.note-drag-ghost')).toBeNull()
   // Browsers generate a click after releasing the drag. It must not navigate.
-  await act(async () => target.querySelector<HTMLButtonElement>('.nav-item')!.click())
+  await act(async () => target.querySelector<HTMLButtonElement>('.side-row-main')!.click())
 }
 
 it('moves Work membership into its child, keeps the current view/editor and supports Undo', async () => {
   await mount()
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[data-notebook-drop-id="work"] .nav-item')!.click(),
+    host.querySelector<HTMLButtonElement>('[data-notebook-drop-id="work"] .side-row-main')!.click(),
   )
   const before = library.getSnapshot().workspace
   await drop()
@@ -95,7 +95,9 @@ it('moves Work membership into its child, keeps the current view/editor and supp
   expect(library.getSnapshot().notes).toHaveLength(1)
   expect(host.querySelector('.note-row[data-note-id="chain-note"]')).toBeNull()
   expect(
-    host.querySelector('[data-notebook-drop-id="work"] .nav-item')?.getAttribute('aria-current'),
+    host
+      .querySelector('[data-notebook-drop-id="work"] .side-row-main')
+      ?.getAttribute('aria-current'),
   ).toBe('page')
   expect(library.getSnapshot().workspace?.activeTabId).toBe(before?.activeTabId)
   expect(library.getSnapshot().workspace?.noteLists).toEqual(before?.noteLists)
@@ -142,8 +144,6 @@ it('expands collapsed destinations after 600ms and cancels expansion when hover 
       <NotebookTree
         books={books}
         active="all"
-        dark={false}
-        palette="classic"
         renderBook={(b) => <span>{b.name}</span>}
         createNote={noop}
         edit={noop}

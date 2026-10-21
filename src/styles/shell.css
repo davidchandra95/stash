@@ -1,0 +1,158 @@
+/* The window: three columns (sidebar, notes, editor), resizers and window chrome. */
+
+.window {
+  --sidebar-width: var(--sidebar-override, 216px);
+  --list-width: var(--list-override, 280px);
+  --sidebar-col: var(--sidebar-width);
+  --list-col: var(--list-width);
+  /* Clears the macOS traffic lights in whichever pane is leftmost. */
+  --window-controls: 0px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sidebar-col) var(--list-col) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  background: var(--bg-content);
+  transition: grid-template-columns var(--layout-motion, 0ms) var(--ease);
+}
+.window.native-chrome {
+  --window-controls: 70px;
+}
+.window.is-resizing {
+  transition: none;
+  cursor: col-resize;
+}
+.window.is-resizing * {
+  cursor: col-resize !important;
+}
+.window.no-sidebar {
+  --sidebar-col: 0px;
+}
+.window.no-note-list,
+.window.pdf-active {
+  --list-col: 0px;
+}
+.window > .sidebar {
+  grid-column: 1;
+  grid-row: 1;
+}
+.window > .note-list {
+  grid-column: 2;
+  grid-row: 1;
+}
+.window > .editor-pane {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* Native vibrancy: the page is transparent behind the sidebar only. */
+:root[data-vibrancy],
+:root[data-vibrancy] body,
+:root[data-vibrancy] .window {
+  background: transparent;
+}
+:root[data-vibrancy] .window > .note-list,
+:root[data-vibrancy] .window > .editor-pane {
+  background: var(--bg-content);
+}
+
+/* ───────── Pane bars: the window's toolbar, split per column ───────── */
+
+.pane-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--bar);
+  padding: 0 var(--space-4);
+  min-width: 0;
+}
+.window-controls-space {
+  flex: none;
+  width: var(--window-controls);
+  align-self: stretch;
+}
+
+/* ───────── Resizers ───────── */
+
+.pane-resizer {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  margin-left: -4px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.pane-resizer--sidebar {
+  left: var(--sidebar-col);
+}
+.pane-resizer--noteList {
+  left: calc(var(--sidebar-col) + var(--list-col));
+}
+.pane-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background var(--fast) var(--ease);
+}
+.pane-resizer:focus-visible {
+  outline: none;
+}
+.pane-resizer:focus-visible::after {
+  width: 2px;
+  background: var(--accent);
+}
+
+/* ───────── Shared pane content ───────── */
+
+.pane-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 30px;
+  padding: 4px var(--space-4) 4px var(--space-6);
+  border-bottom: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.pane-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+.pane-banner.is-error > span {
+  color: var(--danger);
+}
+.pane-message {
+  padding: var(--space-6);
+  color: var(--text-3);
+}
+
+.startup {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  height: 100%;
+  background: var(--bg-content);
+  color: var(--text-2);
+  text-align: center;
+}
+.startup h2 {
+  color: var(--text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.startup p {
+  max-width: 420px;
+}
+.startup [role='alert'] {
+  color: var(--danger);
+}

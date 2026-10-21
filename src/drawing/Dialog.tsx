@@ -1,3 +1,4 @@
+import { useResolvedDark } from '../appearance'
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { Editor } from '@tiptap/core'
@@ -5,7 +6,7 @@ import type { Appearance } from '../model'
 import { library, useLibrarySelector, shallowEqual } from '../storage/useLibrary'
 import { platform } from '../platform'
 import { X } from '../icons'
-import { fontFamily } from '../fonts'
+
 import { findDrawing } from './node'
 import { readDrawing, drawingLabel, drawingPreview, type DrawingData } from './model'
 import './drawing.css'
@@ -57,7 +58,7 @@ export default function DrawingDialog({
     }),
     shallowEqual,
   )
-  const dark = appearance?.dark ?? state.appearance.dark
+  const dark = useResolvedDark((appearance ?? state.appearance).colorMode)
   useEffect(() => {
     const dom = editor.view.dom
     const show = (event: Event) => {
@@ -123,9 +124,6 @@ export default function DrawingDialog({
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content
           className={`drawing-dialog ${platform.mobile ? 'drawing-dialog-mobile' : ''}`}
-          style={{ fontFamily: fontFamily(appearance?.uiFont ?? state.appearance.uiFont) }}
-          data-theme={dark ? 'dark' : 'light'}
-          data-palette={appearance?.theme ?? state.appearance.theme}
           aria-describedby="drawing-description"
           onPointerDownOutside={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}

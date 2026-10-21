@@ -1,0 +1,136 @@
+/*
+ * Stash design tokens. Everything visual derives from these; components never hard-code
+ * colors. Color mode lives on <html data-theme>, so portaled menus and dialogs inherit it.
+ * --accent and --on-accent are set at runtime from the chosen accent color.
+ */
+:root {
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+
+  /* Type */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --leading: 16px;
+
+  /* Geometry */
+  --bar: 38px;
+  --row: 24px;
+  --control: 24px;
+  --control-sm: 20px;
+  --icon: 16px;
+  --icon-sm: 14px;
+
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 120ms;
+  --normal: 180ms;
+
+  /* Accent (overridden at runtime) */
+  --accent: #007aff;
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-text: color-mix(in srgb, var(--accent) 88%, var(--text));
+  --focus-ring: color-mix(in srgb, var(--accent) 60%, transparent);
+  --text-selection: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-window: #ececee;
+  --bg-sidebar: #ececee;
+  --bg-sidebar-translucent: rgba(232, 232, 236, 0.62);
+  --bg-content: #ffffff;
+  --bg-elevated: rgba(252, 252, 253, 0.94);
+  --bg-elevated-solid: #fcfcfd;
+  --bg-input: rgba(0, 0, 0, 0.04);
+  --bg-control: #ffffff;
+  --bg-code: rgba(0, 0, 0, 0.035);
+  --bg-scrim: rgba(0, 0, 0, 0.16);
+
+  --text: #1d1d1f;
+  --text-2: rgba(0, 0, 0, 0.6);
+  --text-3: rgba(0, 0, 0, 0.47);
+  --text-4: rgba(0, 0, 0, 0.28);
+
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.15);
+  --fill-1: rgba(0, 0, 0, 0.05);
+  --fill-2: rgba(0, 0, 0, 0.08);
+  --fill-3: rgba(0, 0, 0, 0.11);
+
+  --danger: #d70015;
+  --danger-fill: #e5372f;
+  --warning: #a05a00;
+  --success: #248a3d;
+  --success-mark: #34c759;
+  --link: var(--accent-text);
+  --mark: rgba(255, 204, 0, 0.42);
+  --mark-current: rgba(255, 149, 0, 0.6);
+
+  --shadow-control: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 1px 1.5px rgba(0, 0, 0, 0.07);
+  --shadow-pop:
+    0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 8px 26px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-window:
+    0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 22px 60px rgba(0, 0, 0, 0.24), 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-window: #262628;
+  --bg-sidebar: #29292b;
+  --bg-sidebar-translucent: rgba(40, 40, 44, 0.58);
+  --bg-content: #1e1e1f;
+  --bg-elevated: rgba(44, 44, 46, 0.95);
+  --bg-elevated-solid: #2c2c2e;
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-control: rgba(255, 255, 255, 0.1);
+  --bg-code: rgba(255, 255, 255, 0.045);
+  --bg-scrim: rgba(0, 0, 0, 0.36);
+
+  --text: rgba(255, 255, 255, 0.9);
+  --text-2: rgba(255, 255, 255, 0.6);
+  --text-3: rgba(255, 255, 255, 0.44);
+  --text-4: rgba(255, 255, 255, 0.25);
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --fill-1: rgba(255, 255, 255, 0.06);
+  --fill-2: rgba(255, 255, 255, 0.09);
+  --fill-3: rgba(255, 255, 255, 0.13);
+
+  --danger: #ff6961;
+  --danger-fill: #e5372f;
+  --warning: #ffb340;
+  --success: #30d158;
+  --success-mark: #30d158;
+  --mark: rgba(255, 214, 10, 0.3);
+  --mark-current: rgba(255, 159, 10, 0.55);
+
+  --shadow-control: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 1px 1.5px rgba(0, 0, 0, 0.3);
+  --shadow-pop:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 10px 30px rgba(0, 0, 0, 0.42);
+  --shadow-window:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 24px 64px rgba(0, 0, 0, 0.5);
+}

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { AlertTriangle } from '../icons'
-import type { Appearance, Note, Notebook } from '../model'
+import type { Note, Notebook } from '../model'
 import { notebookDeleteScope, notebookPath } from '../notebooks'
 
 export type NotebookDeleteOptions = {
@@ -14,7 +13,6 @@ export default function NotebookDeleteDialog({
   notebook,
   notebooks,
   notes,
-  appearance,
   onConfirm,
   onClose,
 }: {
@@ -22,7 +20,6 @@ export default function NotebookDeleteDialog({
   notebook: Notebook
   notebooks: Notebook[]
   notes: Note[]
-  appearance: Appearance
   onConfirm: (options: NotebookDeleteOptions) => void | Promise<void>
   onClose: () => void
 }) {
@@ -45,6 +42,23 @@ export default function NotebookDeleteDialog({
     setError('')
   }, [open, notebook.id])
 
+  const choice = (
+    name: string,
+    checked: boolean,
+    onChange: () => void,
+    title: string,
+    detail: string,
+    disabled = false,
+  ) => (
+    <label className={`radio-choice ${disabled ? 'is-disabled' : ''}`}>
+      <input type="radio" name={name} checked={checked} disabled={disabled} onChange={onChange} />
+      <span>
+        <span className="radio-choice-title">{title}</span>
+        <span className="field-help">{detail}</span>
+      </span>
+    </label>
+  )
+
   return (
     <Dialog.Root
       open={open}
@@ -55,10 +69,7 @@ export default function NotebookDeleteDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content
-          className="settings-dialog notebook-delete-dialog"
-          style={{ fontFamily: 'var(--ui-font)' }}
-          data-theme={appearance.dark ? 'dark' : 'light'}
-          data-palette={appearance.theme}
+          className="dialog"
           onCloseAutoFocus={(event) => {
             const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-options')].find(
               (element) => element.dataset.notebookId === notebook.id,
@@ -68,15 +79,6 @@ export default function NotebookDeleteDialog({
             trigger.focus({ preventScroll: true })
           }}
         >
-          <Dialog.Title>Delete notebook?</Dialog.Title>
-          <Dialog.Description className="muted">
-            {`${notebookPath(notebook, notebooks)} will be removed from Stash.`}
-          </Dialog.Description>
-          {linkedTarget && (
-            <p role="alert" className="folder-error">
-              Folder-linked notebooks cannot be deleted from Stash.
-            </p>
-          )}
           <form
             onSubmit={async (event) => {
               event.preventDefault()
@@ -93,97 +95,75 @@ export default function NotebookDeleteDialog({
               }
             }}
           >
-            <fieldset className="notebook-delete-fieldset" disabled={busy || linkedTarget}>
-              <legend>Which notebooks should be removed?</legend>
-              <label className="notebook-choice">
-                <input
-                  type="radio"
-                  name="notebook-delete-scope"
-                  checked={!includeChildren}
-                  onChange={() => setIncludeChildren(false)}
-                />
-                <span>
-                  <strong>Delete only this notebook and promote child notebooks</strong>
-                  <small>
-                    {descendantCount
-                      ? `${descendantCount} child ${descendantCount === 1 ? 'notebook' : 'notebooks'} will move up one level.`
-                      : 'There are no child notebooks to promote.'}
-                  </small>
-                </span>
-              </label>
-              <label className={`notebook-choice ${hasLinkedDescendant ? 'disabled' : ''}`}>
-                <input
-                  type="radio"
-                  name="notebook-delete-scope"
-                  checked={includeChildren}
-                  disabled={hasLinkedDescendant}
-                  onChange={() => setIncludeChildren(true)}
-                />
-                <span>
-                  <strong>Delete this notebook and all child notebooks</strong>
-                  <small>
-                    {hasLinkedDescendant
-                      ? 'Not available because a child notebook is linked to a folder on disk.'
-                      : descendantCount
-                        ? `This removes this notebook and its ${descendantCount} child ${descendantCount === 1 ? 'notebook' : 'notebooks'}.`
-                        : 'There are no child notebooks to remove.'}
-                  </small>
-                </span>
-              </label>
-
-              <div className="notebook-group-label">What should happen to notes?</div>
-              <label className="notebook-choice">
-                <input
-                  type="radio"
-                  name="notebook-delete-notes"
-                  checked={!deleteNotes}
-                  onChange={() => setDeleteNotes(false)}
-                />
-                <span>
-                  <strong>Keep notes</strong>
-                  <small>
-                    {noteCount
-                      ? `${noteCount} ${noteCount === 1 ? 'note keeps' : 'notes keep'} any surviving notebook memberships.`
-                      : 'No notes are currently in this notebook scope.'}
-                  </small>
-                </span>
-              </label>
-              <label className="notebook-choice">
-                <input
-                  type="radio"
-                  name="notebook-delete-notes"
-                  checked={deleteNotes}
-                  onChange={() => setDeleteNotes(true)}
-                />
-                <span>
-                  <strong>Move notes to Trash</strong>
-                  <small>
-                    Notes remain recoverable. Shared notes keep memberships in surviving notebooks.
-                  </small>
-                </span>
-              </label>
-            </fieldset>
-            {noteCount > 0 && (
-              <p className="muted notebook-delete-note">
-                Notes with no surviving notebook membership will appear in Uncategorized when
-                restored.
-              </p>
-            )}
-            {error && (
-              <p role="alert" className="folder-error">
-                <AlertTriangle size={15} /> {error}
-              </p>
-            )}
-            <div className="dialog-buttons">
-              <button type="button" className="quiet-button" disabled={busy} onClick={onClose}>
+            <div className="dialog-header">
+              <Dialog.Title className="dialog-title">
+                Delete “{notebookPath(notebook, notebooks)}”?
+              </Dialog.Title>
+              <Dialog.Description className="dialog-description">
+                The notebook will be removed from Stash.
+              </Dialog.Description>
+            </div>
+            <div className="dialog-body">
+              {linkedTarget && (
+                <p role="alert" className="field-error">
+                  Folder-linked notebooks cannot be deleted from Stash.
+                </p>
+              )}
+              <fieldset className="radio-group" disabled={busy || linkedTarget}>
+                <legend className="field-label">Sub-notebooks</legend>
+                {choice(
+                  'notebook-delete-scope',
+                  !includeChildren,
+                  () => setIncludeChildren(false),
+                  'Keep sub-notebooks',
+                  descendantCount
+                    ? `${descendantCount} ${descendantCount === 1 ? 'sub-notebook moves' : 'sub-notebooks move'} up one level.`
+                    : 'This notebook has no sub-notebooks.',
+                )}
+                {choice(
+                  'notebook-delete-scope',
+                  includeChildren,
+                  () => setIncludeChildren(true),
+                  'Delete sub-notebooks too',
+                  hasLinkedDescendant
+                    ? 'Unavailable because a sub-notebook is linked to a folder on disk.'
+                    : descendantCount
+                      ? `Also removes ${descendantCount} ${descendantCount === 1 ? 'sub-notebook' : 'sub-notebooks'}.`
+                      : 'This notebook has no sub-notebooks.',
+                  hasLinkedDescendant,
+                )}
+              </fieldset>
+              <fieldset className="radio-group" disabled={busy || linkedTarget}>
+                <legend className="field-label">Notes</legend>
+                {choice(
+                  'notebook-delete-notes',
+                  !deleteNotes,
+                  () => setDeleteNotes(false),
+                  'Keep notes',
+                  noteCount
+                    ? `${noteCount} ${noteCount === 1 ? 'note keeps' : 'notes keep'} their other notebooks, or become Uncategorized.`
+                    : 'No notes are in this notebook.',
+                )}
+                {choice(
+                  'notebook-delete-notes',
+                  deleteNotes,
+                  () => setDeleteNotes(true),
+                  'Move notes to Trash',
+                  'Notes stay recoverable. Notes in other notebooks keep those memberships.',
+                )}
+              </fieldset>
+              {error && (
+                <p role="alert" className="field-error">
+                  {error}
+                </p>
+              )}
+            </div>
+            <div className="dialog-footer">
+              <button type="button" className="btn" disabled={busy} onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="destructive-button" disabled={busy || linkedTarget}>
-                {busy
-                  ? 'Deleting…'
-                  : deleteNotes
-                    ? 'Delete notebook and move notes to Trash'
-                    : 'Delete notebook'}
+              <button type="submit" className="btn btn-danger" disabled={busy || linkedTarget}>
+                {busy ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </form>

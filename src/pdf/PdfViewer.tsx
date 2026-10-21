@@ -633,7 +633,7 @@ export default function PdfReader({
       <div className="pdf-toolbar" aria-label="PDF controls">
         <PdfToolbarButton
           ref={outlineToggleRef}
-          className="icon-button"
+          className="icon-btn"
           aria-label="PDF table of contents"
           title="Table of contents"
           aria-expanded={outlineOpen}
@@ -646,7 +646,7 @@ export default function PdfReader({
         {onCapture && (
           <>
             <PdfToolbarButton
-              className="icon-button"
+              className="icon-btn"
               aria-label="Add page reference"
               title="Add page reference"
               disabled={busy || captureDisabled}
@@ -656,7 +656,7 @@ export default function PdfReader({
               <Link2 />
             </PdfToolbarButton>
             <PdfToolbarButton
-              className="icon-button"
+              className="icon-btn"
               aria-label="Add quote to note"
               title="Add quote to note"
               disabled={!selection || busy || captureDisabled}
@@ -670,7 +670,7 @@ export default function PdfReader({
         {toolbarActions}
         <div className="pdf-toolbar-right">
           <PdfToolbarButton
-            className="icon-button pdf-search-toggle"
+            className="icon-btn pdf-search-toggle"
             aria-label="Find in PDF"
             title="Find in PDF"
             aria-expanded={findOpen}
@@ -722,7 +722,7 @@ export default function PdfReader({
             <div className="pdf-outline-header">
               <strong>Table of contents</strong>
               <button
-                className="icon-button"
+                className="icon-btn"
                 aria-label="Close PDF table of contents"
                 onClick={closeOutline}
               >
@@ -771,7 +771,7 @@ export default function PdfReader({
             <div className="pdf-find">
               <input
                 ref={findRef}
-                className="text-field"
+                className="field"
                 aria-label="Find in PDF"
                 placeholder="Find in PDF…"
                 value={query}
@@ -794,7 +794,7 @@ export default function PdfReader({
                     : 'Find in PDF'}
               </span>
               <button
-                className="icon-button"
+                className="icon-btn"
                 aria-label="Previous PDF match"
                 disabled={busy || searching || !matches.total}
                 onClick={() => search(query, true, true)}
@@ -802,14 +802,14 @@ export default function PdfReader({
                 <ChevronLeft />
               </button>
               <button
-                className="icon-button"
+                className="icon-btn"
                 aria-label="Next PDF match"
                 disabled={busy || searching || !matches.total}
                 onClick={() => search(query, true)}
               >
                 <ChevronRight />
               </button>
-              <button className="icon-button" aria-label="Close PDF search" onClick={closeFind}>
+              <button className="icon-btn" aria-label="Close PDF search" onClick={closeFind}>
                 <X />
               </button>
             </div>
@@ -869,7 +869,7 @@ export default function PdfReader({
             <PdfToolbarButton
               tooltipSide="top"
               key={label}
-              className="icon-button"
+              className="icon-btn"
               aria-label={label}
               title={label}
               disabled={busy || blocked}
@@ -890,7 +890,7 @@ export default function PdfReader({
             }}
           >
             <input
-              className="text-field"
+              className="field"
               aria-label="PDF page"
               inputMode="numeric"
               value={pageInput}
@@ -906,7 +906,7 @@ export default function PdfReader({
             <PdfToolbarButton
               tooltipSide="top"
               key={label}
-              className="icon-button"
+              className="icon-btn"
               aria-label={label}
               title={label}
               disabled={busy || page >= pages}
@@ -921,7 +921,7 @@ export default function PdfReader({
         <div className="pdf-zoom-controls">
           <PdfToolbarButton
             tooltipSide="top"
-            className="icon-button"
+            className="icon-btn"
             aria-label="Zoom out"
             title="Zoom out"
             disabled={busy || scale <= 0.25}
@@ -932,7 +932,7 @@ export default function PdfReader({
           </PdfToolbarButton>
           <PdfTooltip label="Zoom percentage" side="top" disabled={busy}>
             <select
-              className="text-field"
+              className="field"
               aria-label="PDF zoom"
               disabled={busy}
               value={String(scale)}
@@ -950,7 +950,7 @@ export default function PdfReader({
           </PdfTooltip>
           <PdfToolbarButton
             tooltipSide="top"
-            className="icon-button"
+            className="icon-btn"
             aria-label="Zoom in"
             title="Zoom in"
             disabled={busy || scale >= 5}
@@ -971,7 +971,7 @@ export default function PdfReader({
               <PdfToolbarButton
                 tooltipSide="top"
                 key={label}
-                className="icon-button"
+                className="icon-btn"
                 aria-label={label}
                 title={label}
                 aria-pressed={zoomMode === mode}
