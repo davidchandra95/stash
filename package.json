@@ -14,7 +14,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:themes": "playwright test --config playwright.themes.config.ts",
+    "test:ui": "playwright test --config playwright.ui.config.ts",
     "test:pdf": "playwright test --config playwright.pdf.config.ts",
     "prototype:macos-editor": "node prototypes/macos-native-editor/run.mjs",
     "bench:macos-editor": "node prototypes/macos-native-editor/benchmark.mjs"

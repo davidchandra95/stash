@@ -70,7 +70,7 @@ test('retains live PDF sessions across notes and PDFs, and releases them on clos
   await page.getByRole('button', { name: 'Close first.pdf', exact: true }).press('Enter')
   await expect.poll(() => page.workers().length).toBe(1)
   expect(await host!.evaluate((el) => el.isConnected)).toBe(false)
-  await page.locator('.pdf-sidebar-row').filter({ hasText: 'first.pdf' }).click()
+  await page.locator('.sidebar').getByRole('button', { name: 'first.pdf', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeEnabled()
   await expect(page.getByRole('textbox', { name: 'Find in PDF', exact: true })).toHaveCount(0)
   expect(await reads()).toBeGreaterThan(firstReads)

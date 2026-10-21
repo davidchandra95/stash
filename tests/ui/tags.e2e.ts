@@ -83,44 +83,29 @@ test('real copy and cut preserve only confirmed tags between notes', async ({ pa
   await expect(page.locator('.tiptap [data-body-tag]')).toHaveCount(0)
 })
 
-test('long tag choices fit narrow windows and use each existing palette', async ({ page }) => {
+test('long tag choices fit narrow windows in light and dark color modes', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 650 })
   await page.goto('/')
   await page.locator('.note-row[data-note-id="writing-lab"]').click()
   await resetEditor(page)
   await page.keyboard.type('#' + 'longtag'.repeat(20))
   const menu = page.locator('.body-tag-menu:visible')
-  for (const theme of [
-    'classic',
-    'zen',
-    'financial',
-    'tiktok',
-    'catppuccin',
-    'lastchat',
-    'qrafthive',
-    'aster',
-  ]) {
-    for (const dark of [false, true]) {
-      for (const appStyle of ['default', 'cards']) {
-        await page.evaluate(
-          async ({ theme, dark, appStyle }) => {
-            const url = performance
-              .getEntriesByType('resource')
-              .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
-            const { library } = await import(/* @vite-ignore */ url)
-            library.setAppearance({ ...library.getSnapshot().appearance, theme, dark, appStyle })
-          },
-          { theme, dark, appStyle },
-        )
-        // Continue the typed candidate after the appearance update.
-        await page.keyboard.type('x')
-        await expect(menu).toHaveAttribute('data-palette', theme)
-        const box = (await menu.boundingBox())!
-        expect(box.x + box.width).toBeLessThanOrEqual(900)
-        expect(box.y + box.height).toBeLessThanOrEqual(650)
-        expect(await menu.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
-      }
-    }
+  for (const colorMode of ['light', 'dark'] as const) {
+    await page.evaluate(async (colorMode) => {
+      const url = performance
+        .getEntriesByType('resource')
+        .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+      const { library } = await import(/* @vite-ignore */ url)
+      library.setAppearance({ ...library.getSnapshot().appearance, colorMode })
+    }, colorMode)
+    // Continue the typed candidate after the appearance update.
+    await page.keyboard.type('x')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
+    await expect(menu).toBeVisible()
+    const box = (await menu.boundingBox())!
+    expect(box.x + box.width).toBeLessThanOrEqual(900)
+    expect(box.y + box.height).toBeLessThanOrEqual(650)
+    expect(await menu.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
   }
   await page.screenshot({ path: test.info().outputPath('long-tag-narrow.png') })
 })

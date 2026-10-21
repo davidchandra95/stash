@@ -69,54 +69,50 @@ for (const viewport of [
   })
 }
 
-test('Mermaid follows every palette, light/dark and app layout without saving preview data', async ({
-  page,
-}) => {
+test('Mermaid follows light and dark color modes without saving preview data', async ({ page }) => {
   test.setTimeout(120000)
   await page.goto('/')
   await page.locator('.note-row[data-note-id="writing-lab"]').click()
   const before = await setSource(page, flowchart)
   await expect(page.locator('.mermaid-preview svg')).toBeVisible()
-  for (const palette of [
-    'classic',
-    'aster',
-    'zen',
-    'financial',
-    'tiktok',
-    'catppuccin',
-    'lastchat',
-    'qrafthive',
-  ]) {
-    for (const dark of [false, true]) {
-      for (const cards of [false, true]) {
-        await page.locator('.account-trigger').click()
-        await page.getByRole('menuitem', { name: 'Settings', exact: true }).click()
-        await page.getByLabel('Theme', { exact: true }).selectOption(palette)
-        await page.getByRole('button', { name: dark ? 'Dark' : 'Light', exact: true }).click()
-        await page
-          .locator(`input[name="app-style"][value="${cards ? 'cards' : 'default'}"]`)
-          .check()
-        await page.getByLabel('Close settings').click()
-        const preview = page.locator('.mermaid-preview')
-        await expect(preview).toHaveAttribute('aria-busy', 'false')
-        await expect(preview.locator('svg')).toBeVisible()
-        await expect(preview).toContainText('Save locally')
-        const colors = await preview.evaluate((element) => {
-          const ctx = document.createElement('canvas').getContext('2d')!
-          const rgb = (color: string) => {
-            ctx.fillStyle = color
-            ctx.fillRect(0, 0, 1, 1)
-            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
-          }
-          const style = getComputedStyle(element)
-          return {
-            expected: rgb(style.getPropertyValue('--text')),
-            actual: rgb(getComputedStyle(element.querySelector('text')!).fill),
-          }
-        })
-        expect(colors.actual, `${palette} dark=${dark} cards=${cards}`).toEqual(colors.expected)
-      }
-    }
+  for (const colorMode of ['dark', 'light'] as const) {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page
+      .getByRole('radiogroup', { name: 'Appearance', exact: true })
+      .getByRole('radio', { name: colorMode === 'dark' ? 'Dark' : 'Light', exact: true })
+      .click()
+    await page.getByLabel('Close settings').click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
+    const preview = page.locator('.mermaid-preview')
+    await expect(preview).toHaveAttribute('aria-busy', 'false')
+    await expect(preview.locator('svg')).toBeVisible()
+    await expect(preview).toContainText('Save locally')
+    const colors = () =>
+      preview.evaluate((element) => {
+        const ctx = document.createElement('canvas').getContext('2d')!
+        const style = getComputedStyle(element)
+        // Text tokens can be translucent; diagrams draw them over the opaque content surface.
+        const rgb = (color: string) => {
+          ctx.fillStyle = style.getPropertyValue('--bg-content')
+          ctx.fillRect(0, 0, 1, 1)
+          ctx.fillStyle = color
+          ctx.fillRect(0, 0, 1, 1)
+          return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+        }
+        return {
+          expected: rgb(style.getPropertyValue('--text')),
+          actual: rgb(getComputedStyle(element.querySelector('text')!).fill),
+        }
+      })
+    await expect
+      .poll(
+        async () => {
+          const { expected, actual } = await colors()
+          return actual.join() === expected.join()
+        },
+        { message: colorMode },
+      )
+      .toBe(true)
   }
   expect(
     await page.locator('.tiptap').evaluate(async () => {
@@ -177,7 +173,8 @@ test('linked Markdown renders in read-only mode and preserves its source on save
     const { serializeMarkdown } = await import(
       /* @vite-ignore */ new URL('./markdown.ts', url).href
     )
-    const linked = getEditor('linked-mermaid-test', {})
+    // Reuse the Markdown session; a rich-text request would replace it with an empty editor.
+    const linked = getEditor('linked-mermaid-test', {}, undefined, true)
     linked.setEditable(true, false)
     linked.commands.setTextSelection(1)
     linked.commands.insertContent('%% edited\n')

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test('keeps the canvas usable across desktop sizes, palettes, and app styles', async ({ page }) => {
+test('keeps the canvas usable across desktop sizes and color modes', async ({ page }) => {
   test.setTimeout(180000)
   await page.goto('/')
   await page.getByRole('button', { name: 'New note', exact: true }).first().click()
@@ -11,46 +11,34 @@ test('keeps the canvas usable across desktop sizes, palettes, and app styles', a
   await expect(dialog.locator('.excalidraw')).toBeVisible()
   for (const width of [1280, 900]) {
     await page.setViewportSize({ width, height: width === 900 ? 650 : 800 })
-    for (const appStyle of ['default', 'cards']) {
-      for (const dark of [false, true]) {
-        for (const theme of [
-          'classic',
-          'zen',
-          'financial',
-          'tiktok',
-          'catppuccin',
-          'lastchat',
-          'qrafthive',
-        ]) {
-          await page.evaluate(
-            async ({ appStyle, dark, theme }) => {
-              const path = '/src/storage/useLibrary.ts'
-              const { library } = await import(path)
-              library.setAppearance({ ...library.getSnapshot().appearance, appStyle, dark, theme })
-            },
-            { appStyle, dark, theme },
-          )
-          await dialog.getByRole('button', { name: 'Close drawing' }).click()
-          const edit = page.getByRole('button', { name: 'Edit drawing', exact: true })
-          await expect(edit).toBeInViewport()
-          const editBounds = (await edit.boundingBox())!
-          const previewBounds = (await page.locator('.drawing-preview').boundingBox())!
-          expect(editBounds.y + editBounds.height).toBeLessThanOrEqual(previewBounds.y)
-          if (appStyle === 'cards' && theme === 'qrafthive')
-            await page.screenshot({
-              path: `.artifact-work/drawing-block-${width}-${dark ? 'dark' : 'light'}.png`,
-            })
-          await edit.click()
-          await expect(dialog.locator('.excalidraw')).toBeVisible()
-          await expect(dialog).toHaveAttribute('data-theme', dark ? 'dark' : 'light')
-          await expect(dialog.getByRole('button', { name: 'Close drawing' })).toBeInViewport()
-          expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
-        }
-        if (appStyle === 'cards')
-          await page.screenshot({
-            path: `.artifact-work/drawing-${width}-${dark ? 'dark' : 'light'}.png`,
-          })
-      }
+    for (const colorMode of ['light', 'dark'] as const) {
+      await page.evaluate(async (colorMode) => {
+        // Use the app's own store; after hot updates its module URL carries a `?t=` query.
+        const url = performance
+          .getEntriesByType('resource')
+          .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+        const { library } = await import(/* @vite-ignore */ url)
+        library.setAppearance({ ...library.getSnapshot().appearance, colorMode })
+      }, colorMode)
+      await dialog.getByRole('button', { name: 'Close drawing' }).click()
+      await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
+      const edit = page.getByRole('button', { name: 'Edit drawing', exact: true })
+      await expect(edit).toBeInViewport()
+      const editBounds = (await edit.boundingBox())!
+      const previewBounds = (await page.locator('.drawing-preview').boundingBox())!
+      expect(editBounds.y + editBounds.height).toBeLessThanOrEqual(previewBounds.y)
+      await page.screenshot({
+        path: test.info().outputPath(`drawing-block-${width}-${colorMode}.png`),
+      })
+      await edit.click()
+      const canvas = dialog.locator('.excalidraw')
+      await expect(canvas).toBeVisible()
+      // The canvas follows the resolved color mode.
+      if (colorMode === 'dark') await expect(canvas).toHaveClass(/\btheme--dark\b/)
+      else await expect(canvas).not.toHaveClass(/\btheme--dark\b/)
+      await expect(dialog.getByRole('button', { name: 'Close drawing' })).toBeInViewport()
+      expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
+      await page.screenshot({ path: test.info().outputPath(`drawing-${width}-${colorMode}.png`) })
     }
   }
   await dialog.getByRole('button', { name: 'Close drawing' }).click()
@@ -122,8 +110,11 @@ test('draws offline, saves previews, reopens editable content, and preserves not
   await expect
     .poll(async () =>
       page.evaluate(async () => {
-        const path = '/src/storage/useLibrary.ts'
-        const { library } = await import(path)
+        // Use the app's own store; after hot updates its module URL carries a `?t=` query.
+        const url = performance
+          .getEntriesByType('resource')
+          .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+        const { library } = await import(/* @vite-ignore */ url)
         return library
           .getSnapshot()
           .notes.some((note: { content: unknown }) =>
@@ -170,8 +161,11 @@ test('draws offline, saves previews, reopens editable content, and preserves not
   await page.screenshot({ path: '.artifact-work/drawing-desktop.png' })
   // The browser preview is session-only, so transfer the saved note to a new mobile preview.
   const note = await page.evaluate(async () => {
-    const modulePath = '/src/storage/useLibrary.ts'
-    const { library } = await import(modulePath)
+    // Use the app's own store; after hot updates its module URL carries a `?t=` query.
+    const url = performance
+      .getEntriesByType('resource')
+      .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+    const { library } = await import(/* @vite-ignore */ url)
     return structuredClone(
       library
         .getSnapshot()
@@ -189,8 +183,11 @@ test('draws offline, saves previews, reopens editable content, and preserves not
   await page.goto('/?mobile=1')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.evaluate(async (note) => {
-    const modulePath = '/src/storage/useLibrary.ts'
-    const { library } = await import(modulePath)
+    // Use the app's own store; after hot updates its module URL carries a `?t=` query.
+    const url = performance
+      .getEntriesByType('resource')
+      .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+    const { library } = await import(/* @vite-ignore */ url)
     library.setNotes([{ ...note, title: 'Mobile drawing check' }])
   }, note)
   await page.getByText('Mobile drawing check', { exact: true }).first().click()

@@ -73,10 +73,12 @@ for (const mobile of [false, true]) {
       await page.getByRole('button', { name: 'Page actions', exact: true }).click()
       await page.getByRole('radio', { name: 'Preview', exact: true }).click()
     } else {
-      await page.getByRole('button', { name: 'Note list view', exact: true }).press('Enter')
+      await page.getByRole('button', { name: 'Sort and view options', exact: true }).press('Enter')
       await page.getByRole('menuitemradio', { name: 'Preview', exact: true }).click()
     }
-    await expect(pane.locator('.note-list-preview').first()).toBeVisible()
+    await expect(
+      pane.locator(mobile ? '.note-list-preview' : '.note-row-preview').first(),
+    ).toBeVisible()
     expect(await pane.evaluate((el) => el.scrollTop)).toBe(before)
     expect(await pane.locator(rowClass).count()).toBeLessThan(50)
 
@@ -94,8 +96,14 @@ for (const mobile of [false, true]) {
       await expect(page.locator('.mobile-note-scroll')).toBeVisible()
       // Hardware Back is covered in MobileApp's native-event behavioral test.
     } else {
-      await page.getByRole('button', { name: 'Hide notes list', exact: true }).click()
-      await page.getByRole('button', { name: 'Show notes list', exact: true }).click()
+      await page.getByRole('button', { name: 'Sort and view options', exact: true }).click()
+      await page.getByRole('menuitem', { name: 'Hide notes list', exact: true }).click()
+      // The collapsed column has zero width; the window class owns that state.
+      await expect(page.locator('.window')).toHaveClass(/\bno-note-list\b/)
+      const show = page.getByRole('button', { name: 'Show notes list', exact: true })
+      await expect(show).toHaveAttribute('aria-expanded', 'false')
+      await show.click()
+      await expect(page.locator('.window')).not.toHaveClass(/\bno-note-list\b/)
       expect(await pane.evaluate((el) => el.scrollTop)).toBe(before)
       await pane.evaluate((el) => {
         el.scrollTop = 0
@@ -125,16 +133,10 @@ for (const mobile of [false, true]) {
     await pane.evaluate((el) => {
       el.scrollTop = 20000
     })
-    await page.evaluate(async () => {
-      const url = performance
-        .getEntriesByType('resource')
-        .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
-      const { library } = await import(/* @vite-ignore */ url)
-      library.setAppearance({
-        ...library.getSnapshot().appearance,
-        uiFont: 'courier',
-        appStyle: 'cards',
-      })
+    // The interface font is no longer a setting; change the row font directly to force remeasuring.
+    await page.addStyleTag({
+      content:
+        '.note-rows, .mobile-list { font-family: "Courier New", monospace; font-size: 15px; }',
     })
     await page.setViewportSize(mobile ? { width: 844, height: 390 } : { width: 900, height: 650 })
     const rows = pane.locator(mobile ? '.mobile-note-row' : '.note-row')

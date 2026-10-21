@@ -1,30 +1,30 @@
 import { expect, test } from '@playwright/test'
 
 for (const variant of [
-  { width: 1280, height: 800, theme: 'light', style: 'default', motion: 'no-preference' },
-  { width: 900, height: 650, theme: 'dark', style: 'cards', motion: 'reduce' },
+  { width: 1280, height: 800, colorMode: 'light', motion: 'no-preference' },
+  { width: 900, height: 650, colorMode: 'dark', motion: 'reduce' },
 ] as const) {
-  test(`reorders tabs with pointer and keyboard ${variant.theme}`, async ({ page }) => {
+  test(`reorders tabs with pointer and keyboard ${variant.colorMode}`, async ({ page }) => {
     await page.setViewportSize(variant)
     await page.emulateMedia({ reducedMotion: variant.motion })
     await page.goto('/')
     await page.locator('.note-row').first().waitFor()
-    await page.locator('.account-trigger').click()
-    await page.getByRole('menuitem', { name: 'Settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
     await page
-      .getByRole('button', { name: variant.theme === 'dark' ? 'Dark' : 'Light', exact: true })
+      .getByRole('radiogroup', { name: 'Appearance', exact: true })
+      .getByRole('radio', { name: variant.colorMode === 'dark' ? 'Dark' : 'Light', exact: true })
       .click()
-    await page.locator(`input[name="app-style"][value="${variant.style}"]`).check()
     await page.getByLabel('Close settings').click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', variant.colorMode)
     const rows = page.locator('.note-row')
     for (let i = 0; i < Math.min(6, await rows.count()); i++)
       await rows.nth(i).click({ modifiers: ['Meta'] })
-    const strip = page.locator('.note-tabs')
+    const strip = page.getByRole('tablist', { name: 'Open documents', exact: true })
     const items = strip.locator('[data-tab-id]')
     const ids = () => items.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.tabId))
     const original = await ids()
     expect(original.length).toBeGreaterThan(2)
-    const active = await strip.locator('.active').getAttribute('data-tab-id')
+    const active = await strip.locator('.is-active').getAttribute('data-tab-id')
     await strip.evaluate((el) => {
       el.scrollLeft = 0
     })
@@ -38,7 +38,7 @@ for (const variant of [
     await page.waitForTimeout(900)
     await page.mouse.up()
     await expect.poll(ids).not.toEqual(original)
-    expect(await strip.locator('.active').getAttribute('data-tab-id')).toBe(active)
+    expect(await strip.locator('.is-active').getAttribute('data-tab-id')).toBe(active)
     await expect(strip).not.toHaveClass(/is-reordering/)
     const moved = await ids()
     // Escape and release outside must leave committed order intact.
@@ -63,7 +63,9 @@ for (const variant of [
     expect((await ids())[1]).toBe(moved[0])
     await expect(button).not.toBeFocused() // first slot now contains a different tab
     await expect(strip.locator(`[data-tab-id="${moved[0]}"] [role="tab"]`)).toBeFocused()
-    await page.screenshot({ path: `.artifact-work/tab-reorder-${variant.theme}.png` })
+    await page.screenshot({
+      path: test.info().outputPath(`tab-reorder-${variant.colorMode}.png`),
+    })
   })
 }
 
@@ -71,5 +73,6 @@ test('mobile keeps its existing navigation without a desktop tab strip', async (
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/?mobile=1')
   await expect(page.locator('.mobile-app')).toBeVisible()
-  await expect(page.locator('.note-tabs')).toHaveCount(0)
+  await expect(page.getByRole('tablist', { name: 'Open documents' })).toHaveCount(0)
+  await expect(page.locator('.tabs')).toHaveCount(0)
 })

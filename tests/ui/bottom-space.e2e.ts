@@ -1,16 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
 
-async function fixtures(page: Page, appStyle: 'default' | 'cards') {
+async function fixtures(page: Page, colorMode: 'light' | 'dark') {
   await page.goto('/')
   await expect(page.locator('.note-scroll .tiptap')).toBeVisible()
-  await page.evaluate(async (appStyle) => {
+  await page.evaluate(async (colorMode) => {
     const url = performance
       .getEntriesByType('resource')
       .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
     const { library } = await import(/* @vite-ignore */ url)
     library.setAppearance({
       ...library.getSnapshot().appearance,
-      appStyle,
+      colorMode,
+      // Dock the formatting toolbar so the last line can be checked against it.
+      showFormattingToolbar: true,
       animationsEnabled: false,
     })
     const paragraphs = Array.from({ length: 60 }, (_, i) => ({
@@ -59,7 +61,8 @@ async function fixtures(page: Page, appStyle: 'default' | 'cards') {
         source: { rootId: 'room-root', relativePath: 'room.md', fingerprint: '' },
       },
     ])
-  }, appStyle)
+  }, colorMode)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
   await page.locator('.note-row[data-note-id="room-long"]').click()
 }
 
@@ -96,7 +99,12 @@ async function checkRoom(page: Page, extra: number, long = true) {
     const geometry = await pane.evaluate((el) => ({
       midpoint: el.getBoundingClientRect().top + el.clientHeight / 2,
       lastLine: el.querySelector('.tiptap > :last-child')!.getBoundingClientRect().bottom,
-      toolbar: document.querySelector('.writing-dock')!.getBoundingClientRect().top,
+      // The docked formatting toolbar, or the linked Markdown toolbar.
+      toolbar: document
+        .querySelector(
+          '.desktop-writing-toolbar[data-placement="docked"]:not(.writing-toolbar-measure), .writing-dock > .toolbar:not(.desktop-writing-toolbar)',
+        )!
+        .getBoundingClientRect().top,
     }))
     expect(geometry.lastLine).toBeLessThanOrEqual(geometry.midpoint + 2)
     expect(geometry.lastLine).toBeLessThan(geometry.toolbar)
@@ -114,18 +122,18 @@ async function documentState(page: Page) {
   })
 }
 
-for (const appStyle of ['default', 'cards'] as const) {
+for (const colorMode of ['light', 'dark'] as const) {
   for (const viewport of [
     { width: 1280, height: 800 },
     { width: 900, height: 650 },
   ]) {
-    test(`${appStyle} ${viewport.width}: scroll past the note, restore and resize without document changes`, async ({
+    test(`${colorMode} ${viewport.width}: scroll past the note, restore and resize without document changes`, async ({
       page,
     }) => {
       const errors: string[] = []
       page.on('pageerror', (error) => errors.push(String(error)))
       await page.setViewportSize(viewport)
-      await fixtures(page, appStyle)
+      await fixtures(page, colorMode)
       const before = await documentState(page)
       for (const extra of [0, 112, 400]) {
         await setExtra(page, extra)
@@ -190,8 +198,7 @@ test('desktop bottom-space setting explains automatic room and preserves its ran
   page,
 }) => {
   await page.goto('/')
-  await page.locator('.account-trigger').click()
-  await page.getByRole('menuitem', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page
     .getByRole('navigation', { name: 'Settings categories' })
     .getByRole('button', { name: 'Editor', exact: true })
@@ -202,8 +209,9 @@ test('desktop bottom-space setting explains automatic room and preserves its ran
   await expect(slider).toHaveAttribute('max', '400')
   await expect(slider).toHaveAttribute('step', '8')
   await expect(
-    page.getByText('112 px extra. Half the editor height is already included for scrolling.'),
+    page.getByText('Half the window height is always added so you can scroll past the end'),
   ).toBeVisible()
+  await expect(slider).toHaveAttribute('aria-valuetext', '112 px')
   await slider.press('End')
   await expect(slider).toHaveValue('400')
   await page.getByLabel('Close settings').click()

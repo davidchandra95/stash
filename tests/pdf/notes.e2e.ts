@@ -55,7 +55,8 @@ test('paired capture preserves reading focus and drafts, clears selection, citat
   await expect(page.getByRole('button', { name: 'Add quote to note', exact: true })).toBeDisabled()
   await expect(page.getByText('Added to note', { exact: true })).toHaveCount(0)
   await editor.click()
-  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  // The formatting toolbar has no Undo button; use the editor's own undo.
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(editor.locator('blockquote')).toHaveCount(0)
   await editor.locator('p').last().click()
   await page.keyboard.type('Later writing. ')
@@ -151,7 +152,7 @@ test('page references, normal-note Open PDF, trash recovery and close/reopen ret
   await page.locator('.note-row').filter({ hasText: 'Renamed companion' }).click()
   await expect(page.getByLabel('Note title', { exact: true })).toHaveValue('Renamed companion')
   await page
-    .locator('.header-actions')
+    .locator('.note-controls')
     .getByRole('button', { name: 'Open PDF', exact: true })
     .click()
   await expect(page.getByRole('tab', { name: 'scanned.pdf', exact: true })).toHaveAttribute(
@@ -185,8 +186,15 @@ test('citations in other notes keep the originating tab and reject unavailable o
   await page.keyboard.press('Control+n')
   await page.getByLabel('Note title', { exact: true }).fill('Citation collection')
   await page.evaluate(async (href) => {
-    const { library } = await import('/src/storage/useLibrary.ts')
-    const { getEditor } = await import('/src/editor/session.ts')
+    // Import the app's own module instances. After hot updates the dev server serves them with
+    // a `?t=` query, so a plain `/src/...` import would create a second, unused instance.
+    const appModule = (path: string) =>
+      performance
+        .getEntriesByType('resource')
+        .map(({ name }) => name)
+        .find((name) => new URL(name).pathname === path) ?? path
+    const { library } = await import(/* @vite-ignore */ appModule('/src/storage/useLibrary.ts'))
+    const { getEditor } = await import(/* @vite-ignore */ appModule('/src/editor/session.ts'))
     const note = library
       .getSnapshot()
       .notes.find((n: { title: string }) => n.title === 'Citation collection')!
@@ -404,7 +412,14 @@ test('failed quote capture keeps the selection available for retry', async ({ pa
   await expect(page.locator('.tiptap')).toBeVisible()
   const text = await select(page)
   await page.evaluate(async () => {
-    const { library } = await import('/src/storage/useLibrary.ts')
+    // Import the app's own module instances. After hot updates the dev server serves them with
+    // a `?t=` query, so a plain `/src/...` import would create a second, unused instance.
+    const appModule = (path: string) =>
+      performance
+        .getEntriesByType('resource')
+        .map(({ name }) => name)
+        .find((name) => new URL(name).pathname === path) ?? path
+    const { library } = await import(/* @vite-ignore */ appModule('/src/storage/useLibrary.ts'))
     const load = library.load
     library.load = async () => {
       library.load = load
@@ -465,43 +480,43 @@ test('compact PDF toolbar keeps icon actions aligned and keyboard accessible acr
     await page.setViewportSize({ width, height: width === 1280 ? 800 : 650 })
     const paneSwitch = page.getByRole('button', { name: 'PDF', exact: true })
     if (await paneSwitch.isVisible()) await paneSwitch.click()
-    for (const mode of ['light', 'dark']) {
-      for (const style of ['default', 'cards']) {
-        await page.evaluate(
-          ({ mode, style }) => {
-            document.querySelector<HTMLElement>('.app')!.dataset.theme = mode
-            document.documentElement.dataset.appStyle = style
-          },
-          { mode, style },
-        )
-        await expect(async () => {
-          const { bounds, boxes } = await toolbar.evaluate((element) => ({
-            bounds: element.getBoundingClientRect().toJSON(),
-            boxes: [...element.querySelectorAll('button')].map((button) =>
-              button.getBoundingClientRect().toJSON(),
-            ),
-          }))
-          expect(bounds.width).toBeGreaterThan(0)
-          for (const box of boxes) {
-            expect(Math.abs(box.y - boxes[0].y)).toBeLessThan(1)
-            expect(box.x).toBeGreaterThanOrEqual(bounds.x)
-            expect(box.right).toBeLessThanOrEqual(bounds.right)
-          }
-          expect(boxes[4].x).toBeGreaterThan(boxes[3].right)
-          for (const [left, right] of [
-            [0, 1],
-            [1, 2],
-            [2, 3],
-            [4, 5],
-          ]) {
-            expect(boxes[right].x - boxes[left].right).toBeCloseTo(4, 0)
-          }
-          expect(bounds.right - boxes[5].right).toBeLessThan(20)
-        }).toPass({ timeout: 5000 })
-        await page.screenshot({
-          path: test.info().outputPath(`toolbar-${width}-${mode}-${style}.png`),
-        })
-      }
+    for (const colorMode of ['light', 'dark'] as const) {
+      await page.evaluate(async (colorMode) => {
+        const url = performance
+          .getEntriesByType('resource')
+          .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+        const { library } = await import(/* @vite-ignore */ url)
+        library.setAppearance({ ...library.getSnapshot().appearance, colorMode })
+      }, colorMode)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
+      await expect(async () => {
+        const { bounds, boxes } = await toolbar.evaluate((element) => ({
+          bounds: element.getBoundingClientRect().toJSON(),
+          boxes: [...element.querySelectorAll('button')].map((button) =>
+            button.getBoundingClientRect().toJSON(),
+          ),
+        }))
+        expect(bounds.width).toBeGreaterThan(0)
+        for (const box of boxes) {
+          expect(Math.abs(box.y - boxes[0].y)).toBeLessThan(1)
+          expect(box.x).toBeGreaterThanOrEqual(bounds.x)
+          expect(box.right).toBeLessThanOrEqual(bounds.right)
+        }
+        expect(boxes[4].x).toBeGreaterThan(boxes[3].right)
+        for (const [left, right] of [
+          [0, 1],
+          [1, 2],
+          [2, 3],
+          [4, 5],
+        ]) {
+          // Icon groups use the compact `--space-1` (2px) gap.
+          expect(boxes[right].x - boxes[left].right).toBeCloseTo(2, 0)
+        }
+        expect(bounds.right - boxes[5].right).toBeLessThan(20)
+      }).toPass({ timeout: 5000 })
+      await page.screenshot({
+        path: test.info().outputPath(`toolbar-${width}-${colorMode}.png`),
+      })
     }
   }
   await toolbar.getByRole('button', { name: 'Find in PDF', exact: true }).focus()
@@ -543,7 +558,9 @@ test('PDF icon tooltips open instantly for hover, keyboard and disabled controls
   await zoom.hover()
   await expect(page.getByRole('tooltip')).toHaveText('Zoom in')
   await expect(page.locator('.app-tooltip')).toHaveAttribute('data-side', 'top')
-  await page.locator('.app-tooltip').hover()
+  // Moving onto the tooltip keeps it open (it ignores pointer events, so move the mouse there).
+  const tip = (await page.locator('.app-tooltip').boundingBox())!
+  await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, { steps: 5 })
   await expect(page.getByRole('tooltip')).toHaveText('Zoom in')
   await expect(page.locator('.pdf-toolbar [title], .pdf-bottom-toolbar [title]')).toHaveCount(0)
   await page.mouse.move(0, 0, { steps: 5 })
@@ -569,7 +586,7 @@ test('text tooltips retain their hover delay after using an instant icon', async
   await expect(label).toHaveText('Zoom percentage', { timeout: 1500 })
   await page.mouse.move(0, 0, { steps: 5 })
   await expect(label).toHaveCount(0)
-  const tab = page.locator('.note-tab [role="tab"]').first()
+  const tab = page.getByRole('tab').first()
   const title = await tab.innerText()
   await tab.hover()
   await expect(label).toHaveCount(0)

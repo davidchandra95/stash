@@ -1,9 +1,9 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
-  testDir: './tests/themes',
+  testDir: './tests/ui',
   testMatch: '**/*.e2e.ts',
-  outputDir: '.artifact-work/aster/browser-tests',
+  outputDir: '.artifact-work/ui-tests',
   timeout: 45000,
   use: {
     baseURL: 'http://127.0.0.1:1420',

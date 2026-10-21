@@ -8,6 +8,10 @@ async function open(page: Page, name: string) {
     'true',
   )
 }
+/** The PDF's row in the sidebar's PDFs section. */
+function sidebarPdf(page: Page, name: string) {
+  return page.locator('.sidebar').getByRole('button', { name, exact: true })
+}
 async function rendered(page: Page) {
   await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeEnabled()
   await expect(page.locator('.pdf-session:not([hidden]) .pdfViewer canvas').first()).toBeVisible()
@@ -59,7 +63,7 @@ test('restores PDF reading position and note edits across tabs, close, zoom and 
   await page.getByRole('button', { name: 'Close text.pdf', exact: true }).click()
   await expect(page.locator('#note-list')).toBeVisible()
   await expect(title).toHaveValue('PDF tab retained this note edit')
-  await page.locator('.pdf-sidebar-row').filter({ hasText: 'text.pdf' }).click()
+  await sidebarPdf(page, 'text.pdf').click()
   await rendered(page)
   await expect.poll(async () => (await anchor(page)).page).toBe(4)
   await expect.poll(async () => Math.abs((await anchor(page)).y - before.y)).toBeLessThan(0.02)
@@ -91,8 +95,8 @@ test('search reaches unrendered distant pages and canvases stay bounded', async 
   await rendered(page)
   for (let i = 0; i < 5; i++) {
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
-    await page.locator('.pdf-sidebar-row').filter({ hasText: 'large.pdf' }).click()
-    await page.locator('.pdf-sidebar-row').filter({ hasText: 'text.pdf' }).click()
+    await sidebarPdf(page, 'large.pdf').click()
+    await sidebarPdf(page, 'text.pdf').click()
     await rendered(page)
   }
   await page.getByRole('button', { name: 'Close text.pdf', exact: true }).click()
@@ -162,42 +166,29 @@ test('rotated text selection, scans, encryption and corrupt-file errors', async 
   await expect(controls.getByLabel('PDF page', { exact: true })).toBeDisabled()
   await expect(controls.getByLabel('PDF zoom', { exact: true })).toBeDisabled()
 })
-test('PDF styles stay contained across palettes, layouts and narrow desktop windows', async ({
+test('PDF styles stay contained across color modes and narrow desktop windows', async ({
   page,
 }) => {
   await page.goto('/')
   await open(page, 'text')
   await rendered(page)
-  for (const palette of [
-    'classic',
-    'zen',
-    'financial',
-    'tiktok',
-    'catppuccin',
-    'lastchat',
-    'qrafthive',
-  ]) {
-    for (const mode of ['light', 'dark'])
-      for (const style of ['default', 'cards']) {
-        await page.evaluate(
-          ({ palette, mode, style }) => {
-            document.querySelector<HTMLElement>('.app')!.dataset.palette = palette
-            document.querySelector<HTMLElement>('.app')!.dataset.theme = mode
-            document.documentElement.dataset.appStyle = style
-          },
-          { palette, mode, style },
-        )
-        expect(
-          await page.locator('.sidebar').evaluate((el) => getComputedStyle(el).width),
-        ).not.toBe('239px')
-        expect(
-          await page
-            .locator('.pdf-session:not([hidden]) .pdfViewer .page')
-            .first()
-            .evaluate((el) => getComputedStyle(el).backgroundColor),
-        ).toBe('rgb(255, 255, 255)')
-        await expect(page.getByRole('button', { name: 'Fit width' })).toBeVisible()
-      }
+  for (const colorMode of ['light', 'dark'] as const) {
+    await page.evaluate(async (colorMode) => {
+      const url = performance
+        .getEntriesByType('resource')
+        .find((entry) => new URL(entry.name).pathname === '/src/storage/useLibrary.ts')!.name
+      const { library } = await import(/* @vite-ignore */ url)
+      library.setAppearance({ ...library.getSnapshot().appearance, colorMode })
+    }, colorMode)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', colorMode)
+    // PDF pages keep their own colors in both modes.
+    expect(
+      await page
+        .locator('.pdf-session:not([hidden]) .pdfViewer .page')
+        .first()
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).toBe('rgb(255, 255, 255)')
+    await expect(page.getByRole('button', { name: 'Fit width' })).toBeVisible()
   }
   for (const viewport of [
     { width: 1280, height: 800 },
@@ -300,7 +291,7 @@ test('bottom toolbar navigates pages and preserves fit modes through resizing an
   await expect(button('Fit height')).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('tab', { name: 'text.pdf', exact: true }).click()
   await page.getByRole('button', { name: 'Close text.pdf', exact: true }).click()
-  await page.locator('.pdf-sidebar-row').filter({ hasText: 'text.pdf' }).click()
+  await sidebarPdf(page, 'text.pdf').click()
   await rendered(page)
   await expect(button('Fit height')).toHaveAttribute('aria-pressed', 'true')
   await button('Fit width').click()
