@@ -1028,15 +1028,39 @@ fn valid_heading_styles(value: &Value) -> bool {
 }
 
 fn validate_appearance(value: &Value) -> Result<()> {
-    let valid = value.get("dark").is_some_and(Value::is_boolean)
-        && ["theme", "uiFont", "noteFont", "codeFont"]
+    // `dark`, `theme` and `uiFont` are legacy fields kept valid on old rows.
+    let valid = value.get("dark").is_none_or(Value::is_boolean)
+        && ["theme", "uiFont"]
             .iter()
-            .all(|key| {
-                value
-                    .get(key)
-                    .and_then(Value::as_str)
-                    .is_some_and(|s| !s.is_empty())
+            .all(|key| value.get(key).is_none_or(|v| v.as_str().is_some_and(|s| !s.is_empty())))
+        && value.get("colorMode").is_none_or(|v| {
+            v.as_str()
+                .is_some_and(|s| matches!(s, "light" | "dark" | "system"))
+        })
+        && value.get("accent").is_none_or(|v| {
+            v.as_str().is_some_and(|s| {
+                matches!(
+                    s,
+                    "system"
+                        | "blue"
+                        | "purple"
+                        | "pink"
+                        | "red"
+                        | "orange"
+                        | "yellow"
+                        | "green"
+                        | "graphite"
+                )
             })
+        })
+        && value.get("translucentSidebar").is_none_or(Value::is_boolean)
+        && value.get("sidebarCounts").is_none_or(Value::is_boolean)
+        && ["noteFont", "codeFont"].iter().all(|key| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .is_some_and(|s| !s.is_empty())
+        })
         && value
             .get("titleFont")
             .is_none_or(|v| v.as_str().is_some_and(|s| !s.is_empty()))

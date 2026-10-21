@@ -719,6 +719,20 @@ fn title_font_setting_survives_restart() {
 }
 
 #[test]
+fn v2_appearance_without_legacy_fields_is_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut prefs = preferences();
+    prefs.appearance = json!({
+        "colorMode": "system", "accent": "system", "translucentSidebar": true,
+        "sidebarCounts": true, "width": 80, "size": 15,
+        "titleFont": "system", "noteFont": "system", "codeFont": "sf-mono"
+    });
+    store.save_preferences(&prefs).unwrap();
+    assert_eq!(store.library().unwrap().appearance.unwrap(), prefs.appearance);
+}
+
+#[test]
 fn invalid_appearance_settings_do_not_replace_saved_preferences() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
@@ -728,6 +742,22 @@ fn invalid_appearance_settings_do_not_replace_saved_preferences() {
         (
             "titleFont",
             vec![json!(""), json!(true), json!(1), Value::Null],
+        ),
+        (
+            "colorMode",
+            vec![json!("auto"), json!(true), Value::Null],
+        ),
+        (
+            "accent",
+            vec![json!("teal"), json!(1), Value::Null],
+        ),
+        (
+            "translucentSidebar",
+            vec![json!("true"), json!(1), Value::Null],
+        ),
+        (
+            "sidebarCounts",
+            vec![json!("true"), json!(1), Value::Null],
         ),
         (
             "animationsEnabled",

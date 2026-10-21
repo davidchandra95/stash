@@ -128,3 +128,32 @@ p {
   transition-duration: 0ms !important;
   animation-duration: 0ms !important;
 }
+
+/*
+ * Desktop scrollbars: a thin thumb that stays dim until its scroll area is hovered, and
+ * brightens further while the thumb itself is hovered or dragged. Android keeps native ones.
+ */
+:root[data-platform='desktop'] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+:root[data-platform='desktop'] ::-webkit-scrollbar-track,
+:root[data-platform='desktop'] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+:root[data-platform='desktop'] ::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background-clip: padding-box;
+  background-color: var(--scrollbar-idle);
+}
+:root[data-platform='desktop'] :hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-hover);
+}
+:root[data-platform='desktop'] ::-webkit-scrollbar-thumb:hover,
+:root[data-platform='desktop'] ::-webkit-scrollbar-thumb:active {
+  border-width: 2px;
+  background-color: var(--scrollbar-active);
+}

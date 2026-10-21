@@ -70,6 +70,7 @@ export const defaultAppearance: Appearance = {
   colorMode: 'system',
   accent: 'system',
   translucentSidebar: true,
+  layout: 'standard',
   sidebarCounts: true,
   titleFont: 'system',
   noteFont: 'system',

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { AccentColor, Appearance, ColorMode } from './model'
+import type { AccentColor, Appearance, ColorMode, WindowLayout } from './model'
 
 export const colorModes: Record<ColorMode, string> = {
   light: 'Light',
@@ -26,6 +26,8 @@ export const accents: Record<
 export const accentColors = Object.keys(accents) as (keyof typeof accents)[]
 
 const colorModeValues: ColorMode[] = ['light', 'dark', 'system']
+export const layouts: WindowLayout[] = ['standard', 'cards']
+export const layoutNames: Record<WindowLayout, string> = { standard: 'Standard', cards: 'Cards' }
 const accentValues: AccentColor[] = ['system', ...accentColors]
 
 /** Reads saved appearance, including preferences written before the v2 interface. */
@@ -37,7 +39,7 @@ export function normalizeAppearance(
     dark,
     // Retired v1 settings: palettes, the cards layout and the interface font.
     theme: _theme,
-    appStyle: _appStyle,
+    appStyle,
     uiFont: _uiFont,
     ...rest
   } = (saved ?? {}) as Partial<Appearance> & Record<string, unknown>
@@ -62,6 +64,12 @@ export function normalizeAppearance(
         : defaults.translucentSidebar,
     sidebarCounts:
       typeof rest.sidebarCounts === 'boolean' ? rest.sidebarCounts : defaults.sidebarCounts,
+    // The v1 "Modern cards" app style becomes the cards layout.
+    layout: layouts.includes(rest.layout as WindowLayout)
+      ? (rest.layout as WindowLayout)
+      : appStyle === 'cards'
+        ? 'cards'
+        : defaults.layout,
   }
 }
 

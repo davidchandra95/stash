@@ -91,6 +91,7 @@ export default function App() {
     !app.noteListVisible && 'no-note-list',
     (app.paneResize.resizing || app.contentsResize.resizing) && 'is-resizing',
     nativeChrome && 'native-chrome',
+    appearance.layout === 'cards' && 'layout-cards',
     !paneFocus.windowActive && 'is-inactive',
   ]
     .filter(Boolean)

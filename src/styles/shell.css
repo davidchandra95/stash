@@ -156,3 +156,42 @@
 .startup [role='alert'] {
   color: var(--danger);
 }
+
+/* ───────── Cards layout: the notes list and editor float as panels ───────── */
+
+.window.layout-cards {
+  background: var(--bg-sidebar);
+}
+:root[data-vibrancy] .window.layout-cards {
+  background: transparent;
+}
+.window.layout-cards > .sidebar {
+  border-right: 0;
+  background: transparent;
+}
+:root:not([data-vibrancy]) .window.layout-cards > .sidebar {
+  background: var(--bg-sidebar);
+}
+.window.layout-cards > .note-list,
+.window.layout-cards > .editor-pane {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+.window.layout-cards > .note-list {
+  margin: 6px 0;
+}
+.window.layout-cards > .editor-pane {
+  margin: 6px;
+}
+.window.layout-cards.no-sidebar > .note-list {
+  margin-left: 6px;
+}
+.window.layout-cards:is(.no-note-list, .pdf-active):not(.no-sidebar) > .editor-pane {
+  margin-left: 0;
+}
+.window.layout-cards:is(.no-note-list, .pdf-active) > .note-list {
+  margin: 0;
+  box-shadow: none;
+}

@@ -44,6 +44,7 @@ describe('normalizeAppearance', () => {
     expect(result).toEqual({
       ...defaultAppearance,
       colorMode: mode,
+      layout: 'cards',
       noteFont: 'palatino',
       size: 19,
     })
@@ -108,6 +109,19 @@ describe('normalizeAppearance', () => {
     expect(
       normalizeAppearance(saved({ translucentSidebar: null, sidebarCounts: undefined }), defaults),
     ).toMatchObject({ translucentSidebar: false, sidebarCounts: false })
+  })
+
+  it('keeps a saved layout and turns the v1 Modern cards style into the cards layout', () => {
+    expect(normalizeAppearance({ layout: 'cards' }, defaultAppearance).layout).toBe('cards')
+    expect(
+      normalizeAppearance({ appStyle: 'cards' } as unknown as Saved, defaultAppearance).layout,
+    ).toBe('cards')
+    expect(
+      normalizeAppearance({ appStyle: 'default' } as unknown as Saved, defaultAppearance).layout,
+    ).toBe('standard')
+    expect(
+      normalizeAppearance({ layout: 'grid' } as unknown as Saved, defaultAppearance).layout,
+    ).toBe('standard')
   })
 
   it('does not mutate the saved object or the defaults', () => {

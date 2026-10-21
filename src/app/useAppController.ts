@@ -1,7 +1,7 @@
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
-import { colorModes, useDocumentTheme, useSystemAccent } from '../appearance'
+import { colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
 import { platform } from '../platform'
 import { defaultPdfNotes, type PdfNotesPreferences } from '../workspace'
 import { appendCapture } from '../pdf/capture'
@@ -1029,6 +1029,14 @@ export function useAppController() {
       icon: RefreshCw,
       run: syncNow,
     },
+    ...layouts.map((layout) => ({
+      id: `layout-${layout}`,
+      label: `Layout: ${layoutNames[layout]}`,
+      keywords: 'cards panels modern window',
+      icon: Columns2,
+      checked: appearance.layout === layout,
+      run: () => setAppearance({ ...appearance, layout }),
+    })),
     ...(Object.entries(colorModes) as [ColorMode, string][]).map(([mode, name]) => ({
       id: `appearance-${mode}`,
       label: `Appearance: ${name}`,

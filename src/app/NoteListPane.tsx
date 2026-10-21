@@ -112,6 +112,7 @@ export default function NoteListPane() {
   const { view, query, filtered, selected, drag, notebooks } = app
   const items = drag.preview ?? filtered
   const preview = app.noteListMode === 'preview'
+  const cards = app.appearance.layout === 'cards'
   return (
     <section
       ref={pane}
@@ -195,8 +196,9 @@ export default function NoteListPane() {
           scrollRef={app.rowsRef}
           apiRef={app.virtualRowsRef}
           retainedIds={[selected?.id, drag.draggedId]}
-          estimatedSize={preview ? 60 : 44}
-          geometryKey={app.noteListMode}
+          estimatedSize={(preview ? 60 : 44) + (cards ? 2 : 0)}
+          rowGap={cards ? 2 : 0}
+          geometryKey={`${app.noteListMode}:${app.appearance.layout}`}
           renderRow={(note, index, controls) => {
             const context = view === 'all' ? noteNotebookContext(note, notebooks) : undefined
             const next = items[index + 1]

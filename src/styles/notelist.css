@@ -189,3 +189,11 @@
 .list-empty .btn {
   margin-top: var(--space-4);
 }
+
+/* Cards layout: separate rounded rows instead of hairline dividers. */
+.window.layout-cards .virtual-note-slot {
+  padding-bottom: 2px;
+}
+.window.layout-cards .note-row.has-divider::after {
+  display: none;
+}

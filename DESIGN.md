@@ -77,6 +77,13 @@ when a token exists.
   backdrop blur and `--shadow-pop`. Dialogs and Settings use `--bg-content` and
   `--shadow-window`.
 - PDF pages, drawings and authored note colors keep their own colors.
+- **Cards layout** (Settings › Appearance › Layout, `appearance.layout = 'cards'`, desktop
+  only): the window takes the sidebar tone and the notes list and editor become rounded panels
+  (`--radius-xl`, `--shadow-card`) with 6px margins; note rows lose their dividers and get 2px
+  gaps. A saved v1 "Modern cards" style migrates to it. Standard stays the default.
+- Desktop scrollbars are thin (4px thumb in a 10px gutter) and use `--scrollbar-idle` until
+  their scroll area is hovered (`--scrollbar-hover`); the thumb itself brightens to
+  `--scrollbar-active` while hovered or dragged. Android keeps native scrollbars.
 
 ## Selection, hover, focus
 

@@ -87,17 +87,10 @@ export type View =
   | `book:${string}`
   | `tag:${string}`
 
+export type WindowLayout = 'standard' | 'cards'
 export type ColorMode = 'light' | 'dark' | 'system'
 export type AccentColor =
-  | 'system'
-  | 'blue'
-  | 'purple'
-  | 'pink'
-  | 'red'
-  | 'orange'
-  | 'yellow'
-  | 'green'
-  | 'graphite'
+  'system' | 'blue' | 'purple' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'graphite'
 
 export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
@@ -106,6 +99,8 @@ export interface Appearance extends CursorSettings {
   accent: AccentColor
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
+  /** Desktop only. Cards floats the notes list and editor as rounded panels. */
+  layout: WindowLayout
   sidebarCounts: boolean
   titleFont: string
   noteFont: string
@@ -218,7 +213,11 @@ export const initialNotes: Note[] = [
 export function hasTasks(note: Pick<Note, 'hasTasks'> & Partial<Pick<Note, 'content'>>): boolean {
   return note.hasTasks ?? /"kind":"task"|"type":"inlineCheckbox"/.test(JSON.stringify(note.content))
 }
-export type NoteViewFields = Pick<Note, 'trashed' | 'pinned' | 'quickAccess' | 'notebookIds' | 'tags' | 'updated' | 'hasTasks'> & Partial<Pick<Note, 'content'>>
+export type NoteViewFields = Pick<
+  Note,
+  'trashed' | 'pinned' | 'quickAccess' | 'notebookIds' | 'tags' | 'updated' | 'hasTasks'
+> &
+  Partial<Pick<Note, 'content'>>
 export function matchesView(note: NoteViewFields, view: View): boolean {
   if (view === 'trash') return note.trashed
   if (note.trashed) return false

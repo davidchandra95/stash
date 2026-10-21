@@ -4,7 +4,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import FontPicker from '../components/FontPicker'
 import HeadingStyles from '../components/HeadingStyles'
 import KeyboardShortcuts from '../components/KeyboardShortcuts'
-import { accentColors, accents, colorModes } from '../appearance'
+import { accentColors, accents, colorModes, layoutNames, layouts } from '../appearance'
 import { fontFamily } from '../fonts'
 import {
   Keyboard,
@@ -287,6 +287,29 @@ export default function Settings({
             disabled={!nativeMac}
             onChange={(checked) => set('translucentSidebar', checked)}
           />
+        </Row>
+      ),
+    },
+    {
+      id: 'layout',
+      category: 'appearance',
+      group: 'Window',
+      search: 'Layout cards panels modern standard rounded',
+      content: (
+        <Row label="Layout" description="Cards floats the notes list and editor as panels">
+          <span className="segmented" role="radiogroup" aria-label="Layout">
+            {layouts.map((layout) => (
+              <button
+                key={layout}
+                type="button"
+                role="radio"
+                aria-checked={value.layout === layout}
+                onClick={() => set('layout', layout)}
+              >
+                {layoutNames[layout]}
+              </button>
+            ))}
+          </span>
         </Row>
       ),
     },
