@@ -30,8 +30,8 @@
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  min-height: 22px;
-  padding: 2px 8px 2px 6px;
+  min-height: 26px;
+  padding: 3px 10px 3px 8px;
   border-radius: var(--radius-xs);
   color: var(--text);
   outline: none;
@@ -51,8 +51,8 @@
   background: var(--fill-2);
 }
 .menu-icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
   color: var(--text-2);
 }
@@ -158,12 +158,12 @@
   align-items: center;
   gap: var(--space-3);
   max-width: min(320px, var(--radix-tooltip-content-available-width, 320px));
-  padding: 3px 7px;
+  padding: 4px 8px;
   border-radius: var(--radius-md);
   background: var(--bg-elevated-solid);
   box-shadow: var(--shadow-pop);
   color: var(--text);
-  font: var(--text-sm) / 15px var(--font-ui);
+  font: var(--text-sm) / 17px var(--font-ui);
   overflow-wrap: anywhere;
   pointer-events: none;
 }
@@ -264,7 +264,7 @@
   align-items: center;
   gap: var(--space-4);
   max-width: min(560px, calc(100vw - 32px));
-  min-height: 30px;
+  min-height: 34px;
   padding: 4px 6px 4px 12px;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);

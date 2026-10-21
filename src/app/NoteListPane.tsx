@@ -196,7 +196,7 @@ export default function NoteListPane() {
           scrollRef={app.rowsRef}
           apiRef={app.virtualRowsRef}
           retainedIds={[selected?.id, drag.draggedId]}
-          estimatedSize={(preview ? 60 : 44) + (cards ? 2 : 0)}
+          estimatedSize={(preview ? 76 : 58) + (cards ? 2 : 0)}
           rowGap={cards ? 2 : 0}
           geometryKey={`${app.noteListMode}:${app.appearance.layout}`}
           renderRow={(note, index, controls) => {

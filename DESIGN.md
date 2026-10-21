@@ -12,8 +12,8 @@ lists what changes for touch. Shared components must keep working on both.
 ## Principles
 
 1. **Native first.** Use macOS conventions: system font, traffic lights, translucent sidebar,
-   accent-colored selection, native context menus, 38px unified toolbar rows.
-2. **Compact by default.** 24px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
+   accent-colored selection, native context menus, 42px unified toolbar rows.
+2. **Compact by default.** 28px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
    to make something look important.
 3. **One way to do each thing.** Tokens and shared classes own geometry and color. Area
    stylesheets own layout only.
@@ -45,11 +45,11 @@ All workspace state and behavior lives in `src/app/useAppController.ts`. Views r
 Defined in `src/styles/tokens.css`. Never hard-code a color or size in a component stylesheet
 when a token exists.
 
-- **Type:** `--text-xs` 11 (counts, dates, section headers), `--text-sm` 12 (secondary),
-  `--text-md` 13 (default UI), `--text-lg` 15, `--text-xl` 17 (palette input).
+- **Type:** `--text-xs` 12 (counts, dates, section headers), `--text-sm` 13 (secondary),
+  `--text-md` 14 (default UI), `--text-lg` 16, `--text-xl` 18 (palette input).
   `--font-ui` is the system font. The interface font is not configurable.
-- **Geometry:** `--bar` 38px (pane title bars), `--row` 24px (sidebar rows), `--control` 24px
-  (buttons, fields, icon buttons), `--control-sm` 20px, `--icon` 16px, `--icon-sm` 14px.
+- **Geometry:** `--bar` 42px (pane title bars), `--row` 28px (sidebar rows), `--control` 28px
+  (buttons, fields, icon buttons), `--control-sm` 22px, `--icon` 17px, `--icon-sm` 15px.
 - **Spacing:** `--space-1…8` = 2, 4, 6, 8, 12, 16, 20, 24px.
 - **Radii:** `--radius-xs` 4 (menu items), `-sm` 5 (rows), `-md` 6 (controls), `-lg` 8 (groups,
   menus), `-xl` 10 (popovers), `-2xl` 12 (dialogs, palette, settings).
@@ -100,9 +100,9 @@ when a token exists.
 
 ## Window layout
 
-- Three columns: sidebar (default 216px), notes list (280px), editor. Widths are saved; pane
+- Three columns: sidebar (default 232px), notes list (300px), editor. Widths are saved; pane
   resizers are invisible until focused.
-- No global title bar. Each pane has a 38px `.pane-bar` that is also a window drag region
+- No global title bar. Each pane has a 42px `.pane-bar` that is also a window drag region
   (`data-tauri-drag-region` on the bar and on empty filler elements).
 - The leftmost visible pane hosts the window controls: 70px traffic-light clearance in the native
   app (`--window-controls`), the sidebar toggle, and, in the editor when the notes list is

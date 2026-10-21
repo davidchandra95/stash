@@ -42,7 +42,7 @@
   flex: none;
   align-items: center;
   gap: 10px;
-  height: 46px;
+  height: 50px;
   padding: 0 10px 0 14px;
   border-bottom: 1px solid var(--line);
 }
@@ -90,7 +90,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 30px;
+  min-height: 34px;
   padding: 0 10px;
   border-radius: var(--radius-md);
 }
@@ -217,7 +217,7 @@
   flex: none;
   align-items: center;
   gap: 14px;
-  height: 30px;
+  height: 32px;
   padding: 0 14px;
   border-top: 1px solid var(--line);
   color: var(--text-3);

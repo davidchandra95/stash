@@ -1,8 +1,8 @@
 /* The window: three columns (sidebar, notes, editor), resizers and window chrome. */
 
 .window {
-  --sidebar-width: var(--sidebar-override, 216px);
-  --list-width: var(--list-override, 280px);
+  --sidebar-width: var(--sidebar-override, 232px);
+  --list-width: var(--list-override, 300px);
   --sidebar-col: var(--sidebar-width);
   --list-col: var(--list-width);
   /* Clears the macOS traffic lights in whichever pane is leftmost. */

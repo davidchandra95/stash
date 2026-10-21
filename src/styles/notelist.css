@@ -65,9 +65,9 @@
 .note-row {
   position: relative;
   display: grid;
-  gap: 1px;
+  gap: 2px;
   width: 100%;
-  padding: 6px var(--space-4) 7px;
+  padding: 9px var(--space-5) 10px;
   border-radius: var(--radius-md);
   color: var(--text);
   text-align: left;
@@ -75,9 +75,9 @@
 .note-row.has-divider::after {
   content: '';
   position: absolute;
-  right: var(--space-4);
+  right: var(--space-5);
   bottom: 0;
-  left: var(--space-4);
+  left: var(--space-5);
   height: 1px;
   background: var(--line);
 }
@@ -98,8 +98,8 @@
   font-weight: 600;
 }
 .note-row-pin {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   color: var(--text-3);
 }
 .note-row-meta {
@@ -108,7 +108,7 @@
   min-width: 0;
   color: var(--text-2);
   font-size: var(--text-xs);
-  line-height: 14px;
+  line-height: 16px;
   white-space: nowrap;
 }
 .note-row-date {
@@ -129,7 +129,7 @@
   overflow: hidden;
   color: var(--text-2);
   font-size: var(--text-sm);
-  line-height: 15px;
+  line-height: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
