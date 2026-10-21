@@ -1050,6 +1050,9 @@ fn validate_appearance(value: &Value) -> Result<()> {
             .is_some_and(|n| (40..=100).contains(&n));
     let valid = valid
         && value.get("animationsEnabled").is_none_or(Value::is_boolean)
+        && value
+            .get("showFormattingToolbar")
+            .is_none_or(Value::is_boolean)
         && value.get("lineSpacing").is_none_or(|v| {
             v.as_f64().is_some_and(|n| {
                 (0.5..=2.5).contains(&n) && (n * 10.0 - (n * 10.0).round()).abs() < 1e-9

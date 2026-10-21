@@ -23,7 +23,19 @@ const note = (id: string): Note => ({
   text: 'Body #existing',
   content: {
     type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body ' }, { type: 'text', text: '#existing', marks: [{ type: 'bodyTag', attrs: { tag: 'existing' } }] }] }],
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Body ' },
+          {
+            type: 'text',
+            text: '#existing',
+            marks: [{ type: 'bodyTag', attrs: { tag: 'existing' } }],
+          },
+        ],
+      },
+    ],
   },
 })
 let cleanup: (() => Promise<void>) | undefined
@@ -105,6 +117,20 @@ async function openNoteActions() {
       new MouseEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false }),
     ),
   )
+}
+const notebooksTrigger = () =>
+  document.querySelector<HTMLElement>('.note-meta .note-organization-button')!
+async function notebooksMenu(item: 'Add to notebooks' | 'Move to another notebook') {
+  const trigger = notebooksTrigger()
+  expect(trigger, 'Notebooks').toBeTruthy()
+  await act(async () =>
+    trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 })),
+  )
+  const menuItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (el) => el.textContent?.trim() === item,
+  )
+  expect(menuItem, item).toBeTruthy()
+  await act(async () => menuItem!.click())
 }
 async function input(label: string, text: string) {
   const el = document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!
@@ -284,11 +310,8 @@ it('uses an inline picker to add memberships immediately, creates notebooks, and
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
   )
   expect(document.querySelector('.add-notebooks-popover')).toBeNull()
-  const metadataAdd = find('Add to notebooks')
-  await act(async () => {
-    metadataAdd.focus()
-    metadataAdd.click()
-  })
+  const metadataAdd = notebooksTrigger()
+  await notebooksMenu('Add to notebooks')
   expect(document.querySelector('.add-notebooks-popover')).toBeTruthy()
   expect(document.activeElement).toBe(document.querySelector('[aria-label="Search notebooks"]'))
   await act(async () =>
@@ -425,15 +448,15 @@ it.each([true, false])(
       expect(document.activeElement).toBe(title)
     }
     if (initialAdd) {
-      await click('Add to notebooks')
+      await notebooksMenu('Add to notebooks')
       await outside()
     }
     for (let i = 0; i < 2; i++) {
-      await click('Move')
+      await notebooksMenu('Move to another notebook')
       expect(document.querySelector('.move-notebooks-popover')).toBeTruthy()
       expect(document.querySelector('.dialog-overlay')).toBeNull()
       await outside()
-      await click('Add to notebooks')
+      await notebooksMenu('Add to notebooks')
       await outside()
     }
     expect(errors.mock.calls.filter((args) => String(args[0]).includes('same key'))).toEqual([])
@@ -442,28 +465,39 @@ it.each([true, false])(
 
 it('switches directly between pickers and restores focus for Escape and Cancel', async () => {
   await mount()
-  const add = find('Add to notebooks')
-  const move = find('Move')
-  for (const trigger of [add, move, add, move]) {
-    await act(async () => trigger.click())
+  const trigger = notebooksTrigger()
+  // One Notebooks menu replaces the separate Add to notebooks and Move buttons.
+  expect(
+    [...document.querySelectorAll('.note-meta .note-organization-button')].map((el) =>
+      el.textContent?.trim(),
+    ),
+  ).toEqual(['Notebooks'])
+  expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
+  for (const item of [
+    'Add to notebooks',
+    'Move to another notebook',
+    'Add to notebooks',
+    'Move to another notebook',
+  ] as const) {
+    await notebooksMenu(item)
     expect(document.querySelectorAll('.notebook-popover')).toHaveLength(1)
     expect(document.activeElement).toBe(document.querySelector('[aria-label="Search notebooks"]'))
   }
   await closeMenu()
   expect(document.querySelector('.notebook-popover')).toBeNull()
-  expect(document.activeElement).toBe(move)
-  await act(async () => move.click())
+  expect(document.activeElement).toBe(trigger)
+  await notebooksMenu('Move to another notebook')
   await click('Cancel')
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
   })
   expect(document.querySelector('.notebook-popover')).toBeNull()
-  expect(document.activeElement).toBe(move)
+  expect(document.activeElement).toBe(trigger)
 })
 
 it('searches Move destinations and creates a selected notebook without moving until confirmed', async () => {
   await mount()
-  await click('Move')
+  await notebooksMenu('Move to another notebook')
   expect(find('Move').hasAttribute('disabled')).toBe(true)
   await input('Search notebooks', 'missing')
   expect(document.querySelector('.move-notebooks-popover')?.textContent).toContain(

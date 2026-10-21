@@ -276,3 +276,11 @@ it('records, validates, clears and resets shortcuts without changing appearance'
   await category('Appearance')
   expect(control('Theme').value).toBe(defaultAppearance.theme)
 })
+it('pins the formatting toolbar from the Editor category', async () => {
+  await category('Editor')
+  const toggle = control('Always show formatting toolbar')
+  expect(toggle.getAttribute('role')).toBe('switch')
+  expect(toggle.checked).toBe(false)
+  await act(() => toggle.click())
+  expect(control('Always show formatting toolbar').checked).toBe(true)
+})

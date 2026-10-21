@@ -66,6 +66,17 @@ afterEach(async () => {
 })
 const button = (label: string) =>
   document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+async function openPalette(bodies = false) {
+  await act(async () => button('Search notes or run a command').click())
+  if (bodies)
+    await act(async () => {
+      document
+        .querySelector('.command-palette input')!
+        .dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+        )
+    })
+}
 const row = (title: string) =>
   [...host.querySelectorAll<HTMLButtonElement>('.note-row')].find(
     (el) => el.querySelector('.note-row-title')?.textContent === title,
@@ -95,28 +106,30 @@ async function waitForBodySearch() {
 }
 async function openSearchResult(method: string, noteTitle: string, ctrlKey = false) {
   if (method === 'body click') {
-    await act(async () => button('Search note bodies').click())
+    await openPalette(true)
     await type('Search note bodies', 'heading')
     await waitForBodySearch()
     const result = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
       (element) =>
-        element.closest('.content-search-group')?.querySelector('strong')?.textContent === noteTitle,
+        element.closest('.content-search-group')?.querySelector('strong')?.textContent ===
+        noteTitle,
     )
     expect(result).toBeTruthy()
     await act(async () =>
       result!.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
     )
   } else {
+    await openPalette()
     await type('Find note titles', noteTitle)
     if (method === 'title click')
       await act(async () =>
         document
-          .querySelector<HTMLElement>('.quick-open-result')!
+          .querySelector<HTMLElement>('.palette-result')!
           .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
       )
     else
       await act(async () =>
-        host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!.dispatchEvent(
+        document.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!.dispatchEvent(
           new KeyboardEvent('keydown', {
             key: 'Enter',
             bubbles: true,
@@ -195,11 +208,25 @@ it('widens an empty view filter to all notes without losing the query or opening
 it.each(['book:work', 'book:empty', 'tag:project', 'pinned', 'trash'] as const)(
   'restores the selected sidebar view %s independently of open tabs',
   async (view) => {
-    const testNotes = notes.map((note) => ({ ...note, text: `${note.text} #project`,
-      content: { type: 'doc', content: [{ type: 'paragraph', content: [
-        { type: 'text', text: `${note.text} ` },
-        { type: 'text', text: '#project', marks: [{ type: 'bodyTag', attrs: { tag: 'project' } }] },
-      ] }] },
+    const testNotes = notes.map((note) => ({
+      ...note,
+      text: `${note.text} #project`,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: `${note.text} ` },
+              {
+                type: 'text',
+                text: '#project',
+                marks: [{ type: 'bodyTag', attrs: { tag: 'project' } }],
+              },
+            ],
+          },
+        ],
+      },
     }))
     const books: Notebook[] = [
       { id: 'work', name: 'Work', color: '#888888', icon: 'briefcase' },
@@ -251,19 +278,22 @@ it('waits for library loading before restoring or saving the sidebar view', asyn
   expect(selectedSection()).toBe('Pinned notes')
   expect(save).toHaveBeenCalledWith('pinned')
 })
-it('keeps note actions in the note header and preserves toggle shortcuts and states', async () => {
+it('keeps note actions at the end of the tab strip and preserves toggle shortcuts and states', async () => {
   await mount()
   const strip = host.querySelector('[role="tablist"]')!
-  expect(strip.parentElement).toBe(host.querySelector('.writing-pane'))
-  expect(host.querySelector('.writing-pane')?.firstElementChild).toBe(strip)
+  const bar = host.querySelector('.note-tab-bar')!
+  expect(strip.parentElement).toBe(bar)
+  expect(host.querySelector('.writing-pane')?.firstElementChild).toBe(bar)
   expect(strip.closest('.title-bar')).toBeNull()
+  expect(host.querySelector('.editor-header')).toBeNull()
+  expect(host.querySelector('.breadcrumb')).toBeNull()
   expect(
-    [...host.querySelectorAll('.editor-header .header-actions button')].map((element) =>
+    [...bar.querySelectorAll(':scope > .header-actions button')].map((element) =>
       element.getAttribute('aria-label'),
     ),
   ).toEqual(['Focus mode', 'Pin note', 'Table of contents', 'Find in note', 'Note actions'])
   for (const label of ['Table of contents', 'Find in note', 'Note actions']) {
-    expect(button(label).closest('.editor-header')).not.toBeNull()
+    expect(button(label).closest('.note-tab-bar')).not.toBeNull()
     expect(button(label).closest('.title-bar')).toBeNull()
     expect(button(label).disabled).toBe(false)
   }
@@ -291,15 +321,13 @@ it('keeps note actions in the note header and preserves toggle shortcuts and sta
   await act(async () => button('Find in note').click())
   expect(button('Find in note').getAttribute('aria-pressed')).toBe('true')
   expect(document.activeElement?.getAttribute('aria-label')).toBe('Find in current note')
-  const header = host.querySelector('.editor-header')!
   const findSlot = host.querySelector('#note-find-slot')!
   const workspace = host.querySelector('.editor-workspace')!
-  expect(header.nextElementSibling).toBe(findSlot)
   expect(findSlot.nextElementSibling).toBe(workspace)
   expect(findSlot.querySelector('.note-find-bar')).not.toBeNull()
   await act(async () => button('Show replacement').click())
   expect(findSlot.querySelector('.note-replace-row')).not.toBeNull()
-  expect(header.nextElementSibling).toBe(findSlot)
+  expect(findSlot.nextElementSibling).toBe(workspace)
   await act(async () => button('Close find').click())
   expect(button('Find in note').getAttribute('aria-pressed')).toBe('false')
   await act(async () =>
@@ -309,7 +337,7 @@ it('keeps note actions in the note header and preserves toggle shortcuts and sta
   )
   expect(button('Find in note').getAttribute('aria-pressed')).toBe('true')
 })
-it('opens note actions from the header by keyboard and returns focus on Escape', async () => {
+it('opens note actions from the tab strip by keyboard and returns focus on Escape', async () => {
   await mount()
   const launcher = button('Note actions')
   launcher.focus()
@@ -323,7 +351,9 @@ it('opens note actions from the header by keyboard and returns focus on Escape',
   expect(launcher.getAttribute('aria-expanded')).toBe('true')
   await act(async () => {
     menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // Radix restores focus on a timer after the menu unmounts.
+    for (let tick = 0; tick < 5 && document.activeElement !== launcher; tick++)
+      await new Promise((resolve) => setTimeout(resolve, 0))
   })
   expect(launcher.getAttribute('aria-expanded')).toBe('false')
   expect(document.activeElement).toBe(launcher)
@@ -341,7 +371,7 @@ it.each(['empty', 'loading', 'quitting', 'syncing', 'converting'] as const)(
           : { [state]: true },
     )
     for (const label of ['Table of contents', 'Find in note', 'Note actions']) {
-      expect(button(label).closest('.editor-header')).not.toBeNull()
+      expect(button(label).closest('.note-tab-bar')).not.toBeNull()
       expect(button(label).disabled).toBe(true)
     }
     expect(button('New note').disabled).toBe(['quitting', 'syncing', 'converting'].includes(state))
@@ -441,7 +471,18 @@ it('reopens Notes for every sidebar note view, including repeated and empty note
         text: '#design',
         content: {
           type: 'doc',
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '#design', marks: [{ type: 'bodyTag', attrs: { tag: 'design' } }] }] }],
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: '#design',
+                  marks: [{ type: 'bodyTag', attrs: { tag: 'design' } }],
+                },
+              ],
+            },
+          ],
         },
       },
     ],
@@ -561,7 +602,6 @@ it('formats local update date and 24-hour time in desktop note rows', async () =
   expect(row('Alpha').querySelector('.note-row-date')?.textContent).toBe(`${todayDate}, 21:18`)
   expect(row('Beta').querySelector('.note-row-date')?.textContent).toBe('Sep 9, 21:18')
   expect(row('Gamma').querySelector('.note-row-date')?.textContent).toBe('Sep 12, 00:05')
-  expect(host.querySelector('.breadcrumb')?.textContent).toContain('Work')
 })
 it('keeps edited tabs, editor state, and filters while previewing and closing notes', async () => {
   await mount()
@@ -953,7 +993,7 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
     },
   }
   await mount([notes[0], target])
-  await act(async () => button('Search note bodies').click())
+  await openPalette(true)
   await type('Search note bodies', 'fix')
   await waitForBodySearch()
   expect(document.querySelectorAll('.content-search-group')).toHaveLength(1)
@@ -977,4 +1017,17 @@ it('opens the exact repeated body occurrence, offsets title matches, and reveals
   expect(library.getSnapshot().workspace?.recentNoteIds?.slice(0, 2)).toEqual(['beta', 'alpha'])
   await act(async () => host.querySelector<HTMLButtonElement>('[role="tab"]')!.click())
   expect(library.getSnapshot().workspace?.recentNoteIds?.[0]).toBe('alpha')
+})
+it('pins the formatting toolbar from the note status bar and saves the choice', async () => {
+  library.setAppearance({ ...library.getSnapshot().appearance, showFormattingToolbar: false })
+  await mount()
+  const toggle = button('Always show formatting toolbar')
+  expect(toggle.closest('.editor-status')).not.toBeNull()
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  await act(async () => toggle.click())
+  expect(library.getSnapshot().appearance.showFormattingToolbar).toBe(true)
+  expect(button('Always show formatting toolbar').getAttribute('aria-pressed')).toBe('true')
+  expect(host.querySelector('.desktop-writing-toolbar')?.hasAttribute('data-collapsed')).toBe(false)
+  await act(async () => button('Always show formatting toolbar').click())
+  expect(library.getSnapshot().appearance.showFormattingToolbar).toBe(false)
 })

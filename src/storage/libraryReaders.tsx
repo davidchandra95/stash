@@ -12,7 +12,6 @@ import NotebookDeleteDialog from '../components/NotebookDeleteDialog'
 import FileConflictDialog from '../components/FileConflictDialog'
 import SyncConnection from '../components/SyncConnection'
 import AppTooltip from '../components/AppTooltip'
-import { Check } from '../icons'
 import { MotionPresence, motion } from '../motion'
 import { notePreview } from '../noteListPresentation'
 
@@ -128,26 +127,28 @@ export function NoteStatistics({ noteId }: { noteId: string }) {
 }
 export function SaveStatus({ empty = false }: { empty?: boolean }) {
   const state = useLibrarySelector(
-    ({ status, path, preview, conflicts }) => ({ status, path, preview, conflicts }),
+    ({ status, path, preview, conflicts }) => ({
+      failed: status === 'error',
+      path,
+      preview,
+      conflicts,
+    }),
     shallowEqual,
   )
   const label = state.preview
     ? 'Browser preview · session only'
     : !empty && Object.keys(state.conflicts).length
       ? 'File changes need attention'
-      : state.status === 'saved'
-        ? empty
-          ? 'Stored on this Mac'
-          : 'Saved on this Mac'
-        : state.status === 'error'
-          ? 'Couldn’t save'
-          : 'Saving…'
+      : state.failed
+        ? 'Couldn’t save'
+        : null
+  if (!label) return null
   return empty ? (
     <p role="status">{label}</p>
   ) : (
-    <AppTooltip label={state.path} key={state.status}>
+    <AppTooltip label={state.path}>
       <span role="status" className="save-status">
-        <Check size={12} /> {label}
+        {label}
       </span>
     </AppTooltip>
   )

@@ -105,6 +105,8 @@ export interface Appearance extends CursorSettings {
   paragraphSpacing: number
   listItemSpacing: number
   editorBottomSpace: number
+  /** Desktop only. When off, the writing toolbar appears for selections and open pickers. */
+  showFormattingToolbar: boolean
 }
 const now = Date.now()
 export const initialNotebooks: Notebook[] = [

@@ -15,7 +15,7 @@ test('body search publishes before a slow final read and keeps selection stable'
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('combobox', { name: 'Find note titles', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes or run a command', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -48,9 +48,9 @@ test('body search publishes before a slow final read and keeps selection stable'
     }
     library.setNotes(notes)
   }, modulePath)
-  const titles = page.getByRole('combobox', { name: 'Find note titles', exact: true })
-  await titles.fill('needlemarker')
-  await page.locator('.quick-open-content-action').click()
+  await page.getByRole('button', { name: 'Search notes or run a command', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Find note titles', exact: true }).fill('needlemarker')
+  await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await expect(page.locator('.content-search-match')).toHaveCount(2)
   await expect(page.locator('.content-search-results')).toHaveAttribute('aria-busy', 'true')
@@ -75,7 +75,7 @@ test('10,000 synthetic notes keep dense search results windowed and navigation a
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('combobox', { name: 'Find note titles', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes or run a command', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -99,7 +99,8 @@ test('10,000 synthetic notes keep dense search results windowed and navigation a
     })
     library.setNotes(notes)
   }, modulePath)
-  await page.getByRole('button', { name: 'Search note bodies', exact: true }).click()
+  await page.getByRole('button', { name: 'Search notes or run a command', exact: true }).click()
+  await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await field.fill('body')
   await expect(page.locator('.content-search-results')).toHaveAttribute('aria-busy', 'false', {
@@ -145,7 +146,7 @@ test('multiline body results keep their geometry across palettes, modes, and lay
   page,
 }, testInfo) => {
   await page.goto('/')
-  await expect(page.getByRole('combobox', { name: 'Find note titles', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes or run a command', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -169,7 +170,8 @@ test('multiline body results keep their geometry across palettes, modes, and lay
       },
     ])
   }, modulePath)
-  await page.getByRole('button', { name: 'Search note bodies', exact: true }).click()
+  await page.getByRole('button', { name: 'Search notes or run a command', exact: true }).click()
+  await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await field.fill('needlemarker')
   await expect(page.locator('.content-search-status')).toHaveText('1 match in 1 note')
@@ -223,5 +225,5 @@ test('multiline body results keep their geometry across palettes, modes, and lay
     await page.screenshot({ path: testInfo.outputPath(`aster-dark-cards-${viewport.width}.png`) })
   }
   await field.press('Escape')
-  await expect(page.getByRole('button', { name: 'Search note bodies', exact: true })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Search notes or run a command', exact: true })).toBeFocused()
 })

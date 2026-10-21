@@ -1174,6 +1174,14 @@ h1 small {
 .note-tag:hover svg {
   opacity: 1;
 }
+/* Keep the remove mark's space so the label does not shift when it appears. */
+.note-tag-remove {
+  opacity: 0;
+  color: var(--soft);
+}
+.note-tag:is(:hover, :focus-visible) .note-tag-remove {
+  opacity: 1;
+}
 .body-tag {
   color: var(--accent);
   cursor: text;
@@ -1679,6 +1687,30 @@ h1 small {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.format-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-height: 22px;
+  margin-left: var(--ui-space-2);
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-control);
+  color: var(--muted);
+  font-size: var(--ui-font-meta);
+}
+.format-toggle:hover {
+  background: var(--control-hover, var(--hover));
+  color: var(--soft);
+}
+.format-toggle[aria-pressed='true'] {
+  background: var(--row-selected);
+  box-shadow: var(--selected-edge);
+  color: var(--text);
+}
+.format-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 .status-dot {
   margin: 0 6px;
@@ -2374,6 +2406,19 @@ h1 small {
 .desktop-writing-toolbar {
   flex-wrap: nowrap;
   overflow: visible;
+}
+/* Hidden until text is selected or a tool is open; keeps its box for measuring. */
+.desktop-writing-toolbar[data-collapsed] {
+  visibility: hidden;
+  opacity: 0;
+  translate: 0 6px;
+  pointer-events: none;
+}
+[data-motion='on'] .desktop-writing-toolbar:not(.writing-toolbar-measure) {
+  transition:
+    opacity var(--motion-control) ease-out,
+    translate var(--motion-control) ease-out,
+    visibility var(--motion-control);
 }
 .editor-document .toolbar.writing-toolbar-measure,
 .writing-toolbar-measure {
@@ -3316,7 +3361,7 @@ h1 small {
 .native-title-bar .title-bar-left {
   padding-left: 87px;
 }
-.quick-open-shell {
+.palette-trigger {
   display: flex;
   align-items: center;
   padding: 0 8px;
@@ -3324,64 +3369,98 @@ h1 small {
   min-width: 0;
   gap: var(--ui-space-2);
   min-height: var(--ui-control-height);
-}
-.quick-open-shell .text-field {
-  min-width: 0;
-  width: 100%;
+  color: var(--muted);
+  font: inherit;
   font-size: var(--ui-font-size);
+  text-align: left;
+  cursor: pointer;
 }
-.quick-open-shell > svg {
-  flex-shrink: 0;
-  color: var(--muted);
+.palette-trigger > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.quick-open-shell kbd {
+.palette-trigger > svg {
   flex-shrink: 0;
-  color: var(--muted);
+}
+.palette-trigger kbd {
+  flex-shrink: 0;
   font: inherit;
   font-size: var(--ui-font-meta);
 }
-.quick-open-popup {
-  display: flex;
-  flex-direction: column;
-  z-index: 50;
-  width: min(420px, calc(100vw - 24px));
-  min-width: min(var(--radix-popover-trigger-width), calc(100vw - 24px));
-  max-height: min(360px, var(--radix-popover-content-available-height));
+.palette-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  padding: var(--ui-space-1);
-  background: var(--surface-floating);
-  color: var(--text);
-  border-radius: var(--ui-radius-popover, 8px);
-  box-shadow: var(--shadow);
-  font-size: var(--ui-font-size);
-  line-height: var(--ui-line-height);
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
-.quick-open-heading {
-  flex-shrink: 0;
-  margin: 4px 8px 6px;
-  color: var(--muted);
-  font-size: var(--ui-font-meta);
+.command-palette .global-search-input {
+  padding-right: 40px;
 }
-.quick-open-popup > [role='listbox'] {
-  min-height: 0;
-  overflow-y: auto;
-}
-.quick-open-content-action {
+.palette-modes {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-2);
-  width: 100%;
-  margin-top: var(--ui-space-1);
-  text-align: left;
-  flex-wrap: wrap;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
   flex-shrink: 0;
 }
-.quick-open-content-action kbd {
+.palette-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-height: var(--ui-target);
+  padding: 0 var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-control, 6px);
+  background: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: var(--ui-font-small);
+  cursor: pointer;
+}
+.palette-mode:hover {
+  background: var(--control-hover);
+}
+.palette-mode[aria-pressed='true'] {
+  background: var(--row-selected);
+  box-shadow: var(--selected-edge);
+  color: var(--text);
+}
+.palette-hint {
   margin-left: auto;
+  font-size: var(--ui-font-meta);
+}
+.palette-hint kbd,
+.palette-result kbd {
+  font: inherit;
+  font-size: var(--ui-font-meta);
+  color: var(--muted);
+}
+.palette-heading {
+  flex-shrink: 0;
+  margin: var(--ui-space-3) 8px 4px;
   color: var(--muted);
   font-size: var(--ui-font-meta);
 }
-.quick-open-result {
+.palette-list {
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: var(--ui-space-2);
+}
+.palette-icon-gap {
+  width: 14px;
+  flex-shrink: 0;
+}
+.palette-current {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--ui-font-meta);
+}
+.palette-result {
   display: flex;
   align-items: center;
   gap: var(--ui-space-2);
@@ -3390,54 +3469,51 @@ h1 small {
   border-radius: var(--ui-radius-menu-item, 4px);
   cursor: pointer;
 }
-.quick-open-result > svg {
+.palette-result > svg {
   flex-shrink: 0;
   color: var(--muted);
 }
-.quick-open-labels {
+.palette-labels {
   display: flex;
   align-items: baseline;
   gap: var(--ui-space-2);
   flex: 1;
   min-width: 0;
 }
-.quick-open-result strong,
-.quick-open-result small {
+.palette-result strong,
+.palette-result small {
   display: block;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.quick-open-result strong {
+.palette-result strong {
   flex: 1;
   font-weight: normal;
 }
-.quick-open-result small {
+.palette-result small {
   flex: 0 1 auto;
   max-width: 40%;
   color: var(--muted);
   font-size: var(--ui-font-small);
 }
-.quick-open-match {
+.palette-match {
   color: var(--search-label, var(--accent));
   font-weight: bold;
 }
-.quick-open-result:hover {
+.palette-result:hover {
   background: var(--control-hover);
 }
-.quick-open-result[aria-selected='true'] {
+.palette-result[aria-selected='true'] {
   background: var(--row-selected);
   box-shadow: var(--selected-edge);
 }
-.quick-open-result[aria-selected='true'] > svg {
+.palette-result[aria-selected='true'] > svg {
   color: var(--focus-ring);
 }
-.quick-open-result[aria-selected='true'] small {
+.palette-result[aria-selected='true'] small {
   color: color-mix(in srgb, var(--muted) 80%, var(--text));
-}
-.content-search-trigger {
-  flex-shrink: 0;
 }
 .content-search-status {
   margin: 12px 0 0;
@@ -3575,11 +3651,8 @@ h1 small {
   align-items: center;
   gap: var(--ui-space-1);
 }
-.title-bar-search .quick-open-shell {
+.title-bar-search .palette-trigger {
   max-width: 420px;
-}
-.content-search-trigger {
-  flex-shrink: 0;
 }
 .title-navigation {
   display: flex;
@@ -3591,13 +3664,25 @@ h1 small {
   opacity: var(--disabled-opacity, 0.35);
   cursor: default;
 }
-.note-tabs {
+/* Tabs scroll on the left; note actions stay pinned at the right end. */
+.note-tab-bar {
   display: flex;
   align-self: stretch;
   align-items: stretch;
   height: 32px;
   flex: 0 0 32px;
+  min-width: 0;
   background: var(--surface-toolbar, var(--surface-panel));
+}
+.note-tab-bar > .header-actions {
+  margin-left: auto;
+  padding: 0 var(--ui-space-2) 0 var(--ui-space-3);
+  gap: var(--ui-space-1);
+}
+.note-tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
   overflow-x: auto;
   overflow-y: hidden;
   min-width: 0;
@@ -3696,6 +3781,11 @@ h1 small {
   position: relative;
   min-width: 0;
   min-height: 0;
+}
+:root[data-platform='desktop'] .editor-document {
+  /* Bound WebKit's event-region painting for long notes. Keep this on the
+     toolbar's existing containing block, not the scrolling content. */
+  contain: paint;
 }
 .editor-document .toolbar {
   max-width: 100%;
@@ -3874,7 +3964,7 @@ h1 small {
     --sidebar-default-width: 188px;
     --list-default-width: 240px;
   }
-  .quick-open-shell kbd {
+  .palette-trigger kbd {
     display: none;
   }
   .with-contents .note-scroll {

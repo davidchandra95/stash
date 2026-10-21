@@ -63,23 +63,23 @@ async function readable(page: Page, selectors: string[]) {
   }
 }
 
-async function connectedDocumentSurface(page: Page, header: string) {
+async function connectedDocumentSurface(page: Page) {
   const surface = await page
     .locator('.writing-pane')
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   const active = page.locator('.note-tab.active')
   await expect(active).toHaveCSS('background-color', surface)
-  await expect(page.locator(header)).toHaveCSS('background-color', surface)
-  await expect(page.locator(header)).toHaveCSS('border-bottom-color', 'rgba(0, 0, 0, 0)')
-  const strip = await page
-    .locator('.note-tabs')
-    .evaluate((el) => getComputedStyle(el).backgroundColor)
+  const bar = page.locator('.note-tab-bar')
+  const strip = await bar.evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(strip).not.toBe(surface)
   await active.hover()
   await expect(active).toHaveCSS('background-color', surface)
+  // The active tab opens straight onto the document; no header row sits between them.
   const tabBounds = (await active.boundingBox())!
-  const headerBounds = (await page.locator(header).boundingBox())!
-  expect(tabBounds.y + tabBounds.height).toBeCloseTo(headerBounds.y)
+  const barBounds = (await bar.boundingBox())!
+  expect(tabBounds.y + tabBounds.height).toBeCloseTo(barBounds.y + barBounds.height)
+  for (const icon of await bar.locator('.header-actions .icon-button:not(:disabled)').all())
+    expect(await contrast(icon), 'Tab-strip note action').toBeGreaterThanOrEqual(3)
 }
 
 for (const dark of [false, true])
@@ -96,11 +96,11 @@ for (const dark of [false, true])
       expect(new Set(colors).size).toBe(3)
       await page.locator('.note-row').nth(0).dblclick()
       await page.locator('.note-row').nth(1).dblclick()
-      await connectedDocumentSurface(page, '.editor-header')
+      await connectedDocumentSurface(page)
       await page.locator('.note-tab.active [role="tab"]').focus()
       await page.keyboard.press('ArrowLeft')
-      await connectedDocumentSurface(page, '.editor-header')
-      await readable(page, ['.note-tab', '.breadcrumb'])
+      await connectedDocumentSurface(page)
+      await readable(page, ['.note-tab'])
       const row = page.locator('.note-row.selected')
       await row.evaluate(async (el) => {
         await Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {})))
@@ -114,8 +114,7 @@ for (const dark of [false, true])
         '.nav-item',
         '.list-footer',
         '.section-toggle',
-        '.breadcrumb',
-        '.quick-open-shell kbd',
+        '.palette-trigger kbd',
         '.tiptap',
       ])
       await row.click({ button: 'right' })
@@ -192,11 +191,11 @@ for (const dark of [false, true]) {
   }) => {
     await page.goto('/')
     await appearance(page, dark)
+    await page.getByRole('button', { name: 'Search notes or run a command', exact: true }).click()
     await page.getByRole('combobox', { name: 'Find note titles', exact: true }).fill('note')
-    await expect(page.locator('.quick-open-match').first()).toBeVisible()
-    await readable(page, ['.quick-open-match', '.quick-open-result small'])
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Search note bodies', exact: true }).click()
+    await expect(page.locator('.palette-match').first()).toBeVisible()
+    await readable(page, ['.palette-match', '.palette-result small'])
+    await page.keyboard.press('Tab')
     await page.locator('input[aria-label="Search note bodies"]').fill('note')
     const match = page.locator('.content-search-match mark').first()
     await expect(match).toBeVisible()

@@ -221,7 +221,7 @@ for (const palette of palettes)
           '.note-row-title',
           '.note-row-meta',
           '.list-footer',
-          '.breadcrumb',
+          '.format-toggle',
           '.note-tag',
           '.note-organization-button',
         ])
@@ -238,11 +238,11 @@ for (const palette of palettes)
           .locator('.writing-pane')
           .evaluate((el) => getComputedStyle(el).backgroundColor)
         await expect(page.locator('.note-tab.active')).toHaveCSS('background-color', surface)
-        await expect(page.locator('.editor-header')).toHaveCSS('background-color', surface)
-        await expect(page.locator('.editor-header')).toHaveCSS(
-          'border-bottom-color',
-          'rgba(0, 0, 0, 0)',
-        )
+        await expect(page.locator('.editor-header')).toHaveCount(0)
+        for (const icon of await page
+          .locator('.note-tab-bar .header-actions .icon-button:not(:disabled)')
+          .all())
+          expect(await contrast(icon), 'tab-strip note action').toBeGreaterThanOrEqual(3)
         for (const size of [
           { width: 1280, height: 800 },
           { width: 900, height: 650 },
@@ -269,7 +269,9 @@ for (const palette of palettes)
             await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           ).toBe(true)
         }
-        await page.getByRole('button', { name: 'Move', exact: true }).click()
+        await page.locator('.note-meta .note-organization-button').click()
+        await readable(page, ['.note-notebooks-menu [role="menuitem"]'])
+        await page.getByRole('menuitem', { name: 'Move to another notebook', exact: true }).click()
         await field(
           page.getByRole('textbox', { name: 'Search notebooks', exact: true }),
           page.locator('.add-notebooks-search'),
@@ -339,7 +341,8 @@ for (const palette of palettes)
         await page.screenshot({ path: test.info().outputPath(`${label}-deletion.png`) })
         await page.getByRole('button', { name: 'Cancel', exact: true }).click()
         await page.setViewportSize({ width: 1280, height: 800 })
-        await page.locator('.tiptap p').first().click()
+        // Selecting a word reveals the formatting toolbar.
+        await page.locator('.tiptap p').first().dblclick()
         await page.getByRole('button', { name: 'Insert or edit link', exact: true }).click()
         await field(page.getByRole('textbox', { name: 'Link address', exact: true }))
         await readable(page, [

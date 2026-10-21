@@ -15,7 +15,9 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:themes": "playwright test --config playwright.themes.config.ts",
-    "test:pdf": "playwright test --config playwright.pdf.config.ts"
+    "test:pdf": "playwright test --config playwright.pdf.config.ts",
+    "prototype:macos-editor": "node prototypes/macos-native-editor/run.mjs",
+    "bench:macos-editor": "node prototypes/macos-native-editor/benchmark.mjs"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",

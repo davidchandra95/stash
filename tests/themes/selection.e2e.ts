@@ -58,7 +58,11 @@ for (const viewport of [
       dom.addEventListener('copy', () => dom.setAttribute('data-test-copied', 'true'))
     })
 
-    for (const text of ['formatted text', 'First selected row', 'Third selected row']) {
+    for (const [index, text] of [
+      'formatted text',
+      'First selected row',
+      'Third selected row',
+    ].entries()) {
       await editorAction(page, 'caret', text)
       const baseline = await list.screenshot({ caret: 'hide', animations: 'disabled' })
       await editorAction(page, 'select', text)
@@ -82,7 +86,10 @@ for (const viewport of [
       // Also exercise the normal pointer path from the reported symptom.
       await editorAction(page, 'select', text)
       await page.keyboard.press(process.platform === 'darwin' ? 'Meta+c' : 'Control+c')
-      await page.locator('.tiptap > p').click()
+      // Iterations run under 500ms apart. Move each click more than 10px from
+      // the last so ProseMirror does not count them as a double or triple click,
+      // which would select the paragraph.
+      await page.locator('.tiptap > p').click({ position: { x: 8 + 24 * index, y: 8 } })
       await expect(page.locator('.selection-highlight')).toHaveCount(0)
       expect(await page.evaluate(() => document.getSelection()!.toString())).toBe('')
     }

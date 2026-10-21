@@ -113,42 +113,45 @@ async function type(input: HTMLInputElement, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-it('opens title lookup inline, shows recent notes, excludes bodies, and supports keyboard selection and reset', async () => {
+const trigger = (host: HTMLElement) =>
+  host.querySelector<HTMLButtonElement>('[aria-label="Search notes or run a command"]')!
+const palette = () => document.querySelector<HTMLInputElement>('.command-palette input')!
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+it('opens the palette on title lookup, shows recent notes, excludes bodies, and supports keyboard selection and reset', async () => {
   const { host, onSelect } = await mount()
-  expect(host.querySelector('[aria-label="New note"]')).toBeNull()
-  expect(host.querySelector('[role="tablist"]')).toBeNull()
   expect(host.querySelector('[aria-label="Back to previous note"]')).not.toBeNull()
-  expect(host.querySelector('[aria-label="Forward to next note"]')).not.toBeNull()
-  await press('p')
-  const input = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
-  expect(document.activeElement).toBe(input)
   expect(document.querySelector('[role="dialog"]')).toBeNull()
+  await press('p')
+  const input = palette()
+  expect(document.querySelector('[role="dialog"]')).toBeTruthy()
+  expect(input.getAttribute('aria-label')).toBe('Find note titles')
+  expect(document.activeElement).toBe(input)
   expect(
-    [...document.querySelectorAll('.quick-open-result strong')].map((node) => node.textContent),
+    [...document.querySelectorAll('.palette-result strong')].map((node) => node.textContent),
   ).toEqual(['Beta', 'ALPHA'])
-  expect(document.querySelector('.quick-open-match')).toBeNull()
-  await type(input, 'alpha')
-  expect(document.querySelectorAll('.quick-open-result')).toHaveLength(1)
-  expect(document.querySelector('.quick-open-match')?.textContent).toBe('ALPHA')
+  expect(document.querySelector('.palette-match')).toBeNull()
   await type(input, 'ap')
-  expect(
-    [...document.querySelectorAll('.quick-open-match')].map((node) => node.textContent),
-  ).toEqual(['A', 'P'])
-  expect(document.querySelector('.quick-open-result strong')?.textContent).toBe('ALPHA')
-  expect(document.querySelector('.quick-open-result')?.getAttribute('aria-label')).toBe(
+  expect([...document.querySelectorAll('.palette-match')].map((node) => node.textContent)).toEqual([
+    'A',
+    'P',
+  ])
+  expect(document.querySelector('.palette-result')?.getAttribute('aria-label')).toBe(
     'ALPHA, Uncategorized',
   )
-  await hoverTooltip(document.querySelector('.quick-open-result small')!, 'mouse', 700)
+  await hoverTooltip(document.querySelector('.palette-result small')!, 'mouse', 700)
   expect(tooltipLabel()).toBe('Uncategorized')
-  expect(document.querySelector('.quick-open-result small')?.hasAttribute('title')).toBe(false)
   await type(input, 'alpha')
   await press('Enter', {}, input)
   expect(onSelect).toHaveBeenCalledWith('a', undefined)
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
+  await settle()
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
   await press('p')
-  expect(input.value).toBe('')
-  await press('ArrowDown', {}, input)
-  await press('Enter', { ctrlKey: true }, input)
+  expect(palette().value).toBe('')
+  await press('ArrowDown', {}, palette())
+  await press('Enter', { ctrlKey: true }, palette())
   expect(onSelect).toHaveBeenLastCalledWith('a', true)
 })
 it('keeps full notebook context accessible without searching or highlighting it', async () => {
@@ -156,111 +159,101 @@ it('keeps full notebook context accessible without searching or highlighting it'
     { id: 'one', name: 'Personal notebook with a long name', color: '', icon: 'notebook' },
     { id: 'extra', name: 'Second notebook', color: '', icon: 'notebook' },
   ])
-  await press('p')
-  const input = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
-  await type(input, 'ap')
-  const row = document.querySelector<HTMLElement>('.quick-open-result')!
+  await act(async () => trigger(host).click())
+  await type(palette(), 'ap')
+  const row = document.querySelector<HTMLElement>('.palette-result')!
   const context = 'Personal notebook with a long name, Second notebook'
   expect(row.getAttribute('aria-label')).toBe(`ALPHA, ${context}`)
-  await hoverTooltip(row.querySelector('strong')!, 'mouse', 700)
-  expect(tooltipLabel()).toBe('ALPHA')
   await hoverTooltip(row.querySelector('small')!, 'mouse', 700)
   expect(tooltipLabel()).toBe(context)
-  expect(row.querySelector('small .quick-open-match')).toBeNull()
+  expect(row.querySelector('small .palette-match')).toBeNull()
   await act(() => row.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })))
   expect(onSelect).toHaveBeenCalledWith('a', true)
+  await settle()
   await press('p')
-  await type(input, 'Personal')
-  expect(document.querySelector('.quick-open-result')).toBeNull()
+  await type(palette(), 'Personal')
+  expect(document.querySelector('.palette-result')).toBeNull()
 })
-it('opens body search separately, highlights grouped occurrences, and returns the selected match', async () => {
-  const { host, onSelectMatch } = await mount()
-  await press('f', { shiftKey: true })
-  const input = document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!
+it('switches to note bodies with Tab, groups occurrences, and returns the selected match', async () => {
+  const { onSelectMatch } = await mount()
+  await press('p')
+  await type(palette(), 'alpha')
+  await press('Tab', { ctrlKey: false }, palette())
+  const input = palette()
+  expect(input.getAttribute('aria-label')).toBe('Search note bodies')
+  expect(input.value).toBe('alpha')
   expect(document.activeElement).toBe(input)
-  expect(document.querySelector('[role="dialog"]')).toBeTruthy()
-  await type(input, 'alpha')
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  })
   expect(document.querySelectorAll('.content-search-group')).toHaveLength(1)
   expect(document.querySelector('.content-search-heading strong')?.textContent).toBe('Beta')
   expect(document.querySelector('mark.target-match')?.textContent).toBe('alpha')
   await press('Enter', {}, input)
   expect(onSelectMatch).toHaveBeenCalledWith(
-    expect.objectContaining({
-      noteId: 'b',
-      query: 'alpha',
-      match: expect.objectContaining({ offset: 0 }),
-    }),
+    expect.objectContaining({ noteId: 'b', query: 'alpha' }),
     false,
   )
-  await act(async () =>
-    host.querySelector<HTMLButtonElement>('[aria-label="Search note bodies"]')!.click(),
-  )
-  expect(
-    document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!.value,
-  ).toBe('')
-  await press('Escape')
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  })
-  expect(document.activeElement).toBe(host.querySelector('[aria-label="Search note bodies"]'))
-})
-it('switches between surfaces and respects custom bindings', async () => {
-  const { host } = await mount({ 'quick-open': 'Mod+Alt+p', search: 'Mod+Alt+f' })
-  await press('p')
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
-  await press('p', { altKey: true })
-  expect(document.querySelector('.quick-open-popup')).toBeTruthy()
-  await press('f', { altKey: true })
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
-  const content = document.querySelector<HTMLInputElement>(
-    'input[aria-label="Search note bodies"]',
-  )!
-  await press('p', { altKey: true }, content)
-  expect(document.querySelector('[role="dialog"]')).toBeNull()
-  expect(document.querySelector('.quick-open-popup')).toBeTruthy()
-  expect(document.activeElement).toBe(host.querySelector('[aria-label="Find note titles"]'))
-  await press('Escape', {}, document.activeElement!)
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
-})
-
-it('offers body search from title lookup, carries the query, and resets direct searches', async () => {
-  const { host } = await mount()
-  await press('p')
-  const titles = host.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!
-  await type(titles, 'garden')
-  expect(document.querySelectorAll('.quick-open-result')).toHaveLength(0)
-  expect(document.querySelector('.quick-open-heading')?.textContent).toContain('all notebooks')
-  const searchBodies = document.querySelector<HTMLButtonElement>('.quick-open-content-action')!
-  await press('Tab', { ctrlKey: false }, titles)
-  expect(document.activeElement).toBe(searchBodies)
-  await press('Tab', { ctrlKey: false, shiftKey: true }, searchBodies)
-  expect(document.activeElement).toBe(titles)
-  await press('Tab', { ctrlKey: false }, titles)
-  await press('Escape', {}, searchBodies)
-  expect(document.activeElement).toBe(titles)
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
-  await press('p')
-  await type(titles, 'garden')
-  await act(async () =>
-    document.querySelector<HTMLButtonElement>('.quick-open-content-action')!.click(),
-  )
-  const bodies = document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')!
-  expect(bodies.value).toBe('garden')
-  expect(document.activeElement).toBe(bodies)
-  expect(document.querySelector('.quick-open-popup')).toBeNull()
-  expect(document.querySelector('.global-search-description')?.textContent).toContain(
-    'Excludes Trash',
-  )
-  expect(document.querySelectorAll('.content-search-group')).toHaveLength(1)
-  expect(document.querySelector('.content-search-heading strong')?.textContent).toBe('ALPHA')
-  await press('Escape', {}, bodies)
+  await settle()
   await press('f', { shiftKey: true })
-  expect(
-    document.querySelector<HTMLInputElement>('input[aria-label="Search note bodies"]')?.value,
-  ).toBe('')
+  expect(palette().getAttribute('aria-label')).toBe('Search note bodies')
+  expect(palette().value).toBe('')
+  await press('Tab', { ctrlKey: false }, palette())
+  expect(palette().getAttribute('aria-label')).toBe('Find note titles')
+  await press('Escape', {}, palette())
 })
-
-it('orders app-bar navigation before search and retains the sidebar toggle', async () => {
+it('runs commands after a > prefix and filters them', async () => {
+  const run = vi.fn(),
+    disabledRun = vi.fn()
+  const { host } = await mount({}, [], {
+    commands: [
+      { id: 'settings', label: 'Open Settings', shortcut: '⌘,', run },
+      {
+        id: 'theme-aster',
+        label: 'Theme: Aster',
+        keywords: 'palette',
+        checked: true,
+        run: vi.fn(),
+      },
+      { id: 'off', label: 'Open PDF', disabled: true, run: disabledRun },
+    ],
+  })
+  await press('p')
+  await type(palette(), '>')
+  expect(palette().getAttribute('aria-label')).toBe('Run a command')
+  expect(document.querySelectorAll('.palette-result')).toHaveLength(3)
+  expect(document.querySelector('[aria-checked="true"]')?.textContent).toContain('Current')
+  await type(palette(), '>sett')
+  expect(document.querySelectorAll('.palette-result')).toHaveLength(1)
+  await type(palette(), '>palette')
+  expect(document.querySelector('.palette-result')?.textContent).toContain('Theme: Aster')
+  await press('Tab', { ctrlKey: false }, palette())
+  expect(palette().getAttribute('aria-label')).toBe('Run a command')
+  await type(palette(), '>pdf')
+  await press('Enter', {}, palette())
+  expect(disabledRun).not.toHaveBeenCalled()
+  await type(palette(), '>sett')
+  await press('Enter', {}, palette())
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  })
+  expect(run).toHaveBeenCalledOnce()
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(trigger(host)).toBeTruthy()
+})
+it('respects custom bindings and switches scope while open', async () => {
+  await mount({ 'quick-open': 'Mod+Alt+p', search: 'Mod+Alt+f' })
+  await press('p')
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  await press('p', { altKey: true })
+  expect(palette().getAttribute('aria-label')).toBe('Find note titles')
+  await press('f', { altKey: true }, palette())
+  expect(palette().getAttribute('aria-label')).toBe('Search note bodies')
+  await press('p', { altKey: true }, palette())
+  expect(palette().getAttribute('aria-label')).toBe('Find note titles')
+  await press('Escape', {}, palette())
+})
+it('orders app-bar navigation before the single palette trigger and retains the sidebar toggle', async () => {
   const onBack = vi.fn(),
     onForward = vi.fn(),
     onToggleSidebar = vi.fn()
@@ -272,15 +265,10 @@ it('orders app-bar navigation before search and retains the sidebar toggle', asy
     onToggleSidebar,
   })
   expect(
-    [...host.querySelectorAll('.title-bar-controls button, .title-bar-controls input')].map(
-      (node) => node.getAttribute('aria-label'),
+    [...host.querySelectorAll('.title-bar-controls button')].map((node) =>
+      node.getAttribute('aria-label'),
     ),
-  ).toEqual([
-    'Back to previous note',
-    'Forward to next note',
-    'Find note titles',
-    'Search note bodies',
-  ])
+  ).toEqual(['Back to previous note', 'Forward to next note', 'Search notes or run a command'])
   await act(() => {
     host.querySelector<HTMLButtonElement>('[aria-label="Back to previous note"]')!.click()
     host.querySelector<HTMLButtonElement>('[aria-label="Forward to next note"]')!.click()

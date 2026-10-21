@@ -2,9 +2,25 @@ import { checkboxGlyph } from './checkbox'
 import { Node, InputRule, mergeAttributes } from '@tiptap/core'
 import { Fragment, Slice, type Node as DocumentNode } from '@tiptap/pm/model'
 import { Plugin, type EditorState, type Transaction } from '@tiptap/pm/state'
-import { ReplaceAroundStep, canJoin } from '@tiptap/pm/transform'
+import { ReplaceAroundStep, ReplaceStep, canJoin } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 export type ListKind = 'bullet' | 'number' | 'task'
+
+// Plain typing changes positions, but cannot change a list item's nesting depth.
+// Use each step's input document: chained edits can shift the later positions.
+function onlyInlineTextChanges(tr: Transaction) {
+  return tr.steps.every((step, index) => {
+    if (!(step instanceof ReplaceStep) || step.slice.openStart || step.slice.openEnd) return false
+    let textOnly = true
+    step.slice.content.forEach((node) => {
+      if (!node.isText) textOnly = false
+    })
+    if (!textOnly) return false
+    const from = tr.docs[index].resolve(step.from)
+    const to = tr.docs[index].resolve(step.to)
+    return from.parent.isTextblock && from.sameParent(to)
+  })
+}
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     mixedList: {
@@ -302,7 +318,12 @@ export const MixedListItem = Node.create({
       new Plugin<DecorationSet>({
         state: {
           init: (_, state) => decorations(state.doc),
-          apply: (tr, previous) => (tr.docChanged ? decorations(tr.doc) : previous),
+          apply: (tr, previous) => {
+            if (!tr.docChanged) return previous
+            return onlyInlineTextChanges(tr)
+              ? previous.map(tr.mapping, tr.doc)
+              : decorations(tr.doc)
+          },
         },
         props: {
           decorations: function (state) {

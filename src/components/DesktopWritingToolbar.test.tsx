@@ -469,3 +469,52 @@ it('disables title editing across blocks while still allowing an address', async
   await click('Apply link')
   expect(editor.state.doc.textContent).toBe('firstsecond')
 })
+
+it('stays collapsed until text is selected, a picker opens, or the toolbar is pinned', async () => {
+  await mount()
+  const collapsed = () => toolbar().hasAttribute('data-collapsed')
+  expect(collapsed()).toBe(false)
+  await act(async () => {
+    editor.commands.setTextSelection(3)
+  })
+  expect(collapsed()).toBe(true)
+  // Slash and shortcut pickers need a visible toolbar to anchor to.
+  await act(async () => {
+    editor.view.dom.dispatchEvent(new CustomEvent('writing-panel', { detail: { id: 'link' } }))
+  })
+  expect(document.querySelector('#desktop-writing-link')).toBeTruthy()
+  expect(collapsed()).toBe(false)
+  await act(async () => {
+    editor.view.dom.dispatchEvent(new Event('writing-dismiss'))
+  })
+  await settle()
+  expect(document.querySelector('#desktop-writing-link')).toBeNull()
+  expect(collapsed()).toBe(true)
+  await act(async () =>
+    root.render(
+      <DesktopWritingToolbar
+        editor={editor}
+        readOnly={false}
+        appearance={{ ...defaultAppearance, showFormattingToolbar: true }}
+      />,
+    ),
+  )
+  expect(collapsed()).toBe(false)
+  await act(async () => {
+    editor.commands.setTextSelection({ from: 1, to: 6 })
+    root.render(<DesktopWritingToolbar editor={editor} readOnly />)
+  })
+  expect(collapsed()).toBe(true)
+})
+
+it('stays revealed while keyboard focus is inside it', async () => {
+  await mount()
+  const bold = button('Bold', toolbar())
+  await act(async () => bold.focus())
+  await act(async () => {
+    editor.commands.setTextSelection(3)
+  })
+  expect(toolbar().hasAttribute('data-collapsed')).toBe(false)
+  await act(async () => bold.blur())
+  expect(toolbar().hasAttribute('data-collapsed')).toBe(true)
+})

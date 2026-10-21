@@ -67,7 +67,7 @@ it('shows the Feather opening state until a selected note loads, then preserves 
   expect(opening?.getAttribute('role')).toBe('status')
   expect(opening?.textContent).toContain('Opening note…')
   expect(opening?.querySelector('.empty-symbol svg')).toBeTruthy()
-  expect(host.querySelector('.breadcrumb')?.textContent).toContain('Loaded title')
+  expect(host.querySelector('.note-tab.active')?.textContent).toContain('Loaded title')
   expect(host.querySelector('.note-opening-pane .note-kicker')?.textContent).toContain('1970')
   expect(host.querySelector('.note-title')).toBeNull()
   expect(host.querySelector('.ProseMirror')).toBeNull()

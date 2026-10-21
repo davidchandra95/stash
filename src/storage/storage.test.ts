@@ -90,6 +90,26 @@ it('saves and restores Aster with independent mode, layout and custom fonts', as
   })
 })
 describe('save queue', () => {
+  it('waits for a typing pause and saves only the latest edit without repeated status notifications', async () => {
+    vi.useFakeTimers()
+    const notify = vi.fn()
+    const first = vi.fn(async () => {})
+    const latest = vi.fn(async () => {})
+    const q = new SaveQueue(notify)
+    q.enqueue('a', first)
+    await vi.advanceTimersByTimeAsync(500)
+    q.enqueue('a', latest)
+    await vi.advanceTimersByTimeAsync(749)
+    expect(first).not.toHaveBeenCalled()
+    expect(latest).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(first).not.toHaveBeenCalled()
+    expect(latest).toHaveBeenCalledOnce()
+    expect(q.dirty).toBe(false)
+    expect(notify).toHaveBeenCalledTimes(2)
+  })
+
   it('schedules mobile edits immediately but waits for the write acknowledgement', async () => {
     vi.useFakeTimers()
     const gate = deferred()
@@ -107,7 +127,7 @@ describe('save queue', () => {
   it('coalesces a typing burst but saves continuous typing by the maximum interval', async () => {
     vi.useFakeTimers()
     const write = vi.fn(async () => {}),
-      q = new SaveQueue(() => {}, 350, 2000)
+      q = new SaveQueue(() => {})
     for (let i = 0; i < 10; i++) {
       q.enqueue('a', write)
       await vi.advanceTimersByTimeAsync(200)

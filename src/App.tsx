@@ -93,6 +93,7 @@ import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import {
   Check,
   BookOpen,
+  Type,
   BookPlus,
   Notebook,
   Files,
@@ -123,6 +124,13 @@ import {
   FolderInput,
   Maximize2,
   Minimize2,
+  Moon,
+  Sun,
+  Palette,
+  RefreshCw,
+  Settings2,
+  Columns2,
+  PanelLeft,
 } from './icons'
 import { useWorkspace } from './useWorkspace'
 import { restoreSidebarView } from './workspace'
@@ -134,7 +142,9 @@ import NotebookConvertDialog from './components/NotebookConvertDialog'
 import Appearance from './components/Appearance'
 import AccountMenu from './components/AccountMenu'
 import TitleBar from './components/TitleBar'
+import type { PaletteCommand } from './components/CommandPalette'
 import NoteTabs from './components/NoteTabs'
+import NoteNotebooksMenu from './components/NoteNotebooksMenu'
 import type { MatchNavigation } from './search'
 import { matchesView, type Note, type View } from './model'
 
@@ -1064,6 +1074,107 @@ export default function App() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void libraryStore.sync()
   }
+  const themeNames: [typeof appearance.theme, string][] = [
+    ['classic', 'Classic'],
+    ['zen', 'Zen'],
+    ['financial', 'Financial'],
+    ['tiktok', 'TikTok'],
+    ['catppuccin', 'Catppuccin'],
+    ['lastchat', 'LastChat'],
+    ['qrafthive', 'qrafthive'],
+    ['aster', 'Aster'],
+  ]
+  const paletteCommands: PaletteCommand[] = [
+    {
+      id: 'settings',
+      label: 'Open Settings',
+      shortcut: shortcutFor('settings'),
+      icon: Settings2,
+      run: () => setAppearanceOpen(true),
+    },
+    {
+      id: 'new-note',
+      label: 'New note',
+      shortcut: shortcutFor('new-note'),
+      icon: Plus,
+      run: () => addNote(),
+    },
+    {
+      id: 'new-notebook',
+      label: 'New notebook',
+      icon: FolderPlus,
+      run: () => {
+        setBookParent(undefined)
+        setBookEditing(undefined)
+        setBookOpen(true)
+      },
+    },
+    ...(pdfs.ready && !pdfImporting
+      ? [
+          {
+            id: 'open-pdf',
+            label: 'Open PDF',
+            keywords: 'import document',
+            icon: FileText,
+            run: () => {
+              if (isTauri()) void importPdf()
+              else pdfInput.current?.click()
+            },
+          },
+        ]
+      : []),
+    {
+      id: 'toggle-sidebar',
+      label: 'Toggle sidebar',
+      keywords: 'navigation pane',
+      shortcut: shortcutFor('sidebar'),
+      icon: PanelLeft,
+      run: toggleSidebar,
+    },
+    ...(workspace.documentId
+      ? []
+      : [
+          {
+            id: 'toggle-notes-list',
+            label: 'Toggle notes list',
+            keywords: 'pane',
+            icon: Columns2,
+            run: toggleNoteList,
+          },
+        ]),
+    ...(active || activePdf
+      ? [
+          {
+            id: 'toggle-focus',
+            label: 'Toggle focus mode',
+            shortcut: shortcutFor('focus'),
+            icon: Maximize2,
+            run: () => setFocus((value) => !value),
+          },
+        ]
+      : []),
+    {
+      id: 'sync',
+      label: 'Sync now',
+      icon: RefreshCw,
+      run: syncNow,
+    },
+    {
+      id: 'toggle-dark',
+      label: appearance.dark ? 'Switch to light mode' : 'Switch to dark mode',
+      keywords: 'theme appearance color mode',
+      icon: appearance.dark ? Sun : Moon,
+      run: () => setAppearance({ ...appearance, dark: !appearance.dark }),
+    },
+    ...themeNames.map(([theme, name]) => ({
+      id: `theme-${theme}`,
+      label: `Theme: ${name}`,
+      keywords: 'palette appearance',
+      icon: Palette,
+      checked: appearance.theme === theme,
+      run: () => setAppearance({ ...appearance, theme }),
+    })),
+  ]
   useShortcutActions(
     {
       'new-note': addNote,
@@ -1207,6 +1318,93 @@ export default function App() {
         )}
       </div>
     )
+  // Ordinary notes show these in the tab strip; PDF companion notes keep their own header.
+  const noteHeaderActions = (
+    <div className="header-actions">
+      {!activePdf && active && Object.entries(companions).some(([, id]) => id === active.id) && (
+        <button
+          className="quiet-button"
+          onClick={() => {
+            const documentId = Object.entries(companions).find(([, id]) => id === active.id)![0]
+            workspace.openPdf(documentId)
+            setPdfPreferences({ open: true }, documentId)
+          }}
+        >
+          Open PDF
+        </button>
+      )}
+      <AppTooltip
+        instant
+        label={focus ? 'Exit focus mode' : 'Focus mode'}
+        shortcut={shortcutFor('focus')}
+      >
+        <button
+          className="icon-button"
+          aria-label={focus ? 'Exit focus mode' : 'Focus mode'}
+          onClick={() => setFocus((v) => !v)}
+        >
+          {focus ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+        </button>
+      </AppTooltip>
+      {active && (
+        <>
+          <AppTooltip
+            instant
+            label={active.pinned ? 'Unpin note' : 'Pin note'}
+            shortcut={shortcutFor('pin')}
+          >
+            <button
+              className={`icon-button ${active.pinned ? 'is-pinned' : ''}`}
+              aria-label={active.pinned ? 'Unpin note' : 'Pin note'}
+              onClick={() => update(active.id, { pinned: !active.pinned })}
+            >
+              <Pin size={16} />
+            </button>
+          </AppTooltip>
+        </>
+      )}
+      <AppTooltip
+        instant
+        label={'Table of contents'}
+        shortcut={shortcutFor('contents')}
+        disabled={!active || library.quitting || library.syncing || library.converting}
+      >
+        <button
+          ref={contentsLauncher}
+          className="icon-button"
+          aria-label="Table of contents"
+          aria-pressed={contentsOpen}
+          aria-expanded={contentsOpen}
+          aria-controls="note-contents"
+          disabled={!active || library.quitting || library.syncing || library.converting}
+          onClick={(event) => toggleContents(event.detail === 0)}
+        >
+          <List size={18} />
+        </button>
+      </AppTooltip>
+      <AppTooltip
+        instant
+        label={'Find in note'}
+        shortcut={shortcutFor('find')}
+        disabled={!active || library.quitting || library.syncing || library.converting}
+      >
+        <button
+          className="icon-button"
+          aria-label="Find in note"
+          aria-pressed={findOpen}
+          disabled={!active || library.quitting || library.syncing || library.converting}
+          onClick={() => setFindOpen((value) => !value)}
+        >
+          <Search size={17} />
+        </button>
+      </AppTooltip>
+      {noteMenu || (
+        <button className="icon-button" aria-label="Note actions" disabled>
+          <MoreHorizontal size={21} />
+        </button>
+      )}
+    </div>
+  )
   return (
     <ShortcutContext.Provider value={appearance.shortcuts ?? {}}>
       <div
@@ -1217,6 +1415,7 @@ export default function App() {
         style={variables}
       >
         <TitleBar
+          commands={paletteCommands}
           notebooks={notebooks}
           appearance={appearance}
           recentNoteIds={library.workspace?.recentNoteIds ?? []}
@@ -1749,6 +1948,7 @@ export default function App() {
             onCloseTab={workspace.close}
             onKeepOpenTab={workspace.keepOpen}
             onReorderTab={workspace.reorderTab}
+            actions={activePdf ? undefined : noteHeaderActions}
           />
           {pdfs.savingError && (
             <div role="alert" className="pdf-message">
@@ -1856,110 +2056,27 @@ export default function App() {
                 <button onClick={() => setLinkMessage('')}>Dismiss</button>
               </div>
             </MotionPresence>
-            <header className="editor-header">
-              <div className="breadcrumb">
-                {selected && (
-                  <>
-                    <Notebook size={14} />
-                    <AppTooltip label={notebookLabel(selected)}>
-                      <span className="breadcrumb-notebook">{notebookLabel(selected)}</span>
-                    </AppTooltip>
-                    <ChevronRight size={12} />
-                    <AppTooltip label={selected.title || 'Untitled note'}>
-                      <span className="breadcrumb-title">{selected.title || 'Untitled note'}</span>
-                    </AppTooltip>
-                  </>
-                )}
-              </div>
-              <div className="header-actions">
-                {!activePdf &&
-                  active &&
-                  Object.entries(companions).some(([, id]) => id === active.id) && (
-                    <button
-                      className="quiet-button"
-                      onClick={() => {
-                        const documentId = Object.entries(companions).find(
-                          ([, id]) => id === active.id,
-                        )![0]
-                        workspace.openPdf(documentId)
-                        setPdfPreferences({ open: true }, documentId)
-                      }}
-                    >
-                      Open PDF
-                    </button>
+            {activePdf && (
+              <header className="editor-header">
+                <div className="breadcrumb">
+                  {selected && (
+                    <>
+                      <Notebook size={14} />
+                      <AppTooltip label={notebookLabel(selected)}>
+                        <span className="breadcrumb-notebook">{notebookLabel(selected)}</span>
+                      </AppTooltip>
+                      <ChevronRight size={12} />
+                      <AppTooltip label={selected.title || 'Untitled note'}>
+                        <span className="breadcrumb-title">
+                          {selected.title || 'Untitled note'}
+                        </span>
+                      </AppTooltip>
+                    </>
                   )}
-                <AppTooltip
-                  instant
-                  label={focus ? 'Exit focus mode' : 'Focus mode'}
-                  shortcut={shortcutFor('focus')}
-                >
-                  <button
-                    className="icon-button"
-                    aria-label={focus ? 'Exit focus mode' : 'Focus mode'}
-                    onClick={() => setFocus((v) => !v)}
-                  >
-                    {focus ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-                  </button>
-                </AppTooltip>
-                {active && (
-                  <>
-                    <AppTooltip
-                      instant
-                      label={active.pinned ? 'Unpin note' : 'Pin note'}
-                      shortcut={shortcutFor('pin')}
-                    >
-                      <button
-                        className={`icon-button ${active.pinned ? 'is-pinned' : ''}`}
-                        aria-label={active.pinned ? 'Unpin note' : 'Pin note'}
-                        onClick={() => update(active.id, { pinned: !active.pinned })}
-                      >
-                        <Pin size={16} />
-                      </button>
-                    </AppTooltip>
-                  </>
-                )}
-                <AppTooltip
-                  instant
-                  label={'Table of contents'}
-                  shortcut={shortcutFor('contents')}
-                  disabled={!active || library.quitting || library.syncing || library.converting}
-                >
-                  <button
-                    ref={contentsLauncher}
-                    className="icon-button"
-                    aria-label="Table of contents"
-                    aria-pressed={contentsOpen}
-                    aria-expanded={contentsOpen}
-                    aria-controls="note-contents"
-                    disabled={!active || library.quitting || library.syncing || library.converting}
-                    onClick={(event) => toggleContents(event.detail === 0)}
-                  >
-                    <List size={18} />
-                  </button>
-                </AppTooltip>
-                <AppTooltip
-                  instant
-                  label={'Find in note'}
-                  shortcut={shortcutFor('find')}
-                  disabled={!active || library.quitting || library.syncing || library.converting}
-                >
-                  <button
-                    className="icon-button"
-                    aria-label="Find in note"
-                    aria-pressed={findOpen}
-                    disabled={!active || library.quitting || library.syncing || library.converting}
-                    onClick={() => setFindOpen((value) => !value)}
-                  >
-                    <Search size={17} />
-                  </button>
-                </AppTooltip>
-                {noteMenu || (
-                  <button className="icon-button" aria-label="Note actions" disabled>
-                    <MoreHorizontal size={21} />
-                  </button>
-                )}
-              </div>
-            </header>
+                </div>
+                {noteHeaderActions}
+              </header>
+            )}
             <div id="note-find-slot" />
             <div
               ref={editorWorkspaceRef}
@@ -2086,32 +2203,22 @@ export default function App() {
                                   }
                                 >
                                   {notebookPath(book, notebooks)}
-                                  {book.rootId ? '' : ' ×'}
+                                  {!book.rootId && (
+                                    <span className="note-tag-remove" aria-hidden="true">
+                                      ×
+                                    </span>
+                                  )}
                                 </button>
                               ))}
-                            <button
-                              className="note-organization-button"
-                              type="button"
-                              aria-haspopup="dialog"
-                              onClick={(event) =>
-                                openAddToNotebooks(active.id, event.currentTarget)
-                              }
-                            >
-                              <Plus size={12} aria-hidden="true" />
-                              Add to notebooks
-                            </button>
-                            <button
-                              className="note-organization-button"
-                              type="button"
-                              aria-haspopup="dialog"
-                              data-move-note-id={active.id}
-                              onClick={(event) =>
-                                setOrganization({ id: active.id, launcher: event.currentTarget })
-                              }
-                            >
-                              <FolderInput size={12} aria-hidden="true" />
-                              Move
-                            </button>
+                            <NoteNotebooksMenu
+                              noteId={active.id}
+                              file={!!active.source}
+                              appearance={appearance}
+                              disabled={library.quitting || library.syncing || library.converting}
+                              onAdd={(launcher) => openAddToNotebooks(active.id, launcher)}
+                              onMove={(launcher) => setOrganization({ id: active.id, launcher })}
+                              onError={setActionError}
+                            />
                           </div>
                         </div>
                         {active.source && (
@@ -2181,7 +2288,35 @@ export default function App() {
                     </div>
                     <footer className="editor-status">
                       <NoteStatistics noteId={active.id} />
-                      <SaveStatus />
+                      <span>
+                        <SaveStatus />
+                        {!active.source && (
+                          <AppTooltip
+                            instant
+                            label={
+                              appearance.showFormattingToolbar
+                                ? 'Show formatting toolbar only when selecting text'
+                                : 'Always show formatting toolbar'
+                            }
+                          >
+                            <button
+                              type="button"
+                              className="format-toggle"
+                              aria-label="Always show formatting toolbar"
+                              aria-pressed={appearance.showFormattingToolbar}
+                              onClick={() =>
+                                setAppearance({
+                                  ...appearance,
+                                  showFormattingToolbar: !appearance.showFormattingToolbar,
+                                })
+                              }
+                            >
+                              <Type size={13} aria-hidden="true" />
+                              Format
+                            </button>
+                          </AppTooltip>
+                        )}
+                      </span>
                     </footer>
                   </>
                 ) : selected ? (

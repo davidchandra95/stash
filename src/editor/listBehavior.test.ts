@@ -116,6 +116,44 @@ it('cycles bullet markers by depth without saving display attributes', () => {
   expect(JSON.stringify(e.getJSON())).not.toContain('bullet-shape')
   expect(e.getHTML()).not.toContain('bullet-shape')
 })
+it('reuses unchanged list decorations when typing after a long list', () => {
+  const e = make(`<ul>${'<li><p>Item</p></li>'.repeat(200)}</ul><p>Tail</p>`)
+  const markers = e.state.plugins.find((plugin) => {
+    const value = plugin.getState(e.state)
+    return typeof value?.find === 'function' && value.find().length === 200
+  })!
+  expect(markers).toBeDefined()
+  const before = markers.getState(e.state)
+  const tr = e.state.tr.insertText(' more', pos(e, 'Tail') + 4)
+  const scan = vi.spyOn(tr.doc, 'descendants')
+  // Exercise the list plugin in isolation so other plugins may still scan for
+  // their own purposes. Plain typing must not rescan all list items.
+  markers.spec.state!.apply.call(markers, tr, before, e.state, e.state)
+  expect(scan).not.toHaveBeenCalled()
+  scan.mockRestore()
+  e.view.dispatch(tr)
+  expect(e.view.dom.querySelectorAll('[data-bullet-shape="disc"]')).toHaveLength(200)
+})
+it('keeps bullet depths correct through inline edits, structural edits, paste and undo', () => {
+  const e = make('<ul><li><p>One</p><ul><li><p>Two</p></li></ul></li><li><p>Three</p></li></ul><p>Tail</p>')
+  const shapes = () => [...e.view.dom.querySelectorAll('[data-bullet-shape]')].map((n) => n.getAttribute('data-bullet-shape'))
+  const expected = ['disc', 'circle', 'disc']
+  select(e, 'Two')
+  e.commands.insertContent('Changed')
+  expect(shapes()).toEqual(expected)
+  e.commands.deleteRange({ from: pos(e, 'Changed'), to: pos(e, 'Changed') + 7 })
+  expect(shapes()).toEqual(expected)
+  e.commands.undo()
+  expect(shapes()).toEqual(expected)
+  e.commands.setTextSelection(pos(e, 'Three'))
+  e.commands.sinkListItem('mixedListItem')
+  expect(shapes()).toEqual(['disc', 'circle', 'circle'])
+  e.commands.undo()
+  expect(shapes()).toEqual(expected)
+  e.commands.setTextSelection(pos(e, 'Tail') + 4)
+  e.commands.insertContent('<ul><li><p>Pasted</p><ul><li><p>Nested</p></li></ul></li></ul>')
+  expect(shapes()).toEqual([...expected, 'disc', 'circle'])
+})
 it.each([2, 3, 4])('Enter exits empty nested items one level at a time from depth %s', (depth) => {
   let html = '<ul><li><p>Deep</p></li></ul>'
   for (let i = 1; i < depth; i++) html = `<ul><li><p>Level ${i}</p>${html}</li></ul>`

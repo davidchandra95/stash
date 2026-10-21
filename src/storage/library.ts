@@ -83,6 +83,7 @@ export const defaultAppearance: Appearance = {
   paragraphSpacing: 0,
   listItemSpacing: 0,
   editorBottomSpace: 112,
+  showFormattingToolbar: false,
   ...defaultCursorSettings,
 }
 export type SavedNote = Omit<Note, 'content'> & {

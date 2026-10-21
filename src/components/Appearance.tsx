@@ -4,17 +4,7 @@ import { shortcutCommands } from '../shortcuts'
 import KeyboardShortcuts from './KeyboardShortcuts'
 import { useMotionEnabled, useReducedMotion } from '../motion'
 import * as Dialog from '@radix-ui/react-dialog'
-import {
-  Sun,
-  Moon,
-  X,
-  Type,
-  Search,
-  Palette,
-  TextCursorInput,
-  Keyboard,
-  RefreshCw,
-} from '../icons'
+import { Sun, Moon, X, Type, Search, Palette, TextCursorInput, Keyboard, RefreshCw } from '../icons'
 import type { Appearance as Settings } from '../model'
 import { fontFamily } from '../fonts'
 import { useEffect, useState, useRef, type ReactNode } from 'react'
@@ -616,6 +606,28 @@ export default function Appearance({
       ),
     },
     {
+      id: 'Always show formatting toolbar',
+      category: 'editor',
+      group: 'Writing',
+      search:
+        'Always show formatting toolbar Otherwise it appears when you select text or open a writing tool',
+      content: (
+        <label className="setting-row">
+          <span>
+            Always show formatting toolbar
+            <small>Otherwise it appears when you select text or open a writing tool.</small>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Always show formatting toolbar"
+            checked={value.showFormattingToolbar}
+            onChange={(event) => set('showFormattingToolbar', event.target.checked)}
+          />
+        </label>
+      ),
+    },
+    {
       id: 'Cursor style',
       category: 'editor',
       group: 'Cursor',
@@ -718,6 +730,7 @@ export default function Appearance({
     'app-style',
     'font-presets',
     'Writing width',
+    'Always show formatting toolbar',
     'Cursor style',
     'Cursor blinking',
     'Smooth caret animation',

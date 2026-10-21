@@ -6,8 +6,7 @@ import { PanelLeft, PanelLeftClose, Columns2, ArrowLeft, ArrowRight } from '../i
 import type { Appearance, Note, Notebook } from '../model'
 import { useLibrarySelector } from '../storage/useLibrary'
 const emptyNotes: Note[] = []
-import QuickOpen from './QuickOpen'
-import ContentSearch from './ContentSearch'
+import CommandPalette, { type PaletteCommand, type PaletteScope } from './CommandPalette'
 import type { MatchNavigation, ReadSearchNote } from '../search'
 
 export default function TitleBar({
@@ -28,6 +27,7 @@ export default function TitleBar({
   recentNoteIds = [],
   readSearchNote,
   onSelectMatch,
+  commands = [],
 }: {
   notes?: Note[]
   notebooks: Notebook[]
@@ -46,25 +46,27 @@ export default function TitleBar({
   recentNoteIds?: string[]
   readSearchNote: ReadSearchNote
   onSelectMatch: (request: MatchNavigation, newTab?: boolean) => void
+  commands?: PaletteCommand[]
 }) {
-  const [searchMode, setSearchMode] = useState<'quick' | 'content' | null>(null)
+  const [palette, setPalette] = useState<{ open: boolean; scope: PaletteScope }>({
+    open: false,
+    scope: 'titles',
+  })
   const liveNotes = useLibrarySelector((state) =>
-    !suppliedNotes && searchMode ? state.notes : emptyNotes,
+    !suppliedNotes && palette.open ? state.notes : emptyNotes,
   )
   const notes = suppliedNotes ?? liveNotes
-  const [contentQuery, setContentQuery] = useState('')
-  const openContentSearch = (query = '') => {
-    setContentQuery(query)
-    setSearchMode('content')
-  }
   const native = isTauri()
   const shortcutLabel = useShortcutLabel()
   useShortcutActions(
-    { 'quick-open': () => setSearchMode('quick'), search: () => openContentSearch() },
+    {
+      'quick-open': () => setPalette({ open: true, scope: 'titles' }),
+      search: () => setPalette({ open: true, scope: 'bodies' }),
+    },
     disabled,
   )
   useEffect(() => {
-    if (disabled) setSearchMode(null)
+    if (disabled) setPalette((value) => (value.open ? { ...value, open: false } : value))
   }, [disabled])
   return (
     <header className={`title-bar ${native ? 'native-title-bar' : ''}`} data-tauri-drag-region>
@@ -135,32 +137,18 @@ export default function TitleBar({
           </AppTooltip>
         </div>
         <div className="title-bar-search">
-          <QuickOpen
-            open={searchMode === 'quick'}
-            onOpenChange={(open) =>
-              setSearchMode((mode) => (open ? 'quick' : mode === 'quick' ? null : mode))
-            }
+          <CommandPalette
+            open={palette.open}
+            onOpenChange={(open) => setPalette((value) => ({ ...value, open }))}
+            initialScope={palette.scope}
             notes={notes}
             notebooks={notebooks}
             appearance={appearance}
             disabled={disabled}
             recentNoteIds={recentNoteIds}
-            onSelect={onSelect}
-            onSearchContent={openContentSearch}
-          />
-          <ContentSearch
-            open={searchMode === 'content'}
-            onOpenChange={(open) => {
-              if (open) openContentSearch()
-              else setSearchMode((mode) => (mode === 'content' ? null : mode))
-            }}
-            initialQuery={contentQuery}
-            onQuickOpen={() => setSearchMode('quick')}
-            notes={notes}
-            notebooks={notebooks}
-            appearance={appearance}
-            disabled={disabled}
+            commands={commands}
             readNote={readSearchNote}
+            onSelect={onSelect}
             onSelectMatch={onSelectMatch}
           />
         </div>

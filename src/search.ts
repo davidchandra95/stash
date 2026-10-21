@@ -106,6 +106,25 @@ export function quickOpenResults(
     .map(({ note, ranges }) => ({ note, ranges }))
 }
 
+export type CommandMatch<T extends { label: string }> = { command: T; ranges: TitleRange[] }
+
+export function commandResults<T extends { label: string; keywords?: string }>(
+  commands: T[],
+  query: string,
+): CommandMatch<T>[] {
+  const term = query.trim()
+  if (!term) return commands.map((command) => ({ command, ranges: [] }))
+  return commands
+    .flatMap((command, order) => {
+      const match = titleMatch(command.label, term)
+      if (match) return [{ command, order, ...match }]
+      const hidden = command.keywords && titleMatch(command.keywords, term)
+      return hidden ? [{ command, order, rank: [4, hidden.rank[0]], ranges: [] }] : []
+    })
+    .sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.order - b.order)
+    .map(({ command, ranges }) => ({ command, ranges }))
+}
+
 export function quickOpenNotes(notes: Note[], query: string, recentIds: string[]): Note[] {
   return quickOpenResults(notes, query, recentIds).map(({ note }) => note)
 }

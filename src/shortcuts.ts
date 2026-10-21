@@ -24,14 +24,14 @@ export const shortcutCommands: ShortcutCommand[] = [
     ['new-note', 'New note', 'Create a note in the current location.', 'Mod+n'],
     [
       'quick-open',
-      'Find note titles',
-      'Find note titles across all notebooks, excluding Trash.',
+      'Command palette',
+      'Find note titles, or type > to run a command.',
       'Mod+p',
     ],
     [
       'search',
       'Search note bodies',
-      'Search body text across all notebooks, excluding Trash.',
+      'Open the command palette in note body search, excluding Trash.',
       'Mod+Shift+f',
     ],
     ['settings', 'Open Settings', 'Customize Stash.', 'Mod+,'],

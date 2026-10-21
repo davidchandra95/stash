@@ -55,6 +55,17 @@ it('opens links across filters, restores source selection and scroll, and explai
   const selectedSection = () => host.querySelector('.list-heading-title')?.textContent
   const button = (label: string) =>
     host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+  async function openPalette(bodies = false) {
+    await act(async () => button('Search notes or run a command').click())
+    if (bodies)
+      await act(async () => {
+        document
+          .querySelector('.command-palette input')!
+          .dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+          )
+      })
+  }
   try {
     await act(async () => root.render(<App />))
     const notebook = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -76,7 +87,7 @@ it('opens links across filters, restores source selection and scroll, and explai
     await act(async () => host.querySelector<HTMLElement>('.note-reference')!.click())
     expect(selectedSection()).toBe('Work')
     expect(title()).toBe('Target')
-    await act(async () => button('Search note bodies').click())
+    await openPalette(true)
     const search = document.querySelector<HTMLInputElement>(
       'input[aria-label="Search note bodies"]',
     )!
@@ -95,7 +106,9 @@ it('opens links across filters, restores source selection and scroll, and explai
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 5))
       })
-    expect(document.querySelector('.content-search-results')?.getAttribute('aria-busy')).toBe('false')
+    expect(document.querySelector('.content-search-results')?.getAttribute('aria-busy')).toBe(
+      'false',
+    )
     const targetResult = [...document.querySelectorAll<HTMLElement>('.global-search-result')].find(
       (result) =>
         result.closest('.content-search-group')?.querySelector('strong')?.textContent === 'Target',

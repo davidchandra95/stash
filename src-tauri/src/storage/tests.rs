@@ -734,6 +734,10 @@ fn invalid_appearance_settings_do_not_replace_saved_preferences() {
             vec![json!("true"), json!(1), Value::Null],
         ),
         (
+            "showFormattingToolbar",
+            vec![json!("false"), json!(0), Value::Null],
+        ),
+        (
             "lineSpacing",
             vec![
                 json!(0.4),

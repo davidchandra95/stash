@@ -13,7 +13,7 @@ export class SaveQueue {
   error = ''
   constructor(
     private notify: () => void,
-    private idleMs = 350,
+    private idleMs = 750,
     private maximumMs = 2000,
   ) {}
   useImmediateScheduling() { this.idleMs = 0; this.maximumMs = 0 }
@@ -21,8 +21,10 @@ export class SaveQueue {
     // Move a replacement after newly queued dependencies (for example a linked note).
     this.pending.delete(key)
     this.pending.set(key, { run })
-    if (this.status !== 'error') this.status = 'saving'
-    this.notify()
+    if (this.status === 'saved') {
+      this.status = 'saving'
+      this.notify()
+    }
     if (this.status === 'error') return
     clearTimeout(this.debounce)
     this.debounce = setTimeout(() => {
@@ -42,9 +44,10 @@ export class SaveQueue {
     this.clearTimers()
     if (this.running) return this.running
     if (!this.failed && !this.pending.size) return
+    const changed = this.status !== 'saving' || this.error !== ''
     this.status = 'saving'
     this.error = ''
-    this.notify()
+    if (changed) this.notify()
     this.running = this.drain()
     try {
       await this.running

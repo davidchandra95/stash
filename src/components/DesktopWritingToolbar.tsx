@@ -58,6 +58,11 @@ export default function DesktopWritingToolbar({
     selector: ({ editor: current }) => toolbarPresentation(current),
     equalityFn: samePresentation,
   })
+  const hasSelection = useEditorState({
+    editor,
+    selector: ({ editor: current }) => !current.state.selection.empty,
+  })
+  const [focusWithin, setFocusWithin] = useState(false)
   const shortcutLabel = useShortcutLabel()
   const shortcuts = useContext(ShortcutContext)
   const native = usesNativeContextMenu()
@@ -509,6 +514,16 @@ export default function DesktopWritingToolbar({
     </AppTooltip>
   )
 
+  // Unless pinned, stay out of the way until there is something to format or a
+  // tool is in use. Collapsed tools keep their layout so fitting and picker
+  // anchors still work.
+  const collapsed =
+    !appearance.showFormattingToolbar &&
+    !(hasSelection && !readOnly) &&
+    !focusWithin &&
+    !picker &&
+    !overflow &&
+    !nativeOpen
   return (
     <>
       <div
@@ -516,6 +531,12 @@ export default function DesktopWritingToolbar({
         className="toolbar desktop-writing-toolbar"
         role="toolbar"
         aria-label="Text formatting"
+        data-collapsed={collapsed || undefined}
+        onFocus={() => setFocusWithin(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            setFocusWithin(false)
+        }}
       >
         {styleSelect()}
         {toolbarTools.filter((tool) => !hidden.has(tool.id)).map((tool) => toolButton(tool))}
