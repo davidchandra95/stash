@@ -26,6 +26,7 @@ import {
   type IconComponent,
 } from './icons'
 import type { NotebookIcon } from './model'
+import { notebookColorValue } from './notebookColors'
 
 export const notebookIconOptions: { id: NotebookIcon; label: string; icon: IconComponent }[] = [
   { id: 'notebook', label: 'Notebook', icon: Notebook },
@@ -73,5 +74,6 @@ export function NotebookIconGlyph({
   'aria-hidden'?: boolean
 }) {
   const Icon = iconMap.get(icon as NotebookIcon) ?? Notebook
-  return <Icon size={size} style={color ? { color } : undefined} {...props} />
+  const value = notebookColorValue(color)
+  return <Icon size={size} style={value ? { color: value } : undefined} {...props} />
 }

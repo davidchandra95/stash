@@ -6,6 +6,7 @@ import type { Note, Notebook, View } from '../model'
 import { moveSource, moveUnavailable, type MoveIntent } from '../notebookMove'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { NotebookIconGlyph } from '../notebookIcons'
+import { defaultNotebookColor } from '../notebookColors'
 
 export default function MoveNoteDialog({
   anchor,
@@ -106,7 +107,7 @@ export default function MoveNoteDialog({
                         createNotebook({
                           id,
                           name: name.trim(),
-                          color: '#82936f',
+                          color: defaultNotebookColor,
                           icon: 'notebook',
                         })
                         setDestination(id)

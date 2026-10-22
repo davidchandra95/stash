@@ -6,6 +6,7 @@ import { libraryProjection } from '../storage/librarySelectors'
 import { LiveNoteEditor as NoteEditor, NoteStatistics, SaveStatus } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
 import NoteNotebooksMenu from '../components/NoteNotebooksMenu'
+import { notebookColorValue } from '../notebookColors'
 import { Feather, SquarePen, X } from '../icons'
 import { useApp, useBlocked } from './context'
 
@@ -181,7 +182,7 @@ export default function NoteDocument() {
                 >
                   <span
                     className="swatch"
-                    style={{ '--swatch': book.color } as React.CSSProperties}
+                    style={{ '--swatch': notebookColorValue(book.color) } as React.CSSProperties}
                   />
                   <span className="truncate">{path}</span>
                   {!book.rootId && <X aria-hidden="true" className="ui-icon note-chip-remove" />}

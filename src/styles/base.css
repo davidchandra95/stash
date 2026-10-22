@@ -49,12 +49,39 @@ button {
   padding: 0;
   border: 0;
   background: none;
-  cursor: default;
+  cursor: pointer;
   text-align: inherit;
 }
 
-button:disabled {
+/* Anything that acts on click shows the hand; disabled controls fall back to the arrow. */
+:is(
+  select,
+  summary,
+  a[href],
+  input:is([type='checkbox'], [type='radio'], [type='range'], [type='color']),
+  [role='button'],
+  [role='tab'],
+  [role='option'],
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='menuitemradio'],
+  [role='switch'],
+  [role='checkbox'],
+  [role='treeitem']
+) {
+  cursor: pointer;
+}
+
+:is(button, select, input):disabled,
+[aria-disabled='true'],
+[data-disabled] {
   cursor: default;
+}
+
+/* An active note or tab drag holds the closed hand wherever the pointer goes. */
+:is(.window, .app):has(.note-drag-ghost, .tabs.is-reordering),
+:is(.window, .app):has(.note-drag-ghost, .tabs.is-reordering) * {
+  cursor: grabbing !important;
 }
 
 a {

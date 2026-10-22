@@ -57,9 +57,13 @@ it('prefills edit values, selects a built-in icon, updates color, and explains l
   expect(document.querySelector<HTMLInputElement>('[aria-label="Notebook name"]')?.value).toBe(
     'Work',
   )
+  // The legacy Work color opens as the Slate preset.
   expect(document.querySelector<HTMLInputElement>('[aria-label="Notebook color"]')?.value).toBe(
-    '#899ab4',
+    '#6282ad',
   )
+  expect(
+    document.querySelector('[aria-label="Color Slate"]')?.getAttribute('aria-pressed'),
+  ).toBe('true')
   expect(document.body.textContent).toContain('doesn’t rename the folder on disk')
   expect(
     document

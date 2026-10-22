@@ -7,23 +7,18 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { library } from '../storage/useLibrary'
 import type { Notebook, NotebookIcon } from '../model'
 import { isNotebookIcon, notebookIconOptions } from '../notebookIcons'
+import {
+  canonicalNotebookColor,
+  defaultNotebookColor,
+  notebookColorPreset,
+  notebookColors,
+  notebookColorValue,
+} from '../notebookColors'
 
-const defaultColor = '#82936f'
-/** Muted notebook colors that read well on both light and dark surfaces. */
-const presetColors = [
-  '#82936f',
-  '#7f93b5',
-  '#b08bc4',
-  '#c09a72',
-  '#d27d7d',
-  '#d4a849',
-  '#5fa3a0',
-  '#8e8e93',
-]
 const colorPattern = /^#[0-9a-f]{6}$/i
 
 function notebookColor(color: string) {
-  return colorPattern.test(color) ? color : defaultColor
+  return colorPattern.test(color) ? canonicalNotebookColor(color) : defaultNotebookColor
 }
 
 export default function NotebookDialog({
@@ -51,7 +46,7 @@ export default function NotebookDialog({
   const request = useRef(0)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState<NotebookIcon>('notebook')
-  const [color, setColor] = useState(defaultColor)
+  const [color, setColor] = useState(defaultNotebookColor)
   const [path, setPath] = useState<string | null>(null)
   const [summary, setSummary] = useState('')
   const [busy, setBusy] = useState(false)
@@ -62,7 +57,7 @@ export default function NotebookDialog({
     request.current += 1
     setName(notebook?.name ?? '')
     setIcon(isNotebookIcon(notebook?.icon) ? notebook.icon : 'notebook')
-    setColor(notebookColor(notebook?.color ?? defaultColor))
+    setColor(notebookColor(notebook?.color ?? defaultNotebookColor))
     setPath(null)
     setSummary('')
     setError('')
@@ -112,7 +107,7 @@ export default function NotebookDialog({
       ++request.current
       setName('')
       setIcon('notebook')
-      setColor(defaultColor)
+      setColor(defaultNotebookColor)
       setPath(null)
       setSummary('')
       setError('')
@@ -199,7 +194,7 @@ export default function NotebookDialog({
               <div className="notebook-name-row">
                 <span
                   className="notebook-preview"
-                  style={{ color } as React.CSSProperties}
+                  style={{ color: notebookColorValue(color) } as React.CSSProperties}
                   aria-hidden="true"
                 >
                   {(() => {
@@ -223,22 +218,22 @@ export default function NotebookDialog({
               <fieldset className="notebook-fieldset" disabled={busy}>
                 <legend className="field-label">Color</legend>
                 <div className="notebook-colors">
-                  {presetColors.map((preset) => (
+                  {notebookColors.map((preset) => (
                     <button
                       type="button"
-                      key={preset}
+                      key={preset.id}
                       className="color-swatch"
-                      style={{ '--swatch': preset } as React.CSSProperties}
-                      aria-label={`Color ${preset.toUpperCase()}`}
-                      aria-pressed={color.toLowerCase() === preset}
-                      onClick={() => setColor(preset)}
+                      style={{ '--swatch': `var(--notebook-${preset.id})` } as React.CSSProperties}
+                      aria-label={`Color ${preset.label}`}
+                      aria-pressed={color.toLowerCase() === preset.light}
+                      onClick={() => setColor(preset.light)}
                     />
                   ))}
                   <AppTooltip label="Custom color">
                     <label
                       className="color-swatch is-custom"
-                      aria-pressed={!presetColors.includes(color.toLowerCase())}
-                      style={{ '--swatch': color } as React.CSSProperties}
+                      aria-pressed={!notebookColorPreset(color)}
+                      style={{ '--swatch': notebookColorValue(color) } as React.CSSProperties}
                     >
                       <input
                         id="notebook-color"
@@ -263,7 +258,7 @@ export default function NotebookDialog({
                         className="icon-btn notebook-icon"
                         aria-label={label}
                         aria-pressed={icon === id}
-                        style={icon === id ? ({ color } as React.CSSProperties) : undefined}
+                        style={icon === id ? { color: notebookColorValue(color) } : undefined}
                         onClick={() => setIcon(id)}
                       >
                         <Icon aria-hidden="true" />

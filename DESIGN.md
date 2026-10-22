@@ -63,7 +63,12 @@ when a token exists.
 - **Accent:** `--accent` and `--on-accent` are set at runtime by `useDocumentTheme`
   (`src/appearance.ts`) from the user's accent choice. `system` follows the macOS accent color
   (read natively, refreshed when the window regains focus). Derived: `--accent-soft`,
-  `--accent-text`, `--focus-ring`, `--text-selection`.
+  `--accent-text`, `--focus-ring`, `--text-selection`. Use the accent for active state
+  (selection, focus, pressed tools), not for resting icons.
+- **Notebook colors** are the `--notebook-*` presets in `src/notebookColors.ts`, each with a
+  light and a dark value at matched lightness and chroma. Notebooks store the preset's light
+  hex; paint them with `notebookColorValue()` so presets follow the color mode, older hexes map
+  to the nearest preset, and custom colors are pulled slightly toward `--text`.
 - **Color mode** is `<html data-theme="light|dark">`. Portaled menus and dialogs inherit it;
   never put `data-theme` on individual surfaces.
 
@@ -87,11 +92,16 @@ when a token exists.
 
 ## Selection, hover, focus
 
-- Sidebar selection: `--fill-3` with accent-colored icons (notebook icons keep their color).
+- Sidebar view icons rest in `--text-2`; the selected row is `--fill-3` with an accent icon
+  (`--text-2` while the window is inactive). Notebook icons keep their notebook color.
 - Notes list selection: accent fill with `--on-accent` text while the list is the active pane
   (`.window[data-active-pane='list']`) and the window is key; otherwise `--fill-3`.
 - Menus, palette rows and slash menus highlight with the accent fill.
 - Hover is always a neutral `--fill-1`. Pressed or open controls use `--fill-2`.
+- Cursors: clickable controls (buttons, tabs, menu items, options, links) show `pointer`;
+  disabled ones fall back to `default`. Text stays `text`; body tags only switch to `pointer`
+  while Command is held. During an active note or tab drag the whole window shows `grabbing`
+  (`base.css`, keyed off `.note-drag-ghost` / `.tabs.is-reordering`). Splitters keep `col-resize`.
 - Keyboard focus: a 2px `--focus-ring` outline. Text fields show focus with an accent border and
   a soft accent ring instead.
 - A row whose context menu is open gets an inset accent outline.
@@ -185,8 +195,8 @@ surfaces. Don't add colors there; use the tokens.
   in sheets and on buttons.
 - **App bar:** 56px, 48px round icon buttons. In a note the bar is only the drawer and Note
   actions buttons, on `--fill-1`.
-- **Drawer** is the desktop sidebar: `--bg-sidebar`, the same view icons in accent, notebook
-  colors kept, selection `--fill-3`, counts follow "Show note counts".
+- **Drawer** is the desktop sidebar: `--bg-sidebar`, the same view icons (`--text-2`, accent when
+  selected), notebook colors kept, selection `--fill-3`, counts follow "Show note counts".
 - **Bottom sheets** (note, notebook and list actions) are floating surfaces: `--bg-elevated`,
   blur, `--shadow-pop`, 16px top radius, 48px rows with 20px `--text-2` icons. They sit above
   the keyboard and center at 560px wide on wide screens. Dialogs stay centered in the space

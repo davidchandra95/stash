@@ -28,6 +28,7 @@ import { SaveQueue, type SaveStatus } from './saveQueue'
 import { tagsFromContent } from '../tags'
 import { defaultHeadingStyles, normalizeHeadingStyles } from '../headingStyles'
 import { documentSchema } from '../editor/documentSchema'
+import { defaultNotebookColor } from '../notebookColors'
 
 // Documents are immutable snapshots. Metadata edits can reuse their confirmed tags.
 const bodyTagCache = new WeakMap<JSONContent, string[]>()
@@ -803,7 +804,7 @@ export class LibraryStore {
     const id = crypto.randomUUID()
     this.setNotebooks((old) => [
       ...old,
-      { id, name, color: '#82936f', icon: 'notebook', parentId: parent ?? null },
+      { id, name, color: defaultNotebookColor, icon: 'notebook', parentId: parent ?? null },
     ])
     return id
   }

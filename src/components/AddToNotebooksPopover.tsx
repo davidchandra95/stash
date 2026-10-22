@@ -6,6 +6,7 @@ export type { PopoverAnchor } from './NotebookPopover'
 import { BookPlus, Search, X } from '../icons'
 import type { Note, Notebook } from '../model'
 import { NotebookIconGlyph } from '../notebookIcons'
+import { defaultNotebookColor } from '../notebookColors'
 
 export default function AddToNotebooksPopover({
   note,
@@ -77,7 +78,7 @@ export default function AddToNotebooksPopover({
             createNotebook({
               id,
               name: trimmedName,
-              color: '#82936f',
+              color: defaultNotebookColor,
               icon: 'notebook',
             })
             update({ notebookIds: [...new Set([...note.notebookIds, id])] })

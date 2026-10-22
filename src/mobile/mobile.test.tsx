@@ -97,7 +97,7 @@ it('keeps expansion separate from navigation and lists only direct notes below c
   expect(document.querySelector('.mobile-header h1')?.textContent).toBe('Parent')
   const headingIcon = document.querySelector<SVGElement>('.mobile-heading-icon')
   expect(headingIcon?.getAttribute('aria-hidden')).toBe('true')
-  expect(headingIcon?.style.color).toBe('rgb(130, 147, 111)')
+  expect(headingIcon?.style.color).toBe('var(--notebook-sage)')
   expect(document.querySelector('.mobile-subnotebooks')?.textContent).toContain('Child')
   expect(document.querySelector('section[aria-label="Notes"]')?.textContent).toContain(
     'Direct note',

@@ -676,6 +676,10 @@ select {
 .mobile-drawer nav > button > .ui-icon {
   width: 20px;
   height: 20px;
+  color: var(--text-2);
+}
+.mobile-drawer nav > button.selected > .ui-icon,
+.mobile-drawer nav > button.selected > .mobile-tag-icon {
   color: var(--accent);
 }
 .mobile-drawer nav > button > span:not(.mobile-tag-icon) {
@@ -703,7 +707,7 @@ select {
 .mobile-tag-icon {
   width: 20px;
   flex: none;
-  color: var(--accent);
+  color: var(--text-2);
   font-size: var(--text-lg);
   font-weight: 500;
   text-align: center;

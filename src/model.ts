@@ -117,9 +117,9 @@ export interface Appearance extends CursorSettings {
 }
 const now = Date.now()
 export const initialNotebooks: Notebook[] = [
-  { id: 'personal', name: 'Personal', color: '#82936f', icon: 'notebook' },
-  { id: 'work', name: 'Work', color: '#899ab4', icon: 'briefcase' },
-  { id: 'learning', name: 'Learning', color: '#ba9775', icon: 'graduationCap' },
+  { id: 'personal', name: 'Personal', color: '#688b60', icon: 'notebook' },
+  { id: 'work', name: 'Work', color: '#6282ad', icon: 'briefcase' },
+  { id: 'learning', name: 'Learning', color: '#a37454', icon: 'graduationCap' },
 ]
 const sample = (
   id: string,

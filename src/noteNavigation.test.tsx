@@ -77,7 +77,7 @@ it('opens links across filters, restores source selection and scroll, and explai
     expect(notebook.getAttribute('aria-current')).toBe('page')
     const headingIcon = host.querySelector<SVGElement>('.list-title svg')
     expect(headingIcon?.getAttribute('aria-hidden')).toBe('true')
-    expect(headingIcon?.style.color).toBe('rgb(136, 136, 136)')
+    expect(headingIcon?.style.color).toBe('color-mix(in oklab, #888888 82%, var(--text))')
     expect(title()).toBe('Source')
     const editor = getEditor(source.id, source.content)
     await act(async () => {

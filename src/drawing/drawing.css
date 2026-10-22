@@ -28,7 +28,7 @@
   box-shadow: var(--shadow-control);
   color: var(--text);
   font: var(--text-sm) / 16px var(--font-ui);
-  cursor: default;
+  cursor: pointer;
 }
 .drawing-edit:hover {
   background: var(--fill-1);
@@ -46,7 +46,7 @@
   background: transparent;
   color: var(--text-3);
   font: inherit;
-  cursor: default;
+  cursor: pointer;
 }
 .drawing-preview:focus-visible {
   outline: 2px solid var(--focus-ring);
