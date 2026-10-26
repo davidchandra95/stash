@@ -13,6 +13,7 @@ import {
 } from '../pdf/citations'
 import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
+import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
 import { useLibraryShell, useNoteIds } from '../storage/libraryReaders'
 import { libraryProjection, type NavigationNote } from '../storage/librarySelectors'
@@ -77,6 +78,9 @@ import { matchesView, type ColorMode, type Note, type View } from '../model'
 import { useLibrarySelector, library as libraryStore } from '../storage/useLibrary'
 import { fontFamily } from '../fonts'
 import { headingStyleVariables } from '../headingStyles'
+
+// Shared so views that read pdfPreferences without a PDF open see a stable value.
+const noPdfNotes = Object.freeze(defaultPdfNotes())
 
 export const viewNames: Record<string, string> = {
   all: 'All notes',
@@ -148,15 +152,15 @@ export function useAppController() {
   const [sidebar, storeSidebar] = useState(true)
   const [noteList, storeNoteList] = useState(true)
   const setFocus = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.focus}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.focus)
     storeFocus(next)
   }
   const setSidebar = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.sidebar)
     storeSidebar(next)
   }
   const setNoteList = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.sidebar)
     storeNoteList(next)
   }
   const [noteMenuOpen, setNoteMenuOpen] = useState(false)
@@ -330,8 +334,7 @@ export function useAppController() {
   const activePdf = pdfs.documents.find((doc) => doc.id === workspace.documentId)
   const companionId = activePdf ? companions[activePdf.id] : undefined
   const companion = notes.find((n) => n.id === companionId)
-  const pdfPreferences =
-    (activePdf && library.workspace?.pdfNotes?.[activePdf.id]) || defaultPdfNotes()
+  const pdfPreferences = (activePdf && library.workspace?.pdfNotes?.[activePdf.id]) || noPdfNotes
   const notesOpen = !!companion && pdfPreferences.open
   const pdfNotesLabel = companion?.trashed
     ? 'Restore note'

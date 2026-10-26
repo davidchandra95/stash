@@ -1,15 +1,17 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { useEffect, useRef, type RefObject } from 'react'
+import { memo, useEffect, useRef, type PointerEvent, type RefObject } from 'react'
 import AppTooltip from '../components/AppTooltip'
-import NoteContextMenu from '../components/NoteContextMenu'
+import NoteContextMenu, { type NoteAction } from '../components/NoteContextMenu'
 import NoteListNotebook from '../components/NoteListNotebook'
 import VirtualNoteRows from '../components/VirtualNoteRows'
 import { NotebookIconGlyph } from '../notebookIcons'
 import { noteListModes, noteNotebookContext, type NoteListMode } from '../noteListPresentation'
 import { sortLabels, type NoteSortMode } from '../noteOrder'
 import { LiveNoteRow } from '../storage/libraryReaders'
+import type { NavigationNote } from '../storage/librarySelectors'
+import type { Notebook } from '../model'
 import { ArrowDownWideNarrow, Check, ListFilter, Pin, Search, SquarePen, X } from '../icons'
-import { useApp, useBlocked } from './context'
+import { trackApp, useApp, useBlocked } from './context'
 import { LeadingControls } from './WindowControls'
 
 function RadioItems<T extends string>({
@@ -104,13 +106,110 @@ function useAriaHidden(element: RefObject<HTMLElement | null>, hidden: boolean) 
   }, [element, hidden])
 }
 
-export default function NoteListPane() {
+type RowHandlers = {
+  actions: (note: NavigationNote) => NoteAction[]
+  consumeClick: () => boolean
+  pointerDown: (event: PointerEvent<HTMLElement>, id: string) => void
+  open: (id: string) => void
+  preview: (id: string) => void
+}
+
+/** Memoized: list scrolling and unrelated app updates do not re-render visible rows. */
+const NoteRow = memo(function NoteRow({
+  note,
+  notebooks,
+  preview,
+  selected,
+  divider,
+  placeholder,
+  blocked,
+  controls,
+  handlers,
+}: {
+  note: NavigationNote
+  /** Present when rows show their notebooks (All notes). */
+  notebooks?: Notebook[]
+  preview: boolean
+  selected: boolean
+  divider: boolean
+  placeholder: boolean
+  blocked: boolean
+  controls: { onMenuTrackingChange: (open: boolean) => void; restoreFocus: () => void }
+  handlers: RefObject<RowHandlers>
+}) {
+  const context = notebooks ? noteNotebookContext(note, notebooks) : undefined
+  return (
+    <LiveNoteRow noteId={note.id} preview={preview}>
+      {(row) => (
+        <NoteContextMenu
+          tooltipLabel={context?.description}
+          onTrackingChange={controls.onMenuTrackingChange}
+          onRestoreFocus={controls.restoreFocus}
+          actions={() => handlers.current.actions(note)}
+          disabled={blocked}
+        >
+          <button
+            className={[
+              'note-row',
+              selected && 'is-selected',
+              placeholder && 'is-drag-placeholder',
+              divider && 'has-divider',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-label={row.title || 'Untitled note'}
+            aria-current={selected || undefined}
+            aria-description={
+              [row.preview, context?.description].filter(Boolean).join('. ') || undefined
+            }
+            data-note-id={note.id}
+            data-motion-key={note.id}
+            onPointerDown={(event) => handlers.current.pointerDown(event, note.id)}
+            onDragStart={(event) => event.preventDefault()}
+            onClick={(event) => {
+              if (handlers.current.consumeClick()) {
+                event.preventDefault()
+                return
+              }
+              if (event.metaKey || event.ctrlKey) handlers.current.open(note.id)
+              else handlers.current.preview(note.id)
+            }}
+            onDoubleClick={() => handlers.current.open(note.id)}
+          >
+            <span className="note-row-title">
+              {note.pinned && <Pin aria-label="Pinned" className="ui-icon note-row-pin" />}
+              <span className="truncate">{row.title || 'Untitled note'}</span>
+            </span>
+            <span className="note-row-meta">
+              <span className="note-row-date">{row.date}</span>
+              {context && <NoteListNotebook context={context} />}
+            </span>
+            {preview && (
+              <span className="note-row-preview">{row.preview || 'No text preview'}</span>
+            )}
+          </button>
+        </NoteContextMenu>
+      )}
+    </LiveNoteRow>
+  )
+})
+
+export default trackApp(function NoteListPane() {
   const app = useApp()
   const blocked = useBlocked()
   const pane = useRef<HTMLElement>(null)
   useAriaHidden(pane, !app.noteListVisible)
   const { view, query, filtered, selected, drag, notebooks } = app
   const items = drag.preview ?? filtered
+  // Rows are memoized, so they call into the latest app state through this stable ref.
+  const handlers = useRef<RowHandlers>(null!)
+  handlers.current = {
+    actions: (note) => [...app.actionsFor(note), ...app.orderActions(note)],
+    consumeClick: drag.consumeClick,
+    pointerDown: drag.onPointerDown,
+    open: (id) => app.workspace.open(id, true),
+    preview: (id) => app.workspace.preview(id),
+  }
   const preview = app.noteListMode === 'preview'
   const cards = app.appearance.layout === 'cards'
   return (
@@ -200,65 +299,20 @@ export default function NoteListPane() {
           rowGap={cards ? 2 : 0}
           geometryKey={`${app.noteListMode}:${app.appearance.layout}`}
           renderRow={(note, index, controls) => {
-            const context = view === 'all' ? noteNotebookContext(note, notebooks) : undefined
             const next = items[index + 1]
             const isSelected = note.id === selected?.id
             return (
-              <LiveNoteRow noteId={note.id} preview={preview}>
-                {(row) => (
-                  <NoteContextMenu
-                    key={note.id}
-                    tooltipLabel={context?.description}
-                    onTrackingChange={controls.onMenuTrackingChange}
-                    onRestoreFocus={controls.restoreFocus}
-                    actions={[...app.actionsFor(note), ...app.orderActions(note)]}
-                    disabled={blocked}
-                  >
-                    <button
-                      className={[
-                        'note-row',
-                        isSelected && 'is-selected',
-                        drag.draggedId === note.id && 'is-drag-placeholder',
-                        !isSelected && next && next.id !== selected?.id && 'has-divider',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      aria-label={row.title || 'Untitled note'}
-                      aria-current={isSelected || undefined}
-                      aria-description={
-                        [row.preview, context?.description].filter(Boolean).join('. ') || undefined
-                      }
-                      data-note-id={note.id}
-                      data-motion-key={note.id}
-                      onPointerDown={(event) => drag.onPointerDown(event, note.id)}
-                      onDragStart={(event) => event.preventDefault()}
-                      onClick={(event) => {
-                        if (drag.consumeClick()) {
-                          event.preventDefault()
-                          return
-                        }
-                        if (event.metaKey || event.ctrlKey) app.workspace.open(note.id, true)
-                        else app.workspace.preview(note.id)
-                      }}
-                      onDoubleClick={() => app.workspace.open(note.id, true)}
-                    >
-                      <span className="note-row-title">
-                        {note.pinned && (
-                          <Pin aria-label="Pinned" className="ui-icon note-row-pin" />
-                        )}
-                        <span className="truncate">{row.title || 'Untitled note'}</span>
-                      </span>
-                      <span className="note-row-meta">
-                        <span className="note-row-date">{row.date}</span>
-                        {context && <NoteListNotebook context={context} />}
-                      </span>
-                      {preview && (
-                        <span className="note-row-preview">{row.preview || 'No text preview'}</span>
-                      )}
-                    </button>
-                  </NoteContextMenu>
-                )}
-              </LiveNoteRow>
+              <NoteRow
+                note={note}
+                notebooks={view === 'all' ? notebooks : undefined}
+                preview={preview}
+                selected={isSelected}
+                divider={!isSelected && !!next && next.id !== selected?.id}
+                placeholder={drag.draggedId === note.id}
+                blocked={blocked}
+                controls={controls}
+                handlers={handlers}
+              />
             )
           }}
         />
@@ -286,4 +340,4 @@ export default function NoteListPane() {
       </div>
     </section>
   )
-}
+})

@@ -12,7 +12,7 @@ import {
 } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
 import { X } from '../icons'
-import { useApp, useBlocked } from './context'
+import { trackApp, useApp, useBlocked } from './context'
 
 /** Transient status at the bottom of the window: errors, undo and progress. */
 function Notices() {
@@ -88,10 +88,11 @@ function Notices() {
   )
 }
 
-export default function Overlays() {
+export default trackApp(function Overlays() {
   const app = useApp()
   const blocked = useBlocked()
-  const { notes, notebooks, appearance, organization, addOrganization, noteContext, library } = app
+  // Notes are read only when a note popover is open, so title edits do not re-render dialogs.
+  const { notebooks, appearance, organization, addOrganization, noteContext, library } = app
   return (
     <>
       <Notices />
@@ -118,7 +119,7 @@ export default function Overlays() {
           </button>
         </div>
       )}
-      {addOrganization && notes.some((n) => n.id === addOrganization.id && !n.trashed) && (
+      {addOrganization && app.notes.some((n) => n.id === addOrganization.id && !n.trashed) && (
         <AddToNotebooksPopover
           key={`add:${addOrganization.id}`}
           noteId={addOrganization.id}
@@ -131,35 +132,37 @@ export default function Overlays() {
           disabled={blocked}
         />
       )}
-      {organization && notes.some((n) => n.id === organization.id && !n.trashed && !n.source) && (
-        <MoveNoteDialog
-          key={`move:${organization.id}:${organization.destination ?? 'choose'}`}
-          anchor={organization.anchor}
-          launcher={organization.launcher}
-          noteId={organization.id}
-          notebooks={notebooks}
-          view={organization.view}
-          destination={organization.destination}
-          move={app.notebookMove.move}
-          createNotebook={(book) => app.setNotebooks((old) => [...old, book])}
-          close={() => app.setOrganization(null)}
-          disabled={
-            blocked || !!app.busyNote || app.notebookMove.busy || !!app.notebookMove.failure
-          }
-        />
-      )}
-      {organization && notes.some((n) => n.id === organization.id && !n.trashed && n.source) && (
-        <NoteOrganization
-          key={`move-file:${organization.id}`}
-          anchor={organization.anchor}
-          launcher={organization.launcher}
-          noteId={organization.id}
-          notebooks={notebooks}
-          update={(patch) => app.updateNotebookMembership(organization.id, patch)}
-          close={() => app.setOrganization(null)}
-          disabled={blocked}
-        />
-      )}
+      {organization &&
+        app.notes.some((n) => n.id === organization.id && !n.trashed && !n.source) && (
+          <MoveNoteDialog
+            key={`move:${organization.id}:${organization.destination ?? 'choose'}`}
+            anchor={organization.anchor}
+            launcher={organization.launcher}
+            noteId={organization.id}
+            notebooks={notebooks}
+            view={organization.view}
+            destination={organization.destination}
+            move={app.notebookMove.move}
+            createNotebook={(book) => app.setNotebooks((old) => [...old, book])}
+            close={() => app.setOrganization(null)}
+            disabled={
+              blocked || !!app.busyNote || app.notebookMove.busy || !!app.notebookMove.failure
+            }
+          />
+        )}
+      {organization &&
+        app.notes.some((n) => n.id === organization.id && !n.trashed && n.source) && (
+          <NoteOrganization
+            key={`move-file:${organization.id}`}
+            anchor={organization.anchor}
+            launcher={organization.launcher}
+            noteId={organization.id}
+            notebooks={notebooks}
+            update={(patch) => app.updateNotebookMembership(organization.id, patch)}
+            close={() => app.setOrganization(null)}
+            disabled={blocked}
+          />
+        )}
       <Settings
         onSync={app.syncNow}
         initialCategory={app.settingsCategory}
@@ -207,4 +210,4 @@ export default function Overlays() {
       />
     </>
   )
-}
+})

@@ -1,4 +1,12 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import AppTooltip from '../components/AppTooltip'
 import NotebookTree from '../components/NotebookTree'
@@ -7,6 +15,7 @@ import { libraryProjection } from '../storage/librarySelectors'
 import { library as libraryStore, useLibrarySelector } from '../storage/useLibrary'
 import { pdfStore } from '../pdf/store'
 import type { View } from '../model'
+import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
   ChevronRight,
@@ -26,7 +35,7 @@ import {
   Star,
   Trash2,
 } from '../icons'
-import { useApp, useBlocked } from './context'
+import { trackApp, useApp, useBlocked } from './context'
 import { SidebarToggle } from './WindowControls'
 
 function Section({
@@ -62,18 +71,42 @@ function Section({
   )
 }
 
-/** Counts are read on render; the library selector below re-renders on note changes. */
-function useViewCount() {
-  useLibrarySelector(libraryProjection.navigation)
+const fixedViews: View[] = [
+  'all',
+  'today',
+  'todo',
+  'uncategorized',
+  'pinned',
+  'quickAccess',
+  'trash',
+]
+/** Counts are read on render; re-renders only when a shown count changes, not on every edit. */
+function useViewCount(notebooks: { id: string }[]) {
+  useLibrarySelector(
+    useCallback(
+      (state: LibraryState) =>
+        [...fixedViews, ...notebooks.map((book) => `book:${book.id}` as View)]
+          .map((view) => libraryProjection.count(state, view))
+          .join(','),
+      [notebooks],
+    ),
+  )
   return (view: View) => libraryProjection.count(libraryStore.getSnapshot(), view)
 }
 
-export default function Sidebar({ onSearch }: { onSearch: () => void }) {
+export default trackApp(function Sidebar({
+  onSearch,
+  ...presence
+}: {
+  onSearch: () => void
+  /** MotionPresence passes its ref, inert and state here; the aside must receive them. */
+  ref?: Ref<HTMLElement>
+} & HTMLAttributes<HTMLElement>) {
   const app = useApp()
   const blocked = useBlocked()
-  const count = useViewCount()
-  const showCounts = app.appearance.sidebarCounts
   const { view, notebooks, pdfs, workspace } = app
+  const count = useViewCount(notebooks)
+  const showCounts = app.appearance.sidebarCounts
 
   const select = (next: View) => {
     app.setNoteList(true)
@@ -106,7 +139,7 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
   const pdfDisabled = app.pdfImporting || !pdfs.ready || blocked
 
   return (
-    <aside className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
+    <aside {...presence} className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
       <div className="pane-bar sidebar-bar" data-tauri-drag-region>
         <span className="window-controls-space" data-tauri-drag-region />
         <SidebarToggle />
@@ -307,7 +340,7 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
       <SidebarFooter />
     </aside>
   )
-}
+})
 
 function useNow(interval: number) {
   const [now, setNow] = useState(Date.now)

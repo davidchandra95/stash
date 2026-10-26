@@ -187,6 +187,40 @@ it('cancels pointer resizing with Escape and supports keyboard resizing', async 
   expect(commits).toHaveBeenLastCalledWith({ sidebar: 216, noteList: 280 })
 })
 
+it('paints a drag without rendering and restores saved widths on cancel', async () => {
+  HTMLElement.prototype.getBoundingClientRect = function () {
+    const app = this.classList.contains('app') ? this : this.closest<HTMLElement>('.app')
+    if (this.classList.contains('app')) return rect(1320)
+    if (this.classList.contains('sidebar'))
+      return rect(widthFromStyle(app, '--sidebar-override', 208))
+    if (this.classList.contains('note-list'))
+      return rect(widthFromStyle(app, '--list-override', 272))
+    return rect(0)
+  }
+  host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => root!.render(<Fixture savedWidths={{ sidebar: 240, noteList: 300 }} />))
+  const app = host.querySelector<HTMLElement>('.app')!
+  const sidebar = host.querySelector<HTMLElement>('.pane-resizer--sidebar')!
+  expect(app.style.getPropertyValue('--sidebar-override')).toBe('240px')
+
+  await act(async () => pointer(sidebar, 'pointerdown', 240))
+  const style = app.getAttribute('style')
+  pointer(sidebar, 'pointermove', 290)
+  // Painted synchronously, outside React.
+  expect(app.style.getPropertyValue('--sidebar-override')).toBe('290px')
+  expect(sidebar.getAttribute('aria-valuenow')).toBe('290')
+  expect(style).not.toBe(app.getAttribute('style'))
+
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+  })
+  expect(commits).not.toHaveBeenCalled()
+  expect(app.style.getPropertyValue('--sidebar-override')).toBe('240px')
+  expect(sidebar.getAttribute('aria-valuenow')).toBe('240')
+})
+
 it('does not persist a cancelled Notes pane drag', async () => {
   HTMLElement.prototype.getBoundingClientRect = function () {
     const app = this.classList.contains('app') ? this : this.closest<HTMLElement>('.app')

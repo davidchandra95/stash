@@ -42,7 +42,8 @@ export default function NoteContextMenu({
   onRestoreFocus,
 }: {
   children: ReactElement
-  actions: NoteAction[]
+  /** A function is called only when the menu opens, so rows can skip building actions. */
+  actions: NoteAction[] | (() => NoteAction[])
   disabled: boolean
   tooltipLabel?: string
   onTrackingChange?: (open: boolean) => void
@@ -52,12 +53,15 @@ export default function NoteContextMenu({
   const shortcutLabel = useShortcutLabel()
   const motionActive = useMotionEnabled()
   const [open, setOpen] = useState(false)
+  // Kept through the close animation.
+  const openedActions = useRef<NoteAction[]>([])
   const trackingCallback = useRef(onTrackingChange)
   trackingCallback.current = onTrackingChange
   useEffect(() => () => trackingCallback.current?.(false), [])
   return (
     <Context.Root
       onOpenChange={(next) => {
+        if (next && typeof actions === 'function') openedActions.current = actions()
         setOpen(next)
         // Closing content restores focus asynchronously. Retain its trigger
         // until onCloseAutoFocus has handed focus back to the virtual list.
@@ -77,7 +81,7 @@ export default function NoteContextMenu({
             // retain their launcher while a virtual list moves past it.
             trackingCallback.current?.(true)
             void showNativeContextMenu(
-              actions,
+              typeof actions === 'function' ? actions() : actions,
               launcher,
               { x: event.clientX, y: event.clientY },
               (id) => bindingFor(id, overrides),
@@ -123,7 +127,7 @@ export default function NoteContextMenu({
             className="menu"
             collisionPadding={8}
           >
-            {actions.map((action) => (
+            {(typeof actions === 'function' ? openedActions.current : actions).map((action) => (
               <div key={action.label} role="none">
                 {action.separator && <Context.Separator className="menu-separator" />}
                 <Context.Item

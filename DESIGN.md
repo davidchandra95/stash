@@ -38,7 +38,10 @@ lists what changes for touch. Shared components must keep working on both.
 | PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
 
 All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
-`useApp()` and render; they don't own workspace logic.
+`useApp()` and render; they don't own workspace logic. Panes are wrapped in `trackApp()`
+(`src/app/context.ts`), so they re-render only when a value they read while rendering changes.
+Read controller values where they are used, and don't call functions that build new objects
+during render (pass a function such as `() => app.actionsFor(note)` to menus instead).
 
 ## Tokens
 
@@ -175,6 +178,9 @@ Use the shared classes before writing new CSS:
 - Command palette: Cmd/Ctrl+P titles, Tab toggles note text, `>` for commands,
   Cmd/Ctrl+Enter opens in a new tab. Trash is excluded.
 - Reduced motion and the Animations setting disable transitions (`:root[data-motion='off']`).
+- Showing or hiding the sidebar, notes list or focus mode never animates grid columns. The grid
+  snaps to its final columns and panes slide with transforms (`src/layoutMotion.ts`), so the
+  editor lays out its text once, not on every frame.
 - Panes scroll natively; the page itself never scrolls.
 
 ## Android

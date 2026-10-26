@@ -24,7 +24,6 @@ import { defaultAppearance } from '../storage/library'
 import {
   fitToolbar,
   toolbarTools,
-  toolActive,
   alignmentIcons,
   type ToolbarTool,
   type WritingPicker,
@@ -54,7 +53,8 @@ export default function DesktopWritingToolbar({
   readOnly: boolean
   appearance?: Appearance
 }) {
-  useEditorState({
+  // Render reads command availability from here; computing it per button is costly.
+  const presentation = useEditorState({
     editor,
     selector: ({ editor: current }) => toolbarPresentation(current),
     equalityFn: samePresentation,
@@ -109,8 +109,9 @@ export default function DesktopWritingToolbar({
   const disabled = (tool: ToolbarTool) => {
     if (readOnly || !editor.isEditable) return true
     if (tool.picker) return false
-    return !canRun(tool.id)
+    return !presentation[`enabled:${tool.id}`]
   }
+  const active = (tool: ToolbarTool) => !!presentation[`active:${tool.id}`]
   const fallbackLauncher = (next: WritingPicker | null) => {
     const id = next === 'color' ? 'format' : next
     return (
@@ -250,7 +251,7 @@ export default function DesktopWritingToolbar({
               : tool.icon,
           shortcutId: tool.id,
           disabled: disabled(tool),
-          checked: toolActive(editor, tool),
+          checked: active(tool),
           run: () =>
             tool.picker ? openPicker(tool.picker, overflowButton.current, true) : execute(tool.id),
         })),
@@ -524,9 +525,9 @@ export default function DesktopWritingToolbar({
       <button
         data-tool={tool.id}
         type="button"
-        className={`tool ${toolActive(editor, tool) ? 'active' : ''}`}
+        className={`tool ${active(tool) ? 'active' : ''}`}
         aria-label={measurement ? undefined : tool.label}
-        aria-pressed={tool.picker ? undefined : toolActive(editor, tool)}
+        aria-pressed={tool.picker ? undefined : active(tool)}
         aria-haspopup={
           tool.picker
             ? native && ['color', 'highlight', 'alignment', 'sections'].includes(tool.picker)
@@ -672,7 +673,7 @@ export default function DesktopWritingToolbar({
                         className="menu-item"
                         key={tool.id}
                         disabled={disabled(tool)}
-                        data-active={toolActive(editor, tool) || undefined}
+                        data-active={active(tool) || undefined}
                         onSelect={() => {
                           if (tool.picker) {
                             pickerFromOverflow(tool.picker)
@@ -681,7 +682,7 @@ export default function DesktopWritingToolbar({
                       >
                         <span className="menu-icon">{renderIcon(tool)}</span>
                         <span className="menu-text">{tool.label}</span>
-                        {toolActive(editor, tool) && <Check className="menu-icon" />}
+                        {active(tool) && <Check className="menu-icon" />}
                         {shortcutLabel(tool.id) !== 'Unassigned' && (
                           <span className="menu-shortcut">{shortcutLabel(tool.id)}</span>
                         )}

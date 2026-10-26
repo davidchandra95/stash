@@ -13,13 +13,15 @@
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
   background: var(--bg-content);
-  transition: grid-template-columns var(--layout-motion, 0ms) var(--ease);
+}
+/* Panes slide with transforms while the grid already holds its final columns (layoutMotion.ts). */
+.window.is-layout-moving {
+  overflow: hidden;
 }
 .window.native-chrome {
   --window-controls: 70px;
 }
 .window.is-resizing {
-  transition: none;
   cursor: col-resize;
 }
 .window.is-resizing * {

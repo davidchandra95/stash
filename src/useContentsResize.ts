@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -47,7 +48,10 @@ export function useContentsResize({
     () => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth,
   )
   const preferredRef = useRef(preferred)
-  const [workspaceWidth, setWorkspaceWidth] = useState(0)
+  // The live width is kept in a ref. State changes only when it changes the layout below,
+  // so resizing neighbouring panes does not re-render the workspace on every pixel.
+  const workspaceWidth = useRef(0)
+  const [, setLayoutWidth] = useState(0)
   const [resizing, setResizing] = useState(false)
   const session = useRef<Session | null>(null)
   const latest = useRef({ disabled, onCommit })
@@ -62,10 +66,29 @@ export function useContentsResize({
     if (!session.current) setWidth(normalizeContentsWidth(savedWidth) ?? defaultContentsWidth)
   }, [savedWidth])
 
+  const documentSpace = (width: number) => width - (reserveWidth?.(width) ?? 0)
+  const layoutFor = (width: number, preferredWidth: number) => {
+    const overlay =
+      adaptive && width > 0 && documentSpace(width) < preferredWidth + minimumDocumentWidth
+    const shown = overlay
+      ? Math.min(preferredWidth, documentSpace(width))
+      : visibleContentsWidth(preferredWidth, documentSpace(width))
+    return { overlay, shown }
+  }
+  const latestLayout = useRef(layoutFor)
+  latestLayout.current = layoutFor
+
   useLayoutEffect(() => {
     const workspace = workspaceRef.current
     if (!workspace) return
-    const measure = () => setWorkspaceWidth(Math.round(workspace.getBoundingClientRect().width))
+    const measure = () => {
+      const width = Math.round(workspace.getBoundingClientRect().width)
+      const layoutFor = latestLayout.current
+      const previous = layoutFor(workspaceWidth.current, preferredRef.current)
+      workspaceWidth.current = width
+      const next = layoutFor(width, preferredRef.current)
+      if (previous.overlay !== next.overlay || previous.shown !== next.shown) setLayoutWidth(width)
+    }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
     observer?.observe(workspace)
@@ -77,20 +100,13 @@ export function useContentsResize({
   }, [workspaceRef])
 
   const availableWidth = () =>
-    Math.round(workspaceRef.current?.getBoundingClientRect().width ?? 0) || workspaceWidth
-  const documentSpace = (width: number) => width - (reserveWidth?.(width) ?? 0)
+    Math.round(workspaceRef.current?.getBoundingClientRect().width ?? 0) || workspaceWidth.current
   const maximum = () =>
     Math.max(
       minimumContentsWidth,
       Math.min(maximumContentsWidth, documentSpace(availableWidth()) - minimumDocumentWidth),
     )
-  const overlay =
-    adaptive &&
-    workspaceWidth > 0 &&
-    documentSpace(workspaceWidth) < preferred + minimumDocumentWidth
-  const shown = overlay
-    ? Math.min(preferred, documentSpace(workspaceWidth))
-    : visibleContentsWidth(preferred, documentSpace(workspaceWidth))
+  const { overlay, shown } = layoutFor(workspaceWidth.current, preferred)
   const direction = side === 'left' ? 1 : -1
 
   const finish = (cancelled: boolean) => {
@@ -125,17 +141,7 @@ export function useContentsResize({
     if (disabled || overlay) finish(true)
   }, [disabled, overlay])
 
-  const dividerProps = {
-    className: 'contents-resizer',
-    role: 'separator' as const,
-    'aria-orientation': 'vertical' as const,
-    'aria-label': 'Resize table of contents',
-    'aria-valuemin': minimumContentsWidth,
-    'aria-valuemax': maximum(),
-    'aria-valuenow': shown,
-    'aria-valuetext': `${shown} pixels`,
-    'aria-disabled': disabled || undefined,
-    tabIndex: disabled ? -1 : 0,
+  const handlers = {
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === 'Escape' && session.current) {
         event.preventDefault()
@@ -185,6 +191,40 @@ export function useContentsResize({
     },
     onLostPointerCapture: () => finish(true),
   }
+  // Stable props, so views holding them re-render only when the divider's values change.
+  const latestHandlers = useRef(handlers)
+  latestHandlers.current = handlers
+  const stableHandlers = useMemo(
+    () => ({
+      onKeyDown: (event: KeyboardEvent<HTMLElement>) => latestHandlers.current.onKeyDown(event),
+      onPointerDown: (event: PointerEvent<HTMLElement>) =>
+        latestHandlers.current.onPointerDown(event),
+      onPointerMove: (event: PointerEvent<HTMLElement>) =>
+        latestHandlers.current.onPointerMove(event),
+      onPointerUp: (event: PointerEvent<HTMLElement>) => latestHandlers.current.onPointerUp(event),
+      onPointerCancel: (event: PointerEvent<HTMLElement>) =>
+        latestHandlers.current.onPointerCancel(event),
+      onLostPointerCapture: () => latestHandlers.current.onLostPointerCapture(),
+    }),
+    [],
+  )
+  const maximumWidth = maximum()
+  const dividerProps = useMemo(
+    () => ({
+      className: 'contents-resizer',
+      role: 'separator' as const,
+      'aria-orientation': 'vertical' as const,
+      'aria-label': 'Resize table of contents',
+      'aria-valuemin': minimumContentsWidth,
+      'aria-valuemax': maximumWidth,
+      'aria-valuenow': shown,
+      'aria-valuetext': `${shown} pixels`,
+      'aria-disabled': disabled || undefined,
+      tabIndex: disabled ? -1 : 0,
+      ...stableHandlers,
+    }),
+    [maximumWidth, shown, disabled, stableHandlers],
+  )
 
   return {
     cssVariables: { '--contents-width': `${shown}px` } as CSSProperties,
