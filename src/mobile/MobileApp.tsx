@@ -74,6 +74,8 @@ import MobileSettings from './MobileSettings'
 import SyncConnection from '../components/SyncConnection'
 import { formatSyncTime } from '../syncTime'
 import { getEditor } from '../editor/session'
+import { followsFirstLine } from '../noteTitles'
+import { startAutoSync } from '../autoSync'
 import {
   initialNavigation,
   mobileNavigation,
@@ -240,7 +242,9 @@ export default function MobileApp() {
   }, [active?.title, active?.id])
   useEffect(() => {
     if (route.kind === 'note' && route.focusTitle && active && !blocked && titleInput.current) {
-      titleInput.current.focus()
+      // "First line" notes start in the body, which then names the note.
+      if (followsFirstLine(active.id)) getEditor(active.id, active.content).commands.focus('start')
+      else titleInput.current.focus()
       if (isTauri())
         void invoke('set_mobile_keyboard', { visible: true }).catch((e) => setError(String(e)))
       dispatch({ type: 'replace', route: { ...route, focusTitle: false } })
@@ -331,6 +335,14 @@ export default function MobileApp() {
       await library.sync()
     })
   }
+  const syncConfigured = !!state.syncStatus?.configured
+  useEffect(() => {
+    if (!syncConfigured || !appearance.autoSyncMinutes) return
+    return startAutoSync(appearance.autoSyncMinutes * 60_000, () => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      void library.sync()
+    })
+  }, [syncConfigured, appearance.autoSyncMinutes])
   const closeKeyboard = () => {
     if (isTauri() && !keyboardVisible.current) return false
     const element = document.activeElement
@@ -779,6 +791,7 @@ export default function MobileApp() {
                         className="note-title"
                         aria-label="Note title"
                         placeholder="Untitled note"
+                        spellCheck={appearance.spellcheck}
                         value={active.title}
                         disabled={blocked || active.trashed}
                         enterKeyHint="next"

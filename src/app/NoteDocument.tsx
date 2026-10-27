@@ -118,6 +118,7 @@ export default function NoteDocument() {
             className="note-title"
             aria-label="Note title"
             placeholder="Untitled"
+            spellCheck={app.appearance.spellcheck}
             value={active.source && titleDraft?.id === active.id ? titleDraft.value : active.title}
             readOnly={!!active.source?.unavailable || !!library.conflicts[active.id]}
             aria-invalid={!!titleError || undefined}

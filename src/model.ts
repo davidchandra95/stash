@@ -114,7 +114,15 @@ export interface Appearance extends CursorSettings {
   editorBottomSpace: number
   /** Desktop only. When off, the writing toolbar appears for selections and open pickers. */
   showFormattingToolbar: boolean
+  /** Notebook for notes created outside a notebook view; '' leaves them uncategorized. */
+  defaultNotebookId: string
+  /** `firstLine` starts new notes in the body and titles them from their first line. */
+  newNoteTitle: NewNoteTitle
+  spellcheck: boolean
+  /** Minutes between automatic syncs; 0 turns automatic sync off. */
+  autoSyncMinutes: number
 }
+export type NewNoteTitle = 'field' | 'firstLine'
 const now = Date.now()
 export const initialNotebooks: Notebook[] = [
   { id: 'personal', name: 'Personal', color: '#688b60', icon: 'notebook' },

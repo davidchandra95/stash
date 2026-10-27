@@ -86,6 +86,10 @@ export const defaultAppearance: Appearance = {
   listItemSpacing: 0,
   editorBottomSpace: 112,
   showFormattingToolbar: false,
+  defaultNotebookId: '',
+  newNoteTitle: 'field',
+  spellcheck: true,
+  autoSyncMinutes: 0,
   ...defaultCursorSettings,
 }
 export type SavedNote = Omit<Note, 'content'> & {

@@ -21,6 +21,8 @@ import { useNotebookMove } from '../useNotebookMove'
 import { moveSource, notebookMoveTarget } from '../notebookMove'
 import { useNoteDrag } from '../useNoteDrag'
 import { useNoteActions } from '../useNoteActions'
+import { followsFirstLine } from '../noteTitles'
+import { startAutoSync } from '../autoSync'
 import { useShortcutActions } from '../useShortcuts'
 import { bindingFor, shortcutLabel } from '../shortcuts'
 import { validateMarkdown } from '../editor/markdown'
@@ -721,7 +723,11 @@ export function useAppController() {
   const pendingTitleFocus = useRef<string | null>(null)
   useLayoutEffect(() => {
     if (active?.id === pendingTitleFocus.current) {
-      titleInput.current?.focus()
+      // "First line" notes start in the body, which then names the note.
+      if (followsFirstLine(active.id)) {
+        const note = libraryProjection.note(libraryStore.getSnapshot(), active.id)
+        if (note) getEditor(active.id, note.content).commands.focus('start')
+      } else titleInput.current?.focus()
       pendingTitleFocus.current = null
     }
   }, [active?.id])
@@ -957,6 +963,11 @@ export function useAppController() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void libraryStore.sync()
   }
+  const syncConfigured = !!library.syncStatus?.configured
+  useEffect(() => {
+    if (!syncConfigured || !appearance.autoSyncMinutes) return
+    return startAutoSync(appearance.autoSyncMinutes * 60_000, syncNow)
+  }, [syncConfigured, appearance.autoSyncMinutes])
   const paletteCommands: PaletteCommand[] = [
     {
       id: 'settings',
