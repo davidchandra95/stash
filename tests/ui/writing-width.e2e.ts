@@ -37,12 +37,6 @@ async function checkWidth(page: Page, percent: number, context: string) {
     .toBeLessThan(1)
 }
 
-// Suspected v2 bug: PdfWorkspace always wraps the note in `.pdf-writing-pane`, and
-// `.pdf-writing-pane .note-article { max-width: none }` (src/styles/editor.css) cancels
-// `--writing-width`, so every width below 100% renders full width. Only the width checks fail;
-// centering and title/body alignment pass. Remove `test.fail` once the setting applies again.
-const writingWidthBroken = true
-
 for (const colorMode of ['light', 'dark'] as const) {
   for (const viewport of [
     { width: 1280, height: 800 },
@@ -51,7 +45,6 @@ for (const colorMode of ['light', 'dark'] as const) {
     test(`${colorMode} ${viewport.width}: writing width slider, outline, focus and retained setting`, async ({
       page,
     }) => {
-      test.fail(writingWidthBroken)
       test.setTimeout(90000)
       await page.setViewportSize(viewport)
       await page.goto('/')
@@ -116,7 +109,6 @@ for (const colorMode of ['light', 'dark'] as const) {
 }
 
 test('writing width stays independent of color mode', async ({ page }) => {
-  test.fail(writingWidthBroken)
   test.setTimeout(90000)
   await page.goto('/')
   await page.locator('.note-row[data-note-id="writing-lab"]').click()
