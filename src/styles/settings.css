@@ -20,7 +20,8 @@
   background: var(--bg-content);
   box-shadow: var(--shadow-window);
   color: var(--text);
-  transform: translate(-50%, -50%);
+  /* --settings-x/y: how far the title bars have dragged the window from center. */
+  transform: translate(calc(-50% + var(--settings-x, 0px)), calc(-50% + var(--settings-y, 0px)));
   outline: none;
 }
 .settings[data-state='open'] {
@@ -36,6 +37,8 @@
 }
 .settings-sidebar-bar {
   display: flex;
+  cursor: default;
+  touch-action: none;
   align-items: center;
   height: var(--bar);
   padding: 0 var(--space-5);
@@ -108,6 +111,8 @@
 }
 .settings-bar {
   display: flex;
+  cursor: default;
+  touch-action: none;
   flex: none;
   align-items: center;
   height: var(--bar);

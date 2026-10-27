@@ -125,6 +125,8 @@ when a token exists.
   of contents, Find in note, Note actions).
 - Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
 - The sidebar footer holds sync status, Trash and Settings. There is no account menu.
+- Settings opens centered and can be dragged by its title bars, staying inside the window; it
+  re-centers each time it opens.
 
 ## Components
 

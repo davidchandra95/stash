@@ -187,6 +187,15 @@ export default function Settings({
   const content = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const drag = useRef<{
+    pointer: number
+    x: number
+    y: number
+    offset: { x: number; y: number }
+    bounds: DOMRect
+  } | null>(null)
   const motionActive = useMotionEnabled()
   const reducedMotion = useReducedMotion()
   const fonts = useInstalledFonts(open)
@@ -199,10 +208,50 @@ export default function Settings({
     setCategory(initialCategory)
     setQuery('')
     setShortcutQuery('')
+    setOffset({ x: 0, y: 0 })
   }, [open, initialCategory])
   useEffect(() => {
     if (content.current) content.current.scrollTop = 0
   }, [category, query])
+
+  // The title bars move the window like a native one, keeping it fully inside the app window.
+  const dragHandle = {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (event.button !== 0 || (event.target as Element).closest('button, input, a')) return
+      const bounds = panel.current?.getBoundingClientRect()
+      if (!bounds) return
+      drag.current = {
+        pointer: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        offset,
+        bounds,
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      event.preventDefault()
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      const start = drag.current
+      if (!start || start.pointer !== event.pointerId) return
+      const { bounds } = start
+      const dx = Math.max(
+        -bounds.left,
+        Math.min(window.innerWidth - bounds.right, event.clientX - start.x),
+      )
+      const dy = Math.max(
+        -bounds.top,
+        Math.min(window.innerHeight - bounds.bottom, event.clientY - start.y),
+      )
+      setOffset({ x: start.offset.x + dx, y: start.offset.y + dy })
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+      drag.current = null
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    },
+    onLostPointerCapture: () => {
+      drag.current = null
+    },
+  }
 
   const set = <K extends keyof Appearance>(key: K, next: Appearance[K]) =>
     onChange({ ...value, [key]: next })
@@ -712,8 +761,15 @@ export default function Settings({
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay settings-overlay" />
           <Dialog.Content
+            ref={panel}
             inert={!open}
             className="settings"
+            style={
+              {
+                '--settings-x': `${offset.x}px`,
+                '--settings-y': `${offset.y}px`,
+              } as React.CSSProperties
+            }
             aria-describedby={undefined}
             onEscapeKeyDown={(event) => {
               if (document.querySelector('.shortcut-recording')) event.preventDefault()
@@ -730,7 +786,7 @@ export default function Settings({
             }}
           >
             <aside className="settings-sidebar">
-              <div className="settings-sidebar-bar">
+              <div className="settings-sidebar-bar" {...dragHandle}>
                 <Dialog.Close className="window-close" aria-label="Close settings">
                   <X aria-hidden="true" />
                 </Dialog.Close>
@@ -784,7 +840,7 @@ export default function Settings({
               </nav>
             </aside>
             <div className="settings-main">
-              <div className="settings-bar">
+              <div className="settings-bar" {...dragHandle}>
                 <Dialog.Title className="settings-title">{title}</Dialog.Title>
               </div>
               <div className="settings-content" ref={content}>
