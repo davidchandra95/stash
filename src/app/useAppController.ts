@@ -13,13 +13,19 @@ import {
 } from '../pdf/citations'
 import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
+import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
+import { projectStore, useProjects } from '../projects/store'
+import type { Project } from '../projects/model'
+import { taskLink } from '../editor/taskReferences'
 import { useLibraryShell, useNoteIds } from '../storage/libraryReaders'
 import { libraryProjection, type NavigationNote } from '../storage/librarySelectors'
 import { useNotebookMove } from '../useNotebookMove'
 import { moveSource, notebookMoveTarget } from '../notebookMove'
 import { useNoteDrag } from '../useNoteDrag'
 import { useNoteActions } from '../useNoteActions'
+import { followsFirstLine } from '../noteTitles'
+import { startAutoSync } from '../autoSync'
 import { useShortcutActions } from '../useShortcuts'
 import { bindingFor, shortcutLabel } from '../shortcuts'
 import { validateMarkdown } from '../editor/markdown'
@@ -77,6 +83,9 @@ import { matchesView, type ColorMode, type Note, type View } from '../model'
 import { useLibrarySelector, library as libraryStore } from '../storage/useLibrary'
 import { fontFamily } from '../fonts'
 import { headingStyleVariables } from '../headingStyles'
+
+// Shared so views that read pdfPreferences without a PDF open see a stable value.
+const noPdfNotes = Object.freeze(defaultPdfNotes())
 
 export const viewNames: Record<string, string> = {
   all: 'All notes',
@@ -148,15 +157,15 @@ export function useAppController() {
   const [sidebar, storeSidebar] = useState(true)
   const [noteList, storeNoteList] = useState(true)
   const setFocus = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.focus}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.focus)
     storeFocus(next)
   }
   const setSidebar = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.sidebar)
     storeSidebar(next)
   }
   const setNoteList = (next: boolean | ((old: boolean) => boolean)) => {
-    appRef.current?.style.setProperty('--layout-motion', `${motion.sidebar}ms`)
+    if (motionActive) captureLayout(appRef.current, motion.sidebar)
     storeNoteList(next)
   }
   const [noteMenuOpen, setNoteMenuOpen] = useState(false)
@@ -265,6 +274,36 @@ export function useAppController() {
   const [pdfImporting, setPdfImporting] = useState(false)
   const pdfInput = useRef<HTMLInputElement>(null)
   useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
+  const projects = useProjects(library.ready)
+  useEffect(() => libraryStore.registerFlush(projectStore.flush), [])
+  /** The open project page: a project ID, 'inbox', 'all' (the overview), or null for notes. */
+  const [projectView, setProjectView] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [projectLayout, setProjectLayout] = useState<'list' | 'board'>('list')
+  const [projectEditing, setProjectEditing] = useState<Project | 'new' | null>(null)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [projectNotice, setProjectNotice] = useState<{ message: string; undo?: () => void } | null>(
+    null,
+  )
+  const openProject = (id: string) => {
+    setProjectView(id)
+    setSelectedTaskId(null)
+    setFocus(false)
+  }
+  /** Opens a task's project (or the Inbox) with the task selected. */
+  const openTask = (id: string) => {
+    const task = projectStore.getSnapshot().tasks.find((t) => t.id === id && t.deletedAt === null)
+    if (!task) return
+    setProjectView(task.projectId ?? 'inbox')
+    setSelectedTaskId(task.id)
+    setFocus(false)
+  }
+  const copyTaskLink = (id: string) => {
+    const text = taskLink(id)
+    void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((error) =>
+      setProjectNotice({ message: `Couldn’t copy the task link. ${String(error)}` }),
+    )
+  }
   const workspace = useWorkspace({
     notes,
     initialNotes: () => libraryStore.getSnapshot().notes,
@@ -289,7 +328,29 @@ export function useAppController() {
       }
     },
   })
-  const noteListVisible = noteList && !focus && !workspace.documentId
+  const noteListVisible = noteList && !focus && !workspace.documentId && !projectView
+  // Opening a note or PDF from anywhere (palette, links, sidebar) leaves the project page.
+  useEffect(() => {
+    if (workspace.activation) setProjectView(null)
+  }, [workspace.activation])
+  // Reopen the project page that was open at quit, once projects have loaded.
+  const projectRestored = useRef(false)
+  useEffect(() => {
+    if (projectRestored.current || !library.ready || !projects.ready) return
+    projectRestored.current = true
+    const saved = library.workspace?.projectView
+    if (
+      saved === 'inbox' ||
+      saved === 'all' ||
+      saved === 'tasks:today' ||
+      saved === 'tasks:upcoming' ||
+      projects.projects.some((p) => p.id === saved && p.deletedAt === null)
+    )
+      setProjectView(saved!)
+  }, [library.ready, projects.ready])
+  useEffect(() => {
+    if (projectRestored.current) libraryStore.setProjectView(projectView)
+  }, [projectView])
   const paneResize = usePaneResize({
     appRef,
     savedWidths: library.workspace?.paneWidths,
@@ -330,8 +391,7 @@ export function useAppController() {
   const activePdf = pdfs.documents.find((doc) => doc.id === workspace.documentId)
   const companionId = activePdf ? companions[activePdf.id] : undefined
   const companion = notes.find((n) => n.id === companionId)
-  const pdfPreferences =
-    (activePdf && library.workspace?.pdfNotes?.[activePdf.id]) || defaultPdfNotes()
+  const pdfPreferences = (activePdf && library.workspace?.pdfNotes?.[activePdf.id]) || noPdfNotes
   const notesOpen = !!companion && pdfPreferences.open
   const pdfNotesLabel = companion?.trashed
     ? 'Restore note'
@@ -688,6 +748,7 @@ export function useAppController() {
     })
   const { update, create: createNote } = useNoteActions(animateRows)
   const navigate = (next: View) => {
+    setProjectView(null)
     setView(next)
     setQuery('')
     const snapshot = libraryStore.getSnapshot()
@@ -718,7 +779,11 @@ export function useAppController() {
   const pendingTitleFocus = useRef<string | null>(null)
   useLayoutEffect(() => {
     if (active?.id === pendingTitleFocus.current) {
-      titleInput.current?.focus()
+      // "First line" notes start in the body, which then names the note.
+      if (followsFirstLine(active.id)) {
+        const note = libraryProjection.note(libraryStore.getSnapshot(), active.id)
+        if (note) getEditor(active.id, note.content).commands.focus('start')
+      } else titleInput.current?.focus()
       pendingTitleFocus.current = null
     }
   }, [active?.id])
@@ -776,6 +841,7 @@ export function useAppController() {
       setNotes((old) => [...old, created])
       return { ...created, notebook: notebookLabel(created) }
     },
+    openTask,
     open: (id, newTab = false) => {
       const target = libraryStore.getSnapshot().notes.find((n) => n.id === id)
       if (!target || target.trashed) {
@@ -797,6 +863,7 @@ export function useAppController() {
       create: (title) => latestNoteLinks.current.create(title),
       open: (id, newTab) => latestNoteLinks.current.open(id, newTab),
       contextMenu: (id, position) => latestNoteLinks.current.contextMenu?.(id, position),
+      openTask: (id) => latestNoteLinks.current.openTask?.(id),
     }),
     [notes, notebooks],
   )
@@ -954,6 +1021,11 @@ export function useAppController() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void libraryStore.sync()
   }
+  const syncConfigured = !!library.syncStatus?.configured
+  useEffect(() => {
+    if (!syncConfigured || !appearance.autoSyncMinutes) return
+    return startAutoSync(appearance.autoSyncMinutes * 60_000, syncNow)
+  }, [syncConfigured, appearance.autoSyncMinutes])
   const paletteCommands: PaletteCommand[] = [
     {
       id: 'settings',
@@ -1179,6 +1251,22 @@ export function useAppController() {
     setMatchNavigation,
     contentsResize,
     pdfs,
+    projects,
+    projectView,
+    setProjectView,
+    openProject,
+    openTask,
+    copyTaskLink,
+    selectedTaskId,
+    setSelectedTaskId,
+    projectLayout,
+    setProjectLayout,
+    projectEditing,
+    setProjectEditing,
+    projectToDelete,
+    setProjectToDelete,
+    projectNotice,
+    setProjectNotice,
     pdfImportError,
     setPdfImportError,
     pdfImporting,

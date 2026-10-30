@@ -86,6 +86,10 @@ export const defaultAppearance: Appearance = {
   listItemSpacing: 0,
   editorBottomSpace: 112,
   showFormattingToolbar: false,
+  defaultNotebookId: '',
+  newNoteTitle: 'field',
+  spellcheck: true,
+  autoSyncMinutes: 0,
   ...defaultCursorSettings,
 }
 export type SavedNote = Omit<Note, 'content'> & {
@@ -1225,12 +1229,21 @@ export class LibraryStore {
       sidebarView,
     })
   }
+  setProjectView = (projectView: string | null) => {
+    if ((this.state.workspace?.projectView ?? null) === projectView) return
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      projectView,
+    })
+  }
   setWorkspace = (workspace: WorkspacePreferences) => {
     const noteListMode = workspace.noteListMode ?? this.state.workspace?.noteListMode
     if (noteListMode !== undefined)
       workspace = { ...workspace, noteListMode: normalizeNoteListMode(noteListMode) }
     if (workspace.sidebarView === undefined && this.state.workspace?.sidebarView !== undefined)
       workspace = { ...workspace, sidebarView: this.state.workspace.sidebarView }
+    if (workspace.projectView === undefined && this.state.workspace?.projectView)
+      workspace = { ...workspace, projectView: this.state.workspace.projectView }
     if (this.state.workspace?.pdfNotes && !workspace.pdfNotes)
       workspace = { ...workspace, pdfNotes: this.state.workspace.pdfNotes }
 

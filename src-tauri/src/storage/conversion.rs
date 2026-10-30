@@ -324,11 +324,14 @@ fn validate_native(node: &Value) -> Result<()> {
             | "tableCell"
             | "image"
             | "noteReference"
+            | "taskReference"
     ) {
         return Err(format!("Unsupported converted content: {kind}"));
     }
     let children = node["content"].as_array().map(Vec::as_slice).unwrap_or(&[]);
-    let is_inline = |kind: &str| matches!(kind, "text" | "image" | "hardBreak" | "noteReference");
+    let is_inline = |kind: &str| {
+        matches!(kind, "text" | "image" | "hardBreak" | "noteReference" | "taskReference")
+    };
     let is_block = |kind: &str| {
         matches!(
             kind,

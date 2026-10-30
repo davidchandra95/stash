@@ -183,6 +183,9 @@ pub struct WorkspacePreferences {
     pub note_list_mode: NoteListMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sidebar_view: Option<String>,
+    /// The open project page: a project ID, "inbox" or "all" (the overview).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_view: Option<String>,
     #[serde(default)]
     pub pdf_notes: std::collections::BTreeMap<String, PdfNotesPreferences>,
     #[serde(default)]
@@ -278,13 +281,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 10 {
+        if version > 11 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 10 {
+        if version > 0 && version < 11 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -381,6 +384,13 @@ impl Store {
         };
         if version < 10 {
             store.migrate_confirmed_tags()?;
+        }
+        // After the tag migration, which writes version 10.
+        if version < 11 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("projects_schema.sql"))
+                .map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
         }
         store.recover_pdf_imports()?;
         Ok(store)
@@ -959,6 +969,17 @@ fn validate_document(value: &Value) -> Result<()> {
         if depth > 128 || !node.is_object() || node.get("type").and_then(Value::as_str).is_none() {
             return Err("Invalid or excessively nested note content.".into());
         }
+        if node.get("type").and_then(Value::as_str) == Some("taskReference") {
+            let attrs = node.get("attrs").ok_or("Missing task mention attributes.")?;
+            let valid = attrs
+                .get("taskId")
+                .and_then(Value::as_str)
+                .is_some_and(projects::valid_record_id)
+                && attrs.get("fallbackTitle").is_some_and(Value::is_string);
+            if !valid {
+                return Err("Invalid task mention attributes.".into());
+            }
+        }
         if node.get("type").and_then(Value::as_str) == Some("noteReference") {
             let attrs = node
                 .get("attrs")
@@ -988,6 +1009,9 @@ fn validate_document(value: &Value) -> Result<()> {
 }
 pub mod bridge;
 pub mod pdf;
+pub mod projects;
+#[cfg(test)]
+mod projects_tests;
 pub mod conversion;
 mod file_io;
 mod file_links;

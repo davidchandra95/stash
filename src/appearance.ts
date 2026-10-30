@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { AccentColor, Appearance, ColorMode, WindowLayout } from './model'
+import type { AccentColor, Appearance, ColorMode, NewNoteTitle, WindowLayout } from './model'
 
 export const colorModes: Record<ColorMode, string> = {
   light: 'Light',
@@ -29,6 +29,14 @@ const colorModeValues: ColorMode[] = ['light', 'dark', 'system']
 export const layouts: WindowLayout[] = ['standard', 'cards']
 export const layoutNames: Record<WindowLayout, string> = { standard: 'Standard', cards: 'Cards' }
 const accentValues: AccentColor[] = ['system', ...accentColors]
+/** Automatic sync choices in minutes; 0 is off. */
+export const autoSyncIntervals = [0, 5, 15, 30, 60]
+export const autoSyncLabel = (minutes: number) =>
+  minutes ? (minutes === 60 ? 'Every hour' : `Every ${minutes} minutes`) : 'Off'
+export const newNoteTitles: Record<NewNoteTitle, string> = {
+  field: 'Title field',
+  firstLine: 'First line',
+}
 
 /** Reads saved appearance, including preferences written before the v2 interface. */
 export function normalizeAppearance(
@@ -64,6 +72,15 @@ export function normalizeAppearance(
         : defaults.translucentSidebar,
     sidebarCounts:
       typeof rest.sidebarCounts === 'boolean' ? rest.sidebarCounts : defaults.sidebarCounts,
+    defaultNotebookId:
+      typeof rest.defaultNotebookId === 'string'
+        ? rest.defaultNotebookId
+        : defaults.defaultNotebookId,
+    newNoteTitle: rest.newNoteTitle === 'firstLine' ? 'firstLine' : defaults.newNoteTitle,
+    spellcheck: typeof rest.spellcheck === 'boolean' ? rest.spellcheck : defaults.spellcheck,
+    autoSyncMinutes: autoSyncIntervals.includes(rest.autoSyncMinutes as number)
+      ? (rest.autoSyncMinutes as number)
+      : defaults.autoSyncMinutes,
     // The v1 "Modern cards" app style becomes the cards layout.
     layout: layouts.includes(rest.layout as WindowLayout)
       ? (rest.layout as WindowLayout)

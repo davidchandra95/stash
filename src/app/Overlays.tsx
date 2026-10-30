@@ -12,7 +12,10 @@ import {
 } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
 import { X } from '../icons'
-import { useApp, useBlocked } from './context'
+import ProjectDialog from '../projects/ProjectDialog'
+import DeleteProjectDialog from '../projects/DeleteProjectDialog'
+import { projectStore } from '../projects/store'
+import { trackApp, useApp, useBlocked } from './context'
 
 /** Transient status at the bottom of the window: errors, undo and progress. */
 function Notices() {
@@ -59,6 +62,38 @@ function Notices() {
           </button>
         </div>
       )}
+      {app.projects.saveError && (
+        <div className="notice" role="alert">
+          <span>Couldn’t save the task change. {app.projects.saveError}</span>
+          <button className="btn" onClick={projectStore.clearSaveError}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {app.projectNotice && (
+        <div className="notice" role="status" aria-live="polite">
+          <span>{app.projectNotice.message}</span>
+          {app.projectNotice.undo && (
+            <button
+              className="btn"
+              disabled={blocked}
+              onClick={() => {
+                app.projectNotice?.undo?.()
+                app.setProjectNotice(null)
+              }}
+            >
+              Undo
+            </button>
+          )}
+          <button
+            className="icon-btn icon-btn-sm"
+            aria-label="Dismiss notice"
+            onClick={() => app.setProjectNotice(null)}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
+      )}
       {notebookMove.busy && (
         <div className="notice" role="status">
           <span>Saving notebook change…</span>
@@ -88,13 +123,27 @@ function Notices() {
   )
 }
 
-export default function Overlays() {
+export default trackApp(function Overlays() {
   const app = useApp()
   const blocked = useBlocked()
-  const { notes, notebooks, appearance, organization, addOrganization, noteContext, library } = app
+  // Notes are read only when a note popover is open, so title edits do not re-render dialogs.
+  const { notebooks, appearance, organization, addOrganization, noteContext, library } = app
   return (
     <>
       <Notices />
+      <ProjectDialog
+        open={!!app.projectEditing}
+        project={app.projectEditing === 'new' ? undefined : (app.projectEditing ?? undefined)}
+        notebooks={notebooks}
+        onClose={() => app.setProjectEditing(null)}
+        onCreated={(project) => app.openProject(project.id)}
+      />
+      <DeleteProjectDialog
+        project={app.projectToDelete}
+        tasks={app.projects.tasks}
+        onClose={() => app.setProjectToDelete(null)}
+        notify={app.setProjectNotice}
+      />
       {noteContext && (
         <div
           className="menu note-link-context"
@@ -118,7 +167,7 @@ export default function Overlays() {
           </button>
         </div>
       )}
-      {addOrganization && notes.some((n) => n.id === addOrganization.id && !n.trashed) && (
+      {addOrganization && app.notes.some((n) => n.id === addOrganization.id && !n.trashed) && (
         <AddToNotebooksPopover
           key={`add:${addOrganization.id}`}
           noteId={addOrganization.id}
@@ -131,35 +180,37 @@ export default function Overlays() {
           disabled={blocked}
         />
       )}
-      {organization && notes.some((n) => n.id === organization.id && !n.trashed && !n.source) && (
-        <MoveNoteDialog
-          key={`move:${organization.id}:${organization.destination ?? 'choose'}`}
-          anchor={organization.anchor}
-          launcher={organization.launcher}
-          noteId={organization.id}
-          notebooks={notebooks}
-          view={organization.view}
-          destination={organization.destination}
-          move={app.notebookMove.move}
-          createNotebook={(book) => app.setNotebooks((old) => [...old, book])}
-          close={() => app.setOrganization(null)}
-          disabled={
-            blocked || !!app.busyNote || app.notebookMove.busy || !!app.notebookMove.failure
-          }
-        />
-      )}
-      {organization && notes.some((n) => n.id === organization.id && !n.trashed && n.source) && (
-        <NoteOrganization
-          key={`move-file:${organization.id}`}
-          anchor={organization.anchor}
-          launcher={organization.launcher}
-          noteId={organization.id}
-          notebooks={notebooks}
-          update={(patch) => app.updateNotebookMembership(organization.id, patch)}
-          close={() => app.setOrganization(null)}
-          disabled={blocked}
-        />
-      )}
+      {organization &&
+        app.notes.some((n) => n.id === organization.id && !n.trashed && !n.source) && (
+          <MoveNoteDialog
+            key={`move:${organization.id}:${organization.destination ?? 'choose'}`}
+            anchor={organization.anchor}
+            launcher={organization.launcher}
+            noteId={organization.id}
+            notebooks={notebooks}
+            view={organization.view}
+            destination={organization.destination}
+            move={app.notebookMove.move}
+            createNotebook={(book) => app.setNotebooks((old) => [...old, book])}
+            close={() => app.setOrganization(null)}
+            disabled={
+              blocked || !!app.busyNote || app.notebookMove.busy || !!app.notebookMove.failure
+            }
+          />
+        )}
+      {organization &&
+        app.notes.some((n) => n.id === organization.id && !n.trashed && n.source) && (
+          <NoteOrganization
+            key={`move-file:${organization.id}`}
+            anchor={organization.anchor}
+            launcher={organization.launcher}
+            noteId={organization.id}
+            notebooks={notebooks}
+            update={(patch) => app.updateNotebookMembership(organization.id, patch)}
+            close={() => app.setOrganization(null)}
+            disabled={blocked}
+          />
+        )}
       <Settings
         onSync={app.syncNow}
         initialCategory={app.settingsCategory}
@@ -207,4 +258,4 @@ export default function Overlays() {
       />
     </>
   )
-}
+})

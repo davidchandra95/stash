@@ -1,11 +1,17 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+/** Panes snap to their columns and then slide; geometry is final once the slide ends. */
+async function panesSettled(page: Page) {
+  await expect(page.locator('.window')).not.toHaveClass(/\bis-layout-moving\b/)
+}
+
 /** The notes list is hidden from the "Sort and view options" menu in its own bar. */
 async function hideNotesList(page: Page) {
   await page.getByRole('button', { name: 'Sort and view options', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Hide notes list', exact: true }).click()
   await expect(page.locator('.window')).toHaveClass(/\bno-note-list\b/)
+  await panesSettled(page)
 }
 
 for (const viewport of [
@@ -100,6 +106,7 @@ for (const viewport of [
       await expect(editorBar.locator('.window-controls-space')).toHaveCount(0)
       await page.getByRole('button', { name: 'Hide sidebar', exact: true }).click()
       await expect.poll(async () => (await tracks()).slice(0, 2)).toEqual([0, 0])
+      await panesSettled(page)
       // The editor is now leftmost: it reserves the traffic-light space before both toggles.
       await page.locator('.window').evaluate((element) => element.classList.add('native-chrome'))
       const controls = await editorBar.locator('.window-controls-space').boundingBox()

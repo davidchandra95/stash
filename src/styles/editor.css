@@ -173,7 +173,8 @@
   margin: 0 auto;
   padding-top: 28px;
 }
-.pdf-writing-pane .note-article {
+/* Only a companion note beside a PDF fills its pane; plain notes keep the writing width. */
+.pdf-workspace.paired .pdf-writing-pane .note-article {
   max-width: none;
 }
 

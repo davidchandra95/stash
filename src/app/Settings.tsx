@@ -4,7 +4,17 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import FontPicker from '../components/FontPicker'
 import HeadingStyles from '../components/HeadingStyles'
 import KeyboardShortcuts from '../components/KeyboardShortcuts'
-import { accentColors, accents, colorModes, layoutNames, layouts } from '../appearance'
+import {
+  accentColors,
+  accents,
+  autoSyncIntervals,
+  autoSyncLabel,
+  colorModes,
+  layoutNames,
+  layouts,
+  newNoteTitles,
+} from '../appearance'
+import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
 import {
   Keyboard,
@@ -16,7 +26,7 @@ import {
   X,
   type IconComponent,
 } from '../icons'
-import type { Appearance, ColorMode } from '../model'
+import type { Appearance, ColorMode, NewNoteTitle } from '../model'
 import { useMotionEnabled, useReducedMotion } from '../motion'
 import { noteListModes, type NoteListMode } from '../noteListPresentation'
 import { platform } from '../platform'
@@ -187,22 +197,75 @@ export default function Settings({
   const content = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const drag = useRef<{
+    pointer: number
+    x: number
+    y: number
+    offset: { x: number; y: number }
+    bounds: DOMRect
+  } | null>(null)
   const motionActive = useMotionEnabled()
   const reducedMotion = useReducedMotion()
   const fonts = useInstalledFonts(open)
   const listMode = useLibrarySelector((state) => state.workspace?.noteListMode ?? 'compact')
   const syncStatus = useLibrarySelector((state) => state.syncStatus)
   const syncing = useLibrarySelector((state) => state.syncing)
+  const notebooks = useLibrarySelector((state) => state.notebooks)
+  const defaultNotebookId = notebooks.some((book) => book.id === value.defaultNotebookId)
+    ? value.defaultNotebookId
+    : ''
 
   useEffect(() => {
     if (!open) return
     setCategory(initialCategory)
     setQuery('')
     setShortcutQuery('')
+    setOffset({ x: 0, y: 0 })
   }, [open, initialCategory])
   useEffect(() => {
     if (content.current) content.current.scrollTop = 0
   }, [category, query])
+
+  // The title bars move the window like a native one, keeping it fully inside the app window.
+  const dragHandle = {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (event.button !== 0 || (event.target as Element).closest('button, input, a')) return
+      const bounds = panel.current?.getBoundingClientRect()
+      if (!bounds) return
+      drag.current = {
+        pointer: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        offset,
+        bounds,
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      event.preventDefault()
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      const start = drag.current
+      if (!start || start.pointer !== event.pointerId) return
+      const { bounds } = start
+      const dx = Math.max(
+        -bounds.left,
+        Math.min(window.innerWidth - bounds.right, event.clientX - start.x),
+      )
+      const dy = Math.max(
+        -bounds.top,
+        Math.min(window.innerHeight - bounds.bottom, event.clientY - start.y),
+      )
+      setOffset({ x: start.offset.x + dx, y: start.offset.y + dy })
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+      drag.current = null
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    },
+    onLostPointerCapture: () => {
+      drag.current = null
+    },
+  }
 
   const set = <K extends keyof Appearance>(key: K, next: Appearance[K]) =>
     onChange({ ...value, [key]: next })
@@ -591,6 +654,74 @@ export default function Settings({
       ),
     },
     {
+      id: 'spellcheck',
+      category: 'editor',
+      group: 'Writing',
+      search: 'Check spelling spellcheck spell checker typos',
+      content: (
+        <Row label="Check spelling">
+          <Switch
+            label="Check spelling"
+            checked={value.spellcheck}
+            onChange={(checked) => set('spellcheck', checked)}
+          />
+        </Row>
+      ),
+    },
+    {
+      id: 'default-notebook',
+      category: 'editor',
+      group: 'New notes',
+      search: 'Default notebook new notes location uncategorized',
+      content: (
+        <Row label="Default notebook" description="Used outside a notebook view">
+          <select
+            className="select-native"
+            aria-label="Default notebook"
+            value={defaultNotebookId}
+            onChange={(event) => set('defaultNotebookId', event.target.value)}
+          >
+            <option value="">None</option>
+            {orderedNotebooks(notebooks).map((book) => (
+              <option key={book.id} value={book.id}>
+                {notebookPath(book, notebooks)}
+              </option>
+            ))}
+          </select>
+        </Row>
+      ),
+    },
+    {
+      id: 'new-note-title',
+      category: 'editor',
+      group: 'New notes',
+      search: 'New note title first line name',
+      content: (
+        <Row
+          label="Title"
+          description={
+            value.newNoteTitle === 'firstLine'
+              ? 'Start typing in the note; its first line becomes the title'
+              : 'Start in the title field'
+          }
+        >
+          <span className="segmented" role="radiogroup" aria-label="New note title">
+            {(Object.keys(newNoteTitles) as NewNoteTitle[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={value.newNoteTitle === mode}
+                onClick={() => set('newNoteTitle', mode)}
+              >
+                {newNoteTitles[mode]}
+              </button>
+            ))}
+          </span>
+        </Row>
+      ),
+    },
+    {
       id: 'cursor-style',
       category: 'editor',
       group: 'Cursor',
@@ -680,6 +811,29 @@ export default function Settings({
             ),
           },
           {
+            id: 'auto-sync',
+            category: 'sync' as const,
+            group: 'Status',
+            search: 'Sync automatically auto sync interval minutes background',
+            content: (
+              <Row label="Sync automatically" description="Waits until you pause typing">
+                <select
+                  className="select-native"
+                  aria-label="Sync automatically"
+                  value={value.autoSyncMinutes}
+                  disabled={!syncStatus?.configured}
+                  onChange={(event) => set('autoSyncMinutes', Number(event.target.value))}
+                >
+                  {autoSyncIntervals.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {autoSyncLabel(minutes)}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+            ),
+          },
+          {
             id: 'sync-connection',
             category: 'sync' as const,
             group: 'Server',
@@ -712,8 +866,15 @@ export default function Settings({
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay settings-overlay" />
           <Dialog.Content
+            ref={panel}
             inert={!open}
             className="settings"
+            style={
+              {
+                '--settings-x': `${offset.x}px`,
+                '--settings-y': `${offset.y}px`,
+              } as React.CSSProperties
+            }
             aria-describedby={undefined}
             onEscapeKeyDown={(event) => {
               if (document.querySelector('.shortcut-recording')) event.preventDefault()
@@ -730,7 +891,7 @@ export default function Settings({
             }}
           >
             <aside className="settings-sidebar">
-              <div className="settings-sidebar-bar">
+              <div className="settings-sidebar-bar" {...dragHandle}>
                 <Dialog.Close className="window-close" aria-label="Close settings">
                   <X aria-hidden="true" />
                 </Dialog.Close>
@@ -784,7 +945,7 @@ export default function Settings({
               </nav>
             </aside>
             <div className="settings-main">
-              <div className="settings-bar">
+              <div className="settings-bar" {...dragHandle}>
                 <Dialog.Title className="settings-title">{title}</Dialog.Title>
               </div>
               <div className="settings-content" ref={content}>

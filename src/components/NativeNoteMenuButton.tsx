@@ -14,7 +14,8 @@ export default function NativeNoteMenuButton({
   children = <MoreHorizontal size={21} />,
   ...props
 }: Omit<ComponentProps<'button'>, 'children' | 'onError'> & {
-  actions: NoteAction[]
+  /** A function is called only when the menu opens. */
+  actions: NoteAction[] | (() => NoteAction[])
   disabled: boolean
   onError: (error: { message: string; retry: () => void }) => void
   /** Accessible name; icon-only buttons rely on it. */
@@ -32,8 +33,11 @@ export default function NativeNoteMenuButton({
     setOpen(true)
     launcher.focus()
     const rect = launcher.getBoundingClientRect()
-    void showNativeContextMenu(actions, launcher, { x: rect.left, y: rect.bottom + 7 }, (id) =>
-      bindingFor(id, shortcuts),
+    void showNativeContextMenu(
+      typeof actions === 'function' ? actions() : actions,
+      launcher,
+      { x: rect.left, y: rect.bottom + 7 },
+      (id) => bindingFor(id, shortcuts),
     )
       .catch((error) =>
         onError({

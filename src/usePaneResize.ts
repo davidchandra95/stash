@@ -146,6 +146,19 @@ export function usePaneResize({
 
   const boundsFor = (widths: PaneWidths) => paneBounds(contextFor(widths))
 
+  const paint = (widths: PaneWidths | undefined) => {
+    const style = appRef.current?.style
+    if (!style) return
+    if (!widths) {
+      style.removeProperty('--sidebar-override')
+      style.removeProperty('--list-override')
+      return
+    }
+    const effective = effectivePaneWidths(widths, contextFor(widths))
+    style.setProperty('--sidebar-override', `${effective.sidebar}px`)
+    style.setProperty('--list-override', `${effective.noteList}px`)
+  }
+
   const move = (clientX: number) => {
     const active = session.current
     if (!active) return
@@ -156,7 +169,12 @@ export function usePaneResize({
       [active.pane]: clamp(Math.round(active.startWidth + clientX - active.startX), bounds),
     }
     active.draft = next
-    updatePreferred(next)
+    // Dragging paints the grid directly; React state changes once, when the drag ends.
+    preferredRef.current = next
+    paint(next)
+    const pane = effectivePaneWidths(next, contextFor(next))[active.pane]
+    active.element.setAttribute('aria-valuenow', String(pane))
+    active.element.setAttribute('aria-valuetext', `${pane} pixels`)
   }
 
   const finish = (cancelled: boolean) => {
@@ -167,7 +185,12 @@ export function usePaneResize({
       active.element.releasePointerCapture(active.pointerId)
     setResizing(false)
     if (cancelled) {
+      // React may already hold these values, so restore what the drag painted directly too.
+      paint(active.original)
       updatePreferred(active.original)
+      const pane = visibleWidths()[active.pane]
+      active.element.setAttribute('aria-valuenow', String(pane))
+      active.element.setAttribute('aria-valuetext', `${pane} pixels`)
       return
     }
     updatePreferred(active.draft)

@@ -181,7 +181,11 @@ it('toggles switches with role=switch and aria-checked, changing one preference 
   expect(current).toEqual({ ...defaultAppearance, sidebarCounts: false, animationsEnabled: false })
 
   await category('Editor')
-  expect(switches()).toEqual(['Always show formatting toolbar', 'Smooth caret animation'])
+  expect(switches()).toEqual([
+    'Always show formatting toolbar',
+    'Check spelling',
+    'Smooth caret animation',
+  ])
   await act(() => control<HTMLButtonElement>('Smooth caret animation')!.click())
   expect(current.cursorSmoothCaretAnimation).toBe('on')
   expect(control('Smooth caret animation')!.getAttribute('aria-checked')).toBe('true')
@@ -350,6 +354,69 @@ it('shows the Sync category only when sync settings are provided', async () => {
     await category('Appearance')
     expect(title()).toBe('Appearance')
     expect(document.body.textContent).not.toContain('Sync form')
+  } finally {
+    await setLibraryState({ syncStatus: undefined })
+  }
+})
+
+it('sets the default notebook, new note title and spelling', async () => {
+  await setLibraryState({
+    notebooks: [
+      { id: 'work', name: 'Work', color: '#abc', icon: 'briefcase' },
+      { id: 'plans', name: 'Plans', color: '#abc', icon: 'notebook', parentId: 'work' },
+    ],
+  })
+  try {
+    await render()
+    await category('Editor')
+    const notebook = control<HTMLSelectElement>('Default notebook')!
+    expect([...notebook.options].map((option) => option.text)).toEqual([
+      'None',
+      'Work',
+      'Work / Plans',
+    ])
+    await act(() => {
+      notebook.value = 'plans'
+      notebook.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(current.defaultNotebookId).toBe('plans')
+    expect(checkedRadios('New note title')).toEqual(['Title field'])
+    await act(() => radio('New note title', 'First line').click())
+    expect(current.newNoteTitle).toBe('firstLine')
+    await act(() => control('Check spelling')!.click())
+    expect(current.spellcheck).toBe(false)
+  } finally {
+    await setLibraryState({ notebooks: [] })
+  }
+})
+
+it('chooses an automatic sync interval once sync is connected', async () => {
+  await render({ syncSettings: <p>Sync form</p>, initialCategory: 'sync' })
+  const interval = () => control<HTMLSelectElement>('Sync automatically')!
+  expect(interval().disabled).toBe(true)
+  await setLibraryState({
+    syncStatus: {
+      url: 'https://sync.test',
+      configured: true,
+      lastSuccess: null,
+      pending: 0,
+      warnings: [],
+    },
+  })
+  try {
+    expect(interval().disabled).toBe(false)
+    expect([...interval().options].map((option) => option.text)).toEqual([
+      'Off',
+      'Every 5 minutes',
+      'Every 15 minutes',
+      'Every 30 minutes',
+      'Every hour',
+    ])
+    await act(() => {
+      interval().value = '15'
+      interval().dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(current.autoSyncMinutes).toBe(15)
   } finally {
     await setLibraryState({ syncStatus: undefined })
   }

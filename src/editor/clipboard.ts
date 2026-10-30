@@ -1,5 +1,6 @@
 import { isPdfLink, parsePdfCitation } from '../pdf/citations'
 import { validNoteId } from './noteReferences'
+import { taskIdFromLink } from './taskReferences'
 import { canReadClipboard, pastePlain, insertLiteral } from './plainPaste'
 import { insertPastedContent } from './pasteContent'
 import { Extension, generateJSON, type JSONContent, type Editor } from '@tiptap/core'
@@ -82,6 +83,11 @@ export const Clipboard = Extension.create({
               insertLiteral(editor, text)
             } else if (pasteDrawings(editor, data)) {
               // The private format preserves editable drawings; external HTML is a preview.
+            } else if (taskIdFromLink(text.trim())) {
+              editor.commands.insertContent({
+                type: 'taskReference',
+                attrs: { taskId: taskIdFromLink(text.trim()), fallbackTitle: 'Task' },
+              })
             } else if (
               /^upnote2:\/\/note\/[a-zA-Z0-9_-]{1,128}$/.test(text.trim()) &&
               validNoteId(text.trim().slice('upnote2://note/'.length))

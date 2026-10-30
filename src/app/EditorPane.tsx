@@ -22,7 +22,7 @@ import {
   RotateCcw,
   TextSearch,
 } from '../icons'
-import { useApp, useBlocked } from './context'
+import { trackApp, useApp, useBlocked } from './context'
 import { LeadingControls } from './WindowControls'
 import NoteDocument from './NoteDocument'
 
@@ -31,6 +31,31 @@ function RetainedPdfReader(props: ComponentProps<typeof PdfReader>) {
   const [visited, setVisited] = useState(false)
   if (props.active && !visited) setVisited(true)
   return visited || props.active ? <PdfReader {...props} /> : null
+}
+
+/** Rendered only while the menu is open, so actions are not rebuilt on every render. */
+function NoteActionItems() {
+  const app = useApp()
+  const blocked = useBlocked()
+  const { active } = app
+  if (!active) return null
+  return app.actionsFor(active).map((action) => (
+    <div key={action.label} role="none">
+      {action.separator && <Dropdown.Separator className="menu-separator" />}
+      <Dropdown.Item
+        className="menu-item"
+        disabled={blocked || action.disabled}
+        onSelect={(event) => action.run(event.currentTarget as HTMLElement)}
+      >
+        <MenuActionContent icon={action.icon} label={action.label} />
+        {action.shortcutId && app.shortcutFor(action.shortcutId) && (
+          <span className="menu-shortcut" aria-hidden="true">
+            {app.shortcutFor(action.shortcutId)}
+          </span>
+        )}
+      </Dropdown.Item>
+    </div>
+  ))
 }
 
 function NoteActionsMenu() {
@@ -49,7 +74,7 @@ function NoteActionsMenu() {
       <AppTooltip instant label="Note actions" disabled={blocked}>
         <NativeNoteMenuButton
           className="icon-btn"
-          actions={app.actionsFor(active)}
+          actions={() => app.actionsFor(active)}
           disabled={blocked}
           onError={app.setActionError}
         >
@@ -74,23 +99,7 @@ function NoteActionsMenu() {
             if (document.querySelector('.notebook-popover')) event.preventDefault()
           }}
         >
-          {app.actionsFor(active).map((action) => (
-            <div key={action.label} role="none">
-              {action.separator && <Dropdown.Separator className="menu-separator" />}
-              <Dropdown.Item
-                className="menu-item"
-                disabled={blocked || action.disabled}
-                onSelect={(event) => action.run(event.currentTarget as HTMLElement)}
-              >
-                <MenuActionContent icon={action.icon} label={action.label} />
-                {action.shortcutId && app.shortcutFor(action.shortcutId) && (
-                  <span className="menu-shortcut" aria-hidden="true">
-                    {app.shortcutFor(action.shortcutId)}
-                  </span>
-                )}
-              </Dropdown.Item>
-            </div>
-          ))}
+          <NoteActionItems />
         </Dropdown.Content>
       </Dropdown.Portal>
     </Dropdown.Root>
@@ -290,7 +299,7 @@ function PdfReaders() {
   )
 }
 
-export default function EditorPane() {
+export default trackApp(function EditorPane() {
   const app = useApp()
   const blocked = useBlocked()
   const { workspace, activePdf, selected, active } = app
@@ -410,4 +419,4 @@ export default function EditorPane() {
       </PdfWorkspace>
     </main>
   )
-}
+})

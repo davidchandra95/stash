@@ -66,6 +66,13 @@ export default function NoteEditor({
   useLayoutEffect(() => {
     editor.setEditable(!readOnly, false)
   }, [editor, readOnly])
+  const spellcheck = String(appearance?.spellcheck ?? true)
+  useLayoutEffect(() => {
+    const props = editor.options.editorProps
+    const attributes = props.attributes as Record<string, string> | undefined
+    if (attributes?.spellcheck === spellcheck) return
+    editor.setOptions({ editorProps: { ...props, attributes: { ...attributes, spellcheck } } })
+  }, [editor, spellcheck])
   useLayoutEffect(() => {
     const dom = editor.view.dom
     const handle = (event: MouseEvent) => {

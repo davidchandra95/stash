@@ -1,4 +1,12 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import AppTooltip from '../components/AppTooltip'
 import NotebookTree from '../components/NotebookTree'
@@ -6,7 +14,18 @@ import { NotebookIconGlyph } from '../notebookIcons'
 import { libraryProjection } from '../storage/librarySelectors'
 import { library as libraryStore, useLibrarySelector } from '../storage/useLibrary'
 import { pdfStore } from '../pdf/store'
+import ProjectRing from '../projects/ProjectRing'
+import {
+  health,
+  healthLabel,
+  isOpenProject,
+  progress,
+  today,
+  todayGroups,
+  type Task,
+} from '../projects/model'
 import type { View } from '../model'
+import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
   ChevronRight,
@@ -17,6 +36,9 @@ import {
   FileText,
   Files,
   Inbox,
+  Briefcase,
+  Calendar,
+  CalendarClock,
   ListTodo,
   Pin,
   Plus,
@@ -26,7 +48,7 @@ import {
   Star,
   Trash2,
 } from '../icons'
-import { useApp, useBlocked } from './context'
+import { trackApp, useApp, useBlocked } from './context'
 import { SidebarToggle } from './WindowControls'
 
 function Section({
@@ -62,18 +84,44 @@ function Section({
   )
 }
 
-/** Counts are read on render; the library selector below re-renders on note changes. */
-function useViewCount() {
-  useLibrarySelector(libraryProjection.navigation)
+const fixedViews: View[] = [
+  'all',
+  'today',
+  'todo',
+  'uncategorized',
+  'pinned',
+  'quickAccess',
+  'trash',
+]
+/** Counts are read on render; re-renders only when a shown count changes, not on every edit. */
+function useViewCount(notebooks: { id: string }[]) {
+  useLibrarySelector(
+    useCallback(
+      (state: LibraryState) =>
+        [...fixedViews, ...notebooks.map((book) => `book:${book.id}` as View)]
+          .map((view) => libraryProjection.count(state, view))
+          .join(','),
+      [notebooks],
+    ),
+  )
   return (view: View) => libraryProjection.count(libraryStore.getSnapshot(), view)
 }
 
-export default function Sidebar({ onSearch }: { onSearch: () => void }) {
+export default trackApp(function Sidebar({
+  onSearch,
+  ...presence
+}: {
+  onSearch: () => void
+  /** MotionPresence passes its ref, inert and state here; the aside must receive them. */
+  ref?: Ref<HTMLElement>
+} & HTMLAttributes<HTMLElement>) {
   const app = useApp()
   const blocked = useBlocked()
-  const count = useViewCount()
+  const { notebooks, pdfs, workspace } = app
+  // While a project page is open, no notes view is selected.
+  const view: View | '' = app.projectView ? '' : app.view
+  const count = useViewCount(notebooks)
   const showCounts = app.appearance.sidebarCounts
-  const { view, notebooks, pdfs, workspace } = app
 
   const select = (next: View) => {
     app.setNoteList(true)
@@ -106,7 +154,7 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
   const pdfDisabled = app.pdfImporting || !pdfs.ready || blocked
 
   return (
-    <aside className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
+    <aside {...presence} className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
       <div className="pane-bar sidebar-bar" data-tauri-drag-region>
         <span className="window-controls-space" data-tauri-drag-region />
         <SidebarToggle />
@@ -224,6 +272,8 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
           )}
         </Section>
 
+        <ProjectsSection />
+
         <Section
           title="PDFs"
           action={
@@ -307,6 +357,139 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
       <SidebarFooter />
     </aside>
   )
+})
+
+function ProjectsSection() {
+  const app = useApp()
+  const blocked = useBlocked()
+  const [othersOpen, setOthersOpen] = useState(false)
+  const { projects, tasks, ready, error } = app.projects
+  const showCounts = app.appearance.sidebarCounts
+  const live = projects.filter((project) => project.deletedAt === null)
+  const tasksOf = new Map<string | null, Task[]>()
+  for (const task of tasks)
+    if (task.deletedAt === null)
+      tasksOf.set(task.projectId, [...(tasksOf.get(task.projectId) ?? []), task])
+  const inboxOpen = (tasksOf.get(null) ?? []).filter(
+    (task) => task.status === 'todo' || task.status === 'doing',
+  ).length
+  const others = live.filter((project) => !isOpenProject(project))
+  const current = today()
+  const dueTodayGroups = todayGroups(tasks, current)
+  const overdueCount = dueTodayGroups.find((g) => g.id === 'overdue')?.tasks.length ?? 0
+  const dueToday = dueTodayGroups.reduce(
+    (sum, group) =>
+      sum + group.tasks.filter((t) => t.status === 'todo' || t.status === 'doing').length,
+    0,
+  )
+  const dateRow = (id: string, icon: ReactNode, label: string, total: number, late: boolean) => (
+    <button
+      className={`side-row ${app.projectView === id ? 'is-selected' : ''}`}
+      aria-current={app.projectView === id ? 'page' : undefined}
+      disabled={blocked || !ready}
+      onClick={() => app.openProject(id)}
+    >
+      {icon}
+      <span className="side-label">{label}</span>
+      {showCounts && total > 0 && (
+        <span className={`count ${late ? 'is-late' : ''}`}>{total}</span>
+      )}
+    </button>
+  )
+  const attention = live.filter((project) => {
+    const state = health(project, tasksOf.get(project.id) ?? [])
+    return state === 'at_risk' || state === 'overdue'
+  }).length
+  const projectRow = (project: (typeof live)[number]) => {
+    const own = tasksOf.get(project.id) ?? []
+    const state = health(project, own)
+    const selected = app.projectView === project.id
+    return (
+      <button
+        key={project.id}
+        className={`side-row ${selected ? 'is-selected' : ''}`}
+        aria-current={selected ? 'page' : undefined}
+        disabled={blocked}
+        onClick={() => app.openProject(project.id)}
+      >
+        <ProjectRing project={project} ratio={progress(own).ratio} />
+        <span className="side-label">{project.name}</span>
+        {state && state !== 'on_track' && (
+          <span
+            className={`health-dot is-${state}`}
+            role="img"
+            aria-label={healthLabel[state]}
+          />
+        )}
+      </button>
+    )
+  }
+  return (
+    <Section
+      title="Projects"
+      action={
+        <AppTooltip instant label="New project" disabled={blocked || !ready}>
+          <button
+            className="icon-btn icon-btn-sm side-section-action"
+            aria-label="New project"
+            disabled={blocked || !ready}
+            onClick={() => app.setProjectEditing('new')}
+          >
+            <Plus aria-hidden="true" />
+          </button>
+        </AppTooltip>
+      }
+    >
+      <button
+        className={`side-row ${app.projectView === 'all' ? 'is-selected' : ''}`}
+        aria-current={app.projectView === 'all' ? 'page' : undefined}
+        disabled={blocked || !ready}
+        onClick={() => app.openProject('all')}
+      >
+        <Briefcase aria-hidden="true" className="ui-icon is-muted" />
+        <span className="side-label">All projects</span>
+        {showCounts && attention > 0 && (
+          <span className="count is-attention" title="Projects that need attention">
+            {attention}
+          </span>
+        )}
+      </button>
+      {dateRow('tasks:today', <Calendar aria-hidden="true" className="ui-icon is-muted" />, 'Due today', dueToday, overdueCount > 0)}
+      {dateRow('tasks:upcoming', <CalendarClock aria-hidden="true" className="ui-icon is-muted" />, 'Upcoming', 0, false)}
+      <button
+        className={`side-row ${app.projectView === 'inbox' ? 'is-selected' : ''}`}
+        aria-current={app.projectView === 'inbox' ? 'page' : undefined}
+        disabled={blocked || !ready}
+        onClick={() => app.openProject('inbox')}
+      >
+        <Inbox aria-hidden="true" className="ui-icon is-muted" />
+        <span className="side-label">Inbox</span>
+        {showCounts && inboxOpen > 0 && <span className="count">{inboxOpen}</span>}
+      </button>
+      {live.filter(isOpenProject).map(projectRow)}
+      {others.length > 0 && (
+        <>
+          <button
+            className="side-row side-row-quiet"
+            aria-expanded={othersOpen}
+            onClick={() => setOthersOpen((open) => !open)}
+          >
+            <span className="side-disclosure" aria-hidden="true">
+              <ChevronRight />
+            </span>
+            <span className="side-label">Other projects</span>
+            {showCounts && <span className="count">{others.length}</span>}
+          </button>
+          {othersOpen && others.map(projectRow)}
+        </>
+      )}
+      {error && (
+        <p role="alert" className="side-hint is-error">
+          {error}
+        </p>
+      )}
+    </Section>
+  )
 }
 
 function useNow(interval: number) {
@@ -379,7 +562,7 @@ function SidebarFooter() {
         <button
           className="icon-btn"
           aria-label="Trash"
-          aria-pressed={app.view === 'trash'}
+          aria-pressed={!app.projectView && app.view === 'trash'}
           disabled={blocked}
           onClick={() => {
             app.setNoteList(true)

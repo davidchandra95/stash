@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -86,7 +87,9 @@ export default function VirtualNoteRows<T extends { id: string }>({
     },
   })
   const previousGeometry = useRef(geometryKey)
-  useLayoutEffect(() => {
+  // Reading layout forces a synchronous reflow, so the margin is measured only when content
+  // above the list can have moved: new items or geometry, or a resize inside the scroller.
+  const measureMargin = useCallback(() => {
     const scroll = scrollRef.current
     const list = listRef.current
     if (!scroll || !list || !scroll.clientWidth) return
@@ -95,14 +98,26 @@ export default function VirtualNoteRows<T extends { id: string }>({
       scroll.getBoundingClientRect().top +
       scroll.scrollTop -
       scroll.clientTop
-    if (nextMargin !== margin) setMargin(nextMargin)
-    if (previousGeometry.current !== geometryKey) {
+    setMargin((current) => (current === nextMargin ? current : nextMargin))
+  }, [scrollRef])
+  useLayoutEffect(() => {
+    measureMargin()
+    const scroll = scrollRef.current
+    if (scroll && previousGeometry.current !== geometryKey) {
       previousGeometry.current = geometryKey
       const offset = scroll.scrollTop
       virtualizer.measure()
       scroll.scrollTop = offset
     }
-  })
+  }, [measureMargin, geometryKey, items])
+  useEffect(() => {
+    const scroll = scrollRef.current
+    if (!scroll || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measureMargin)
+    observer.observe(scroll)
+    for (const child of scroll.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [measureMargin, scrollRef, items])
 
   const requestFocus = (id: string, last = false) => {
     const index = indexById.get(id)
@@ -110,6 +125,30 @@ export default function VirtualNoteRows<T extends { id: string }>({
     setPendingFocus({ id, last })
     virtualizer.scrollToIndex(index, { align: 'auto' })
   }
+  // Stable per row, so memoized rows are not re-rendered by new callbacks.
+  const latestRequestFocus = useRef(requestFocus)
+  latestRequestFocus.current = requestFocus
+  const controlsCache = useRef(new Map<string, RowControls>())
+  const controlsFor = (id: string) => {
+    let controls = controlsCache.current.get(id)
+    if (!controls) {
+      controls = {
+        restoreFocus: () => latestRequestFocus.current(id),
+        onMenuTrackingChange: (open) =>
+          setMenuId((current) => (open ? id : current === id ? null : current)),
+      }
+      controlsCache.current.set(id, controls)
+    }
+    return controls
+  }
+  const virtualItems = virtualizer.getVirtualItems()
+  useLayoutEffect(() => {
+    const cache = controlsCache.current
+    if (cache.size <= virtualItems.length * 2) return
+    const visible = new Set(virtualItems.map((row) => items[row.index]?.id))
+    for (const id of cache.keys()) if (!visible.has(id)) cache.delete(id)
+  })
+
   useImperativeHandle(apiRef, () => ({
     focus: requestFocus,
     hitTest: (clientY) => {
@@ -167,7 +206,7 @@ export default function VirtualNoteRows<T extends { id: string }>({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedId(null)
       }}
     >
-      {virtualizer.getVirtualItems().map((row) => {
+      {virtualItems.map((row) => {
         const item = items[row.index]
         return (
           <div
@@ -181,11 +220,7 @@ export default function VirtualNoteRows<T extends { id: string }>({
             aria-setsize={items.length}
             style={{ transform: `translateY(${row.start - margin}px)` }}
           >
-            {renderRow(item, row.index, {
-              restoreFocus: () => requestFocus(item.id),
-              onMenuTrackingChange: (open) =>
-                setMenuId((current) => (open ? item.id : current === item.id ? null : current)),
-            })}
+            {renderRow(item, row.index, controlsFor(item.id))}
           </div>
         )
       })}

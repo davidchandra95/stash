@@ -1,7 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import HeadingStyles from '../components/HeadingStyles'
-import { accentColors, accents, colorModes } from '../appearance'
+import {
+  accentColors,
+  accents,
+  autoSyncIntervals,
+  autoSyncLabel,
+  colorModes,
+  newNoteTitles,
+} from '../appearance'
+import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
 import {
   ChevronRight,
@@ -13,7 +21,7 @@ import {
   X,
   type IconComponent,
 } from '../icons'
-import type { Appearance, ColorMode } from '../model'
+import type { Appearance, ColorMode, NewNoteTitle } from '../model'
 import { useReducedMotion } from '../motion'
 import { noteListModes, type NoteListMode } from '../noteListPresentation'
 import { library, useLibrarySelector } from '../storage/useLibrary'
@@ -190,6 +198,10 @@ export default function MobileSettings({
   const listMode = useLibrarySelector((state) => state.workspace?.noteListMode ?? 'compact')
   const syncStatus = useLibrarySelector((state) => state.syncStatus)
   const syncing = useLibrarySelector((state) => state.syncing)
+  const notebooks = useLibrarySelector((state) => state.notebooks)
+  const defaultNotebookId = notebooks.some((book) => book.id === value.defaultNotebookId)
+    ? value.defaultNotebookId
+    : ''
   useLayoutEffect(() => {
     if (page.current) page.current.scrollTop = 0
   }, [category, query])
@@ -484,6 +496,73 @@ export default function MobileSettings({
         />
       ),
     },
+    {
+      id: 'spellcheck',
+      category: 'editor',
+      group: 'Writing',
+      search: 'Check spelling spellcheck spell checker typos',
+      content: (
+        <Row label="Check spelling">
+          <Switch
+            label="Check spelling"
+            checked={value.spellcheck}
+            onChange={(checked) => set('spellcheck', checked)}
+          />
+        </Row>
+      ),
+    },
+    {
+      id: 'default-notebook',
+      category: 'editor',
+      group: 'New notes',
+      search: 'Default notebook new notes location uncategorized',
+      content: (
+        <Row label="Default notebook" description="Used outside a notebook view">
+          <select
+            className="select-native"
+            aria-label="Default notebook"
+            value={defaultNotebookId}
+            onChange={(event) => set('defaultNotebookId', event.target.value)}
+          >
+            <option value="">None</option>
+            {orderedNotebooks(notebooks).map((book) => (
+              <option key={book.id} value={book.id}>
+                {notebookPath(book, notebooks)}
+              </option>
+            ))}
+          </select>
+        </Row>
+      ),
+    },
+    {
+      id: 'new-note-title',
+      category: 'editor',
+      group: 'New notes',
+      search: 'New note title first line name',
+      content: (
+        <Row
+          label="Title"
+          description={
+            value.newNoteTitle === 'firstLine'
+              ? 'Start typing in the note; its first line becomes the title'
+              : 'Start in the title field'
+          }
+        >
+          <select
+            className="select-native"
+            aria-label="New note title"
+            value={value.newNoteTitle}
+            onChange={(event) => set('newNoteTitle', event.target.value as NewNoteTitle)}
+          >
+            {(Object.keys(newNoteTitles) as NewNoteTitle[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {newNoteTitles[mode]}
+              </option>
+            ))}
+          </select>
+        </Row>
+      ),
+    },
     ...(syncSettings
       ? [
           {
@@ -518,6 +597,29 @@ export default function MobileSettings({
                   </p>
                 ))}
               </>
+            ),
+          },
+          {
+            id: 'auto-sync',
+            category: 'sync' as const,
+            group: 'Status',
+            search: 'Sync automatically auto sync interval minutes background',
+            content: (
+              <Row label="Sync automatically" description="Waits until you pause typing">
+                <select
+                  className="select-native"
+                  aria-label="Sync automatically"
+                  value={value.autoSyncMinutes}
+                  disabled={!syncStatus?.configured}
+                  onChange={(event) => set('autoSyncMinutes', Number(event.target.value))}
+                >
+                  {autoSyncIntervals.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {autoSyncLabel(minutes)}
+                    </option>
+                  ))}
+                </select>
+              </Row>
             ),
           },
           {

@@ -33,7 +33,9 @@ export function documentText(doc: Node, referenceLabel?: ReferenceLabel): TextSe
         : node.type.name === 'noteReference'
           ? (referenceLabel?.(node.attrs.noteId, node.attrs.fallbackTitle) ??
             node.attrs.fallbackTitle)
-          : ''
+          : node.type.name === 'taskReference'
+            ? String(node.attrs.fallbackTitle ?? '')
+            : ''
     if (text)
       segments.push({
         text,

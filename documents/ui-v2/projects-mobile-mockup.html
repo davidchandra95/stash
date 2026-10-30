@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stash Projects Android</title>
+<style>
+  /* Touch layer over src/styles/tokens.css, as in mobile-mockup.html. See documents/PROJECTS_AND_TASKS.md. */
+  .light {
+    --bg-sidebar: #ececee; --bg-content: #fff; --bg-elevated: rgba(252,252,253,.94); --bg-elevated-solid: #fcfcfd;
+    --text: #1d1d1f; --text-2: rgba(0,0,0,.6); --text-3: rgba(0,0,0,.47); --text-4: rgba(0,0,0,.28);
+    --line: rgba(0,0,0,.09); --line-strong: rgba(0,0,0,.15);
+    --fill-1: rgba(0,0,0,.05); --fill-2: rgba(0,0,0,.08); --fill-3: rgba(0,0,0,.11);
+    --bg-input: rgba(0,0,0,.04); --danger: #d70015; --warning: #a05a00; --success: #248a3d; --accent: #007aff; --on-accent: #fff;
+    --teal: #428e8e; --lavender: #8b75a5; --rose: #a86e72; --sage: #688b60; --slate: #6282ad; --clay: #a37454;
+    --shadow-pop: 0 0 0 .5px rgba(0,0,0,.16), 0 8px 26px rgba(0,0,0,.15), 0 2px 6px rgba(0,0,0,.06);
+    --scrim: rgba(0,0,0,.16); --kbd: #d1d3d9;
+  }
+  .dark {
+    --bg-sidebar: #29292b; --bg-content: #1e1e1f; --bg-elevated: rgba(44,44,46,.95); --bg-elevated-solid: #2c2c2e;
+    --text: rgba(255,255,255,.9); --text-2: rgba(255,255,255,.6); --text-3: rgba(255,255,255,.44); --text-4: rgba(255,255,255,.25);
+    --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.14);
+    --fill-1: rgba(255,255,255,.06); --fill-2: rgba(255,255,255,.09); --fill-3: rgba(255,255,255,.13);
+    --bg-input: rgba(255,255,255,.06); --danger: #ff6961; --warning: #ffb340; --success: #30d158; --accent: #f7821b; --on-accent: #fff;
+    --teal: #75c0c0; --lavender: #bca5d8; --rose: #dd9ea2; --sage: #98bd90; --slate: #91b4e1; --clay: #d7a583;
+    --shadow-pop: 0 0 0 .5px rgba(255,255,255,.12), 0 0 0 1px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.42);
+    --scrim: rgba(0,0,0,.36); --kbd: #2b2b2e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px; background: #d8d8dc; font: 15px/1.4 system-ui, Roboto, sans-serif; color: #1d1d1f; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .lede { margin: 0 0 20px; color: #555; max-width: 70ch; }
+  .phones { display: flex; flex-wrap: wrap; gap: 24px; }
+  figure { margin: 0; }
+  figcaption { margin-top: 8px; font-size: 13px; color: #555; max-width: 320px; }
+  .phone { position: relative; width: 320px; height: 660px; overflow: hidden; border-radius: 28px; background: var(--bg-content); color: var(--text); box-shadow: 0 0 0 8px #111, 0 20px 40px rgba(0,0,0,.3); font-size: 16px; line-height: 22px; display: flex; flex-direction: column; }
+  .status { height: 24px; flex: none; }
+  svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .bar { display: flex; align-items: center; height: 56px; flex: none; padding: 0 4px; border-bottom: 1px solid var(--line); }
+  .bar.plain { border: 0; justify-content: space-between; }
+  .bar h2 { flex: 1; margin: 0 4px; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; color: var(--text-2); flex: none; }
+  .ib.filled { background: var(--fill-1); color: var(--text); }
+  .scroll { flex: 1; overflow: hidden; }
+  .count { margin-left: auto; color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* Drawer */
+  .scrim { position: absolute; inset: 0; background: var(--scrim); }
+  .drawer { position: absolute; top: 0; bottom: 0; left: 0; width: 272px; padding-top: 24px; background: var(--bg-sidebar); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
+  .drawer .head { display: flex; align-items: center; height: 56px; padding: 0 4px 0 16px; }
+  .drawer .head h2 { flex: 1; margin: 0; font-size: 18px; font-weight: 600; }
+  .nav { padding: 0 8px; }
+  .nav a { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 12px; border-radius: 10px; color: var(--text); }
+  .nav a > svg { width: 20px; height: 20px; color: var(--text-2); }
+  .nav a.sel { background: var(--fill-3); }
+  .nav a.sel > svg { color: var(--accent); }
+  .label { display: flex; align-items: center; justify-content: space-between; height: 40px; margin-top: 4px; padding: 0 4px 0 20px; color: var(--text-3); font-size: 13px; font-weight: 600; }
+  .label .ib { width: 40px; height: 40px; }
+  .foot { margin-top: auto; display: flex; gap: 4px; padding: 8px; border-top: 1px solid var(--line); }
+  .foot a { flex: 1; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; border-radius: 10px; color: var(--text); }
+  .foot a svg { color: var(--text-2); width: 20px; height: 20px; }
+  .ring { width: 20px; height: 20px; }
+  .ring circle { fill: none; stroke-width: 2.4; }
+  .ring .bg { stroke: color-mix(in srgb, var(--c) 25%, transparent); }
+  .ring .fg { stroke: var(--c); transform: rotate(-90deg); transform-origin: center; }
+  .ring.planned .fg { display: none; }
+  .ring.planned .bg { stroke: var(--c); stroke-dasharray: 2.2 2.2; }
+  .hd { width: 7px; height: 7px; border-radius: 50%; background: var(--h); }
+
+  /* Project page */
+  .p-head { padding: 12px 16px 14px; border-bottom: 1px solid var(--line); }
+  .p-head h3 { margin: 0; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -.01em; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .pill { height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 10px; border-radius: 18px; background: var(--fill-1); font-size: 14px; }
+  .pill svg { width: 16px; height: 16px; color: var(--text-3); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+  .prog { margin-top: 14px; }
+  .track { height: 6px; border-radius: 3px; background: var(--fill-2); position: relative; overflow: hidden; }
+  .track i { position: absolute; inset: 0 auto 0 0; width: var(--p); background: var(--accent); border-radius: 3px; }
+  .track b { position: absolute; top: 0; bottom: 0; left: var(--t); width: 2px; background: var(--text-3); }
+  .prog-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--text-2); }
+  .prog-line .h { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--warning); }
+  .new-task { display: flex; align-items: center; gap: 12px; height: 48px; margin: 10px 16px 2px; padding: 0 12px; border-radius: 10px; background: var(--bg-input); box-shadow: inset 0 0 0 .5px var(--line); color: var(--text-4); }
+  .new-task svg { width: 20px; height: 20px; color: var(--text-3); }
+  .gh { display: flex; align-items: center; gap: 6px; height: 40px; padding: 8px 20px 0; font-size: 13px; font-weight: 600; color: var(--text-3); }
+  .gh svg { width: 14px; height: 14px; }
+  .task { position: relative; display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 6px 4px 6px 16px; }
+  .task::after { content: ''; position: absolute; left: 52px; right: 0; bottom: 0; height: 1px; background: var(--line); }
+  .task .copy { flex: 1; min-width: 0; }
+  .task .tt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .task .mt { display: flex; gap: 10px; font-size: 13px; color: var(--text-3); line-height: 18px; }
+  .task .late { color: var(--danger); } .task .soon { color: var(--warning); }
+  .task.pressed { background: var(--fill-1); }
+  .cb { width: 22px; height: 22px; border-radius: 6px; flex: none; box-shadow: inset 0 0 0 1.5px var(--line-strong); position: relative; display: grid; place-items: center; color: var(--on-accent); }
+  .cb.on { background: var(--accent); box-shadow: none; }
+  .cb.on svg { width: 15px; height: 15px; stroke-width: 3; }
+  .cb.doing { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .cb.doing::after { content: ''; position: absolute; inset: 5px 5px 5px 11px; border-radius: 0 2px 2px 0; background: var(--accent); }
+  .cb.sm { width: 16px; height: 16px; border-radius: 4px; }
+  .cb.sm svg { width: 11px; height: 11px; }
+  .cb.sm.doing::after { inset: 4px 4px 4px 8px; }
+
+  /* Task detail */
+  .d { padding: 12px 16px; }
+  .d-title { display: flex; gap: 12px; align-items: flex-start; }
+  .d-title .cb { margin-top: 4px; }
+  .d-title h3 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 650; }
+  .group { margin-top: 16px; border-radius: 12px; background: var(--fill-1); box-shadow: inset 0 0 0 .5px var(--line); }
+  .pr { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 16px; }
+  .pr + .pr { border-top: 1px solid var(--line); }
+  .pr .k { width: 72px; color: var(--text-3); font-size: 14px; }
+  .pr .v { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+  .pr .v svg { width: 16px; height: 16px; }
+  .pr .chev { width: 16px; height: 16px; color: var(--text-4); }
+  .gt { margin: 18px 4px 8px; color: var(--text-3); font-size: 13px; font-weight: 600; }
+  .desc { padding: 12px 14px; border-radius: 12px; background: var(--bg-input); box-shadow: inset 0 0 0 .5px var(--line); font-size: 15px; line-height: 22px; }
+
+  /* Note + picker */
+  .note { padding: 4px 20px; }
+  .meta { color: var(--text-3); font-size: 12px; margin-bottom: 4px; }
+  .note h3 { margin: 0 0 12px; font-size: 26px; line-height: 1.25; font-weight: 700; letter-spacing: -.015em; }
+  .note p { margin: 0 0 10px; font-size: 16px; line-height: 1.6; }
+  .tr { display: inline-flex; align-items: center; gap: 6px; padding: 1px 6px 1px 4px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); vertical-align: 1px; line-height: 22px; }
+  .tr .due { font-size: 13px; color: var(--text-3); }
+  .tr .due.late { color: var(--danger); }
+  .typing { color: var(--accent); }
+  .caret { display: inline-block; width: 2px; height: 20px; background: var(--accent); vertical-align: -4px; }
+  .kb { position: absolute; left: 0; right: 0; bottom: 0; height: 200px; background: var(--kbd); display: grid; place-items: center; color: var(--text-3); font-size: 13px; }
+  .picker { position: absolute; left: 8px; right: 8px; bottom: 208px; padding: 6px; border-radius: 16px; background: var(--bg-elevated); backdrop-filter: blur(24px); box-shadow: var(--shadow-pop); }
+  .pk-h { padding: 6px 10px 2px; font-size: 13px; font-weight: 600; color: var(--text-3); }
+  .pk { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 10px; border-radius: 10px; }
+  .pk .lb { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk .ctx { font-size: 13px; color: var(--text-3); }
+  .pk.pressed { background: var(--fill-2); }
+  .pk.done .lb { color: var(--text-3); text-decoration: line-through; }
+
+  .notes { margin-top: 28px; max-width: 80ch; font-size: 14px; color: #333; }
+  .notes li { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<h1>Stash for Android: projects and tasks</h1>
+<p class="lede">The desktop project page as a stack: drawer → project → task. Same tokens, touch geometry (48px targets, 44px+ rows). Task mentions in notes render and toggle as on desktop; the <code>@</code> picker rides above the keyboard.</p>
+<svg style="display:none">
+  <symbol id="menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="morev" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="files" viewBox="0 0 24 24"><path d="M15 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6z"/><path d="M3 7v13a2 2 0 0 0 2 2h10"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="todo" viewBox="0 0 24 24"><path d="M3 5h4v4H3zM3 15h4v4H3zM11 7h10M11 17h10"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
+  <symbol id="book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="sync" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="range" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M7 14h10"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></symbol>
+</svg>
+
+<div class="phones">
+  <figure>
+    <div class="phone light">
+      <div class="status"></div>
+      <div class="bar"><span class="ib"><svg><use href="#menu"/></svg></span><h2>Website relaunch</h2></div>
+      <div class="scrim"></div>
+      <div class="drawer">
+        <div class="head"><h2>Stash</h2><span class="ib"><svg><use href="#x"/></svg></span></div>
+        <div class="nav">
+          <a><svg><use href="#files"/></svg>All notes<span class="count">24</span></a>
+          <a><svg><use href="#cal"/></svg>Today<span class="count">3</span></a>
+          <a><svg><use href="#todo"/></svg>To-do<span class="count">4</span></a>
+        </div>
+        <div class="label">Notebooks<span class="ib"><svg><use href="#plus"/></svg></span></div>
+        <div class="nav">
+          <a><svg style="color:var(--sage)"><use href="#book"/></svg>Personal<span class="count">9</span></a>
+          <a><svg style="color:var(--slate)"><use href="#book"/></svg>Work<span class="count">7</span></a>
+        </div>
+        <div class="label">Projects<span class="ib"><svg><use href="#plus"/></svg></span></div>
+        <div class="nav">
+          <a><svg><use href="#inbox"/></svg>Inbox<span class="count">3</span></a>
+          <a class="sel"><svg class="ring" viewBox="0 0 16 16" style="--c:var(--teal)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="20.7 37.7"/></svg>Website relaunch<span class="hd" style="--h:var(--warning);margin-left:auto"></span></a>
+          <a><svg class="ring" viewBox="0 0 16 16" style="--c:var(--lavender)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="30.2 37.7"/></svg>Q4 budget review</a>
+          <a><svg class="ring planned" viewBox="0 0 16 16" style="--c:var(--sage)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6"/></svg>Garden redesign</a>
+        </div>
+        <div class="foot"><a><svg><use href="#sync"/></svg>Sync</a><a><svg><use href="#gear"/></svg>Settings</a></div>
+      </div>
+    </div>
+    <figcaption>Drawer gains a Projects section after Notebooks: Inbox, then active and planned projects with a progress ring and a health dot when at risk or overdue.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone light">
+      <div class="status"></div>
+      <div class="bar"><span class="ib"><svg><use href="#menu"/></svg></span><h2></h2><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="scroll">
+        <div class="p-head">
+          <h3>Website relaunch</h3>
+          <div class="pills">
+            <span class="pill"><span class="dot" style="--c:var(--accent)"></span>Active</span>
+            <span class="pill"><svg><use href="#range"/></svg>Oct 6 – Nov 28</span>
+            <span class="pill" style="color:var(--accent)"><svg style="color:var(--teal)"><use href="#book"/></svg>Notebook</span>
+          </div>
+          <div class="prog">
+            <div class="track" style="--p:55%;--t:68%"><i></i><b></b></div>
+            <div class="prog-line"><span><b style="color:var(--text)">6 of 11</b> done</span><span class="h"><span class="hd" style="--h:var(--warning)"></span>At risk</span></div>
+          </div>
+        </div>
+        <div class="new-task"><svg><use href="#plus"/></svg>New task</div>
+        <div class="gh"><svg><use href="#chev"/></svg>Doing · 2</div>
+        <div class="task pressed"><span class="cb doing"></span><div class="copy"><div class="tt">Write homepage copy</div><div class="mt"><span class="soon">Nov 4</span><span>High</span></div></div><span class="ib"><svg><use href="#morev"/></svg></span></div>
+        <div class="task"><span class="cb doing"></span><div class="copy"><div class="tt">Pick a typeface pairing</div><div class="mt"><span>Nov 7</span></div></div><span class="ib"><svg><use href="#morev"/></svg></span></div>
+        <div class="gh"><svg><use href="#chev"/></svg>To do · 3</div>
+        <div class="task"><span class="cb"></span><div class="copy"><div class="tt">Migrate blog posts from the old CMS</div><div class="mt"><span class="late">Oct 27</span><span>Medium</span></div></div><span class="ib"><svg><use href="#morev"/></svg></span></div>
+        <div class="task"><span class="cb"></span><div class="copy"><div class="tt">Set up redirects</div><div class="mt"><span>Nov 18</span></div></div><span class="ib"><svg><use href="#morev"/></svg></span></div>
+      </div>
+    </div>
+    <figcaption>Project page. Header pills open bottom sheets (status, dates, notebook). The new-task row stays at the top; tapping a checkbox completes, tapping the row opens the task, ⋮ opens the task sheet.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone dark">
+      <div class="status"></div>
+      <div class="bar"><span class="ib"><svg><use href="#back"/></svg></span><h2 style="font-size:16px;color:var(--text-2);font-weight:500">Website relaunch</h2><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="scroll d">
+        <div class="d-title"><span class="cb doing"></span><h3>Write homepage copy</h3></div>
+        <div class="group">
+          <div class="pr"><span class="k">Status</span><span class="v"><span class="dot" style="--c:var(--accent)"></span>Doing</span><svg class="chev"><use href="#chevr"/></svg></div>
+          <div class="pr"><span class="k">Priority</span><span class="v">High</span><svg class="chev"><use href="#chevr"/></svg></div>
+          <div class="pr"><span class="k">Project</span><span class="v">Website relaunch</span><svg class="chev"><use href="#chevr"/></svg></div>
+          <div class="pr"><span class="k">Due</span><span class="v" style="color:var(--warning)">Nov 4 · in 5 days</span><svg class="chev"><use href="#chevr"/></svg></div>
+        </div>
+        <div class="gt">Description</div>
+        <div class="desc">Hero, three feature blocks and the pricing teaser. Keep the hero under 12 words.</div>
+        <div class="gt">Mentioned in · 2</div>
+        <div class="group" style="margin-top:0">
+          <div class="pr"><svg style="width:20px;height:20px;color:var(--text-3)"><use href="#file"/></svg><span class="v">Kickoff notes</span><svg class="chev"><use href="#chevr"/></svg></div>
+          <div class="pr"><svg style="width:20px;height:20px;color:var(--text-3)"><use href="#file"/></svg><span class="v">Weekly review — Oct 27</span><svg class="chev"><use href="#chevr"/></svg></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Task page, dark, orange accent. Properties are 48px rows that open pickers in bottom sheets. Start date is hidden until set (added from ⋮).</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone light">
+      <div class="status"></div>
+      <div class="bar plain"><span class="ib filled"><svg><use href="#back"/></svg></span><span class="ib filled"><svg><use href="#morev"/></svg></span></div>
+      <div class="note">
+        <div class="meta">Edited today · 182 words</div>
+        <h3>Kickoff notes</h3>
+        <p>Copy: <span class="tr"><span class="cb sm doing"></span>Write homepage copy<span class="due">Nov 4</span></span> first.</p>
+        <p>Ask about <span class="typing">@lau</span><span class="caret"></span></p>
+      </div>
+      <div class="picker">
+        <div class="pk-h">Tasks</div>
+        <div class="pk pressed"><span class="cb sm"></span><span class="lb">Launch announcement email</span><span class="ctx">Website…</span></div>
+        <div class="pk"><span class="cb sm"></span><span class="lb">Plan launch party</span><span class="ctx">Inbox</span></div>
+        <div class="pk done"><span class="cb sm on"><svg><use href="#check"/></svg></span><span class="lb">Launch checklist draft</span></div>
+      </div>
+      <div class="kb">Keyboard</div>
+    </div>
+    <figcaption>Mentions in a note: tap the checkbox to toggle the task, tap the title to open it. Typing <code>@</code> at the start of a word opens the picker above the keyboard; done tasks sit below open ones.</figcaption>
+  </figure>
+</div>
+
+<ol class="notes">
+  <li>Projects reuse the drawer, bar, group and sheet patterns from <code>mobile-mockup.html</code>; no new colors.</li>
+  <li>Project and task actions (status, priority, dates, move, copy link, delete) open bottom sheets with 48px rows, like note actions.</li>
+  <li>The project page and task page are stack screens; Android back returns to the previous one.</li>
+  <li>The <code>@</code> picker uses the same floating surface as the formatting bar and stays above the keyboard; it closes on Esc, back, or when the word ends.</li>
+</ol>
+</body>
+</html>
