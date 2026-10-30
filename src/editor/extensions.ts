@@ -18,6 +18,7 @@ import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
 import { Typing } from './typing'
 import { NoteReference } from './noteReferences'
+import { TaskReference } from './taskReferences'
 import { BodyTagMark } from './tagMark'
 import { BodyTags } from './bodyTags'
 import { Slash } from './slash'
@@ -73,5 +74,6 @@ export const writingExtensions = [
   BodyTags,
   Slash,
   NoteReference,
+  TaskReference,
   Clipboard,
 ]

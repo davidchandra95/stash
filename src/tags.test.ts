@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { legacyTagName, tagMatches, tagsFromText } from './tags'
+import { legacyTagName, tagMatches, tagsFromText, tagTone, tagTones } from './tags'
 
 describe('body hashtags', () => {
   it('finds body tags, trims closing sentence punctuation, and preserves non-space names', () => {
@@ -24,4 +24,9 @@ describe('body hashtags', () => {
     expect(legacyTagName('###already-good')).toBe('already-good')
     expect(legacyTagName('   ')).toBeUndefined()
   })
+})
+
+it('gives each tag one stable tone regardless of case', () => {
+  expect(tagTones).toContain(tagTone('ideas'))
+  expect(tagTone('Ideas')).toBe(tagTone('ideas'))
 })

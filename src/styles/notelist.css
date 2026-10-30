@@ -137,14 +137,16 @@
 .note-row.is-selected {
   background: var(--fill-3);
 }
+/* The active selection is an accent tint, so the accent marks it without flooding the row. */
 .window[data-active-pane='list']:not(.is-inactive) .note-row.is-selected {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
 }
 .window[data-active-pane='list']:not(.is-inactive)
   .note-row.is-selected
-  :is(.note-row-meta, .note-list-notebook, .note-row-preview, .note-row-pin) {
-  color: color-mix(in srgb, var(--on-accent) 80%, transparent);
+  :is(.note-row-meta, .note-row-preview, .note-row-pin) {
+  color: var(--text-3);
 }
 /* A row whose context menu is open gets the macOS accent outline. */
 .note-row[data-state='open']:not(.is-selected) {
@@ -196,4 +198,10 @@
 }
 .window.layout-cards .note-row.has-divider::after {
   display: none;
+}
+
+/* Notebook names take their notebook's color. */
+.note-list-notebook {
+  color: color-mix(in srgb, var(--chip-color, var(--text-3)) 85%, var(--text-3));
+  font-weight: 500;
 }

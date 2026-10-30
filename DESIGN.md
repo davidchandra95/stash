@@ -11,8 +11,10 @@ lists what changes for touch. Shared components must keep working on both.
 
 ## Principles
 
-1. **Native first.** Use macOS conventions: system font, traffic lights, translucent sidebar,
-   accent-colored selection, native context menus, 42px unified toolbar rows.
+1. **Native first, by default.** The Native theme uses macOS conventions: system font, traffic
+   lights, translucent sidebar, native context menus, 42px unified toolbar rows. Color comes
+   from the shared tones, not from flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
+   mixing them with their own look.
 2. **Compact by default.** 28px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
    to make something look important.
 3. **One way to do each thing.** Tokens and shared classes own geometry and color. Area
@@ -25,6 +27,7 @@ lists what changes for touch. Shared components must keep working on both.
 | Area                     | Code                                                     | Styles                                              |
 | ------------------------ | -------------------------------------------------------- | --------------------------------------------------- |
 | Tokens, base, controls   | –                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
+| Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`)  | `src/styles/theme-workspace.css`                    |
 | Menus, popovers, dialogs | Radix + `components/*`                                   | `src/styles/floating.css`, `dialogs.css`            |
 | Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`              | `src/styles/shell.css`                              |
 | Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`     | `src/styles/sidebar.css`                            |
@@ -36,6 +39,7 @@ lists what changes for touch. Shared components must keep working on both.
 | Settings                 | `src/app/Settings.tsx`                                   | `src/styles/settings.css`                           |
 | Android                  | `src/mobile/*`                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
 | PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
+| Projects and tasks       | `src/projects/*`                                         | `src/styles/projects.css`                           |
 
 All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
 `useApp()` and render; they don't own workspace logic. Panes are wrapped in `trackApp()`
@@ -72,12 +76,43 @@ when a token exists.
   light and a dark value at matched lightness and chroma. Notebooks store the preset's light
   hex; paint them with `notebookColorValue()` so presets follow the color mode, older hexes map
   to the nearest preset, and custom colors are pulled slightly toward `--text`.
+- **Interface theme** is `<html data-ui="native|workspace">`, set by `useDocumentTheme` from
+  `appearance.interfaceTheme`. See [Themes](#themes).
 - **Color mode** is `<html data-theme="light|dark">`. Portaled menus and dialogs inherit it;
   never put `data-theme` on individual surfaces.
 
+## Themes
+
+Settings › Appearance › Theme. Native is the default.
+
+- **Native** follows macOS: vibrancy, the macOS accent for the automatic accent, AppKit context
+  menus, translucent floating surfaces.
+- **Workspace** (`theme-workspace.css`): a pill-grey frame (`#eef0f4` / dark `#0e1520`) with the
+  notes list and editor in one bordered white content card (1px `#dfe4e7`, 8px radius, 8px
+  inset), slate text (`#1f2a3a` ink, `#686878` secondary, `#62748e` meta), navy note
+  headings (`--text-heading` `#08093f`), and indigo (`#494bcb` / dark `#7577e6`) as the
+  automatic accent, kept for selection, focus and primary buttons. Floating surfaces are opaque
+  and bordered (no blur); notices are navy `#1e2433`; field errors sit on `--danger-soft`;
+  search marks use gold `#f2b01e`.
+  The selected sidebar row is lifted onto the card color with a hairline border.
+  Desktop UI type drops to 13px; Android keeps its touch sizes. It turns off vibrancy (the
+  Translucent sidebar setting is disabled) and native context menus, so the themed Radix menus
+  show instead.
+- **Color tones** (every theme, defined in `tokens.css`):
+  `--tone-indigo|blue|teal|green|gold|orange|pink|purple|slate`, picked with `data-tone`. Sidebar view icons sit in tinted 19px tiles (All notes indigo, Today
+  orange, To-do green, Uncategorized slate, Pinned gold, Quick Access purple). Tags get a stable
+  tone from `tagTone()` (`src/tags.ts`) in the sidebar and in note text. Notebook chips and the
+  notes-list notebook label take their notebook color through `--chip-color`. The rules live
+  in the area stylesheets (`controls.css`, `sidebar.css`, `editor.css`, `notelist.css`,
+  `document.css`); themes change only the tone values.
+- A theme only overrides tokens, plus the few surface rules it can't express with tokens. Area
+  stylesheets stay theme-agnostic. Put a new theme in its own `theme-*.css`, imported right
+  after `tokens.css` in both style entries.
+
 ## Surfaces
 
-- The sidebar is the only translucent pane. With the native Mac app and "Translucent sidebar"
+- The sidebar is the only translucent pane. Its material is dense (`--bg-sidebar-translucent`,
+  about 80% neutral) so the wallpaper doesn't tint it. With the native Mac app and "Translucent sidebar"
   on, the window uses the macOS sidebar material and the page is transparent behind the
   sidebar (`:root[data-vibrancy]`). Otherwise it is `--bg-sidebar`.
 - The notes list and editor are `--bg-content` with 1px `--line` dividers. No cards, no gaps.
@@ -95,10 +130,11 @@ when a token exists.
 
 ## Selection, hover, focus
 
-- Sidebar view icons rest in `--text-2`; the selected row is `--fill-3` with an accent icon
-  (`--text-2` while the window is inactive). Notebook icons keep their notebook color.
-- Notes list selection: accent fill with `--on-accent` text while the list is the active pane
-  (`.window[data-active-pane='list']`) and the window is key; otherwise `--fill-3`.
+- Sidebar view icons sit in their tone tiles; the selected row is `--fill-3`. Notebook icons
+  keep their notebook color.
+- Notes list selection: `--accent-soft` with a 1px accent hairline while the list is the active
+  pane (`.window[data-active-pane='list']`) and the window is key; otherwise `--fill-3`. Text
+  keeps `--text`, so the accent never floods the row.
 - Menus, palette rows and slash menus highlight with the accent fill.
 - Hover is always a neutral `--fill-1`. Pressed or open controls use `--fill-2`.
 - Cursors: clickable controls (buttons, tabs, menu items, options, links) show `pointer`;
@@ -124,6 +160,12 @@ when a token exists.
   view options" menu, New note. Editor bar: Back/Forward, tabs, note controls (Focus mode, Table
   of contents, Find in note, Note actions).
 - Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
+- The app has two areas, Notes and Projects. The domain switcher at the top of the sidebar
+  (above Search) picks one, as do Show Notes (⌘1) and Show Projects (⌘2). The sidebar below it
+  belongs to the active area; Search stays first in both. Switching to Projects reopens the
+  project page last open there (Due today by default).
+- A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
+  it and returns to Notes. Selecting a task adds a detail panel on the right.
 - The sidebar footer holds sync status, Trash and Settings. There is no account menu.
 - Settings opens centered and can be dragged by its title bars, staying inside the window; it
   re-centers each time it opens.
@@ -153,6 +195,42 @@ Use the shared classes before writing new CSS:
   (`src/nativeContextMenu.ts`); keep their actions identical to the Radix menus.
 - All hover hints use `AppTooltip`. Icon-only buttons pass `instant`; everything else uses the
   700ms delay.
+
+## Domain switcher
+
+- It is app-level navigation, so it must not look like a sidebar row: a 40px `--bg-content`
+  button with `--shadow-control` and `--radius-lg`, a 28px solid icon tile, the area name in
+  one line (15px, 700) and a ChevronsUpDown. A gap separates it from Search.
+- Area tiles use a gradient of the area's `data-tone` (Notes indigo, Projects orange) with a
+  white icon (`--bg-content` in dark mode). Row icons keep their 15% tinted tiles.
+- It opens a Radix `.menu` listing each area with its tile, a check on the current one and its
+  shortcut. A red count badge shows overdue tasks on Projects, and on the button while Notes is
+  shown.
+- Add an area only when a real domain ships; the switcher is not a launcher.
+
+## Projects and tasks
+
+- Sidebar projects show a 17px progress ring in the project color (dashed while planned) and a
+  6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
+  collapsed "Other projects" row.
+- Task checkboxes: empty for to do, half-filled with the accent for doing, accent-filled for
+  done. Done and cancelled titles are struck through in `--text-3`.
+- Task rows are 34px with inset dividers; selection uses the notes-list treatment
+  (`--accent-soft` with an accent hairline). Due dates turn `--warning` within two days and
+  `--danger` when late. Priority is three bars; high is `--danger`.
+- The project header's progress bar marks the elapsed share of the project's dates.
+- Board columns are `--fill-1` panels (radius `--radius-lg`) holding `--bg-content` cards with
+  `--shadow-card`; the drop position is a 2px accent line, and the target column gets an accent
+  inset outline. Timeline bars use the project color at 28% with the done share filled solid;
+  today is a 1.5px `--danger` line.
+- All projects is a full-width table (38px rows, sortable column headers, `--line` row dividers)
+  that opens a project on click or Return. Missing values render in `--text-4`.
+- A task mention in a note is an inline chip with a `--line` outline: checkbox, title, due
+  date. A missing or deleted task uses a dashed outline and muted text. Typing `@` at the start
+  of a word opens a task picker built from the note-link menu rows; it shows nothing, rather than
+  an empty state, when no task matches.
+- Task and project menus are Radix menus on every platform; destructive items use
+  `.menu-item.is-danger`.
 
 ## Writing surface
 
@@ -221,7 +299,7 @@ surfaces. Don't add colors there; use the tokens.
 
 ## Review checklist
 
-- Check 1280×800 and 900×650 in light and dark, with two or more accent colors.
+- Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors.
 - For Android changes, check `?mobile=1` at 390×844 and 844×390 in light and dark, plus a short
   viewport (about 844×260) for the keyboard-open case.
 - Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, and Settings at a

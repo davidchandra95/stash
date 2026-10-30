@@ -108,3 +108,17 @@ export function tagFooterContent(tags: string[]): import('@tiptap/core').JSONCon
     ],
   }
 }
+
+/** Color tones for tags; themes that color tags define `--tone-<name>` for each. */
+export const tagTones = ['indigo', 'blue', 'teal', 'green', 'gold', 'orange', 'pink', 'purple']
+
+/** A stable tone for a tag, so it keeps its color everywhere it appears. */
+export function tagTone(tag: string) {
+  // FNV-1a spreads short, similar words across tones better than a plain rolling hash.
+  let hash = 2166136261
+  for (const char of tag.toLowerCase()) {
+    hash ^= char.codePointAt(0)!
+    hash = Math.imul(hash, 16777619) >>> 0
+  }
+  return tagTones[hash % tagTones.length]
+}

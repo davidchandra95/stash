@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { AccentColor, Appearance, ColorMode, NewNoteTitle, WindowLayout } from './model'
+import type {
+  AccentColor,
+  Appearance,
+  ColorMode,
+  InterfaceTheme,
+  NewNoteTitle,
+  WindowLayout,
+} from './model'
 
 export const colorModes: Record<ColorMode, string> = {
   light: 'Light',
@@ -24,6 +31,15 @@ export const accents: Record<
   graphite: { label: 'Graphite', light: '#808080', dark: '#8c8c8c' },
 }
 export const accentColors = Object.keys(accents) as (keyof typeof accents)[]
+
+export const interfaceThemes: Record<InterfaceTheme, string> = {
+  native: 'Native',
+  workspace: 'Workspace',
+}
+/** The accent a theme uses when the accent setting is `system`; native follows macOS. */
+export const themeAccents: Partial<Record<InterfaceTheme, { light: string; dark: string }>> = {
+  workspace: { light: '#494bcb', dark: '#7577e6' },
+}
 
 const colorModeValues: ColorMode[] = ['light', 'dark', 'system']
 export const layouts: WindowLayout[] = ['standard', 'cards']
@@ -58,6 +74,9 @@ export function normalizeAppearance(
         ? 'dark'
         : 'light'
       : defaults.colorMode
+  const interfaceTheme = Object.hasOwn(interfaceThemes, rest.interfaceTheme as string)
+    ? (rest.interfaceTheme as InterfaceTheme)
+    : defaults.interfaceTheme
   const accent = accentValues.includes(rest.accent as AccentColor)
     ? (rest.accent as AccentColor)
     : defaults.accent
@@ -65,6 +84,7 @@ export function normalizeAppearance(
     ...defaults,
     ...rest,
     colorMode,
+    interfaceTheme,
     accent,
     translucentSidebar:
       typeof rest.translucentSidebar === 'boolean'
@@ -127,27 +147,41 @@ function useSystemAccentValue() {
   )
 }
 
-export function accentValue(accent: AccentColor, dark: boolean, system: string | null) {
-  if (accent === 'system') return { color: system ?? accents.blue[dark ? 'dark' : 'light'] }
+export function accentValue(
+  accent: AccentColor,
+  dark: boolean,
+  system: string | null,
+  theme: InterfaceTheme = 'native',
+) {
+  if (accent === 'system') {
+    const themed = themeAccents[theme]
+    if (themed) return { color: themed[dark ? 'dark' : 'light'] }
+    return { color: system ?? accents.blue[dark ? 'dark' : 'light'] }
+  }
   const choice = accents[accent]
   return { color: choice[dark ? 'dark' : 'light'], ink: choice.ink }
 }
 
 /**
- * Applies color mode and accent to the document root, so portaled menus and dialogs
- * share the workspace theme without carrying their own theme attributes.
+ * Applies color mode, interface theme and accent to the document root, so portaled menus and
+ * dialogs share the workspace theme without carrying their own theme attributes.
  */
-export function useDocumentTheme(appearance: Pick<Appearance, 'colorMode' | 'accent'>) {
+export function useDocumentTheme(
+  appearance: Pick<Appearance, 'colorMode' | 'accent'> &
+    Partial<Pick<Appearance, 'interfaceTheme'>>,
+) {
   const dark = useResolvedDark(appearance.colorMode)
   const system = useSystemAccentValue()
-  const { color, ink } = accentValue(appearance.accent, dark, system)
+  const theme = appearance.interfaceTheme ?? 'native'
+  const { color, ink } = accentValue(appearance.accent, dark, system, theme)
   useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme = dark ? 'dark' : 'light'
+    root.dataset.ui = theme
     root.style.colorScheme = dark ? 'dark' : 'light'
     root.style.setProperty('--accent', color)
     root.style.setProperty('--on-accent', ink ?? '#ffffff')
-  }, [dark, color, ink])
+  }, [dark, color, ink, theme])
   return dark
 }
 

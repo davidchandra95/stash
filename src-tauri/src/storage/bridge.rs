@@ -352,3 +352,21 @@ pub async fn list_pdf_companions(service: tauri::State<'_, Arc<Service>>) -> Res
 pub async fn ensure_pdf_companion(document_id: String, service: tauri::State<'_, Arc<Service>>) -> Result<Note> {
     work(service.inner().clone(), move |s| s.ensure_pdf_companion(&document_id)).await
 }
+#[tauri::command]
+pub async fn list_projects(service: tauri::State<'_, Arc<Service>>) -> Result<projects::ProjectData> {
+    work(service.inner().clone(), |s| s.project_data()).await
+}
+#[tauri::command]
+pub async fn save_projects(
+    changes: projects::ProjectChanges,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<projects::ProjectData> {
+    work(service.inner().clone(), move |s| s.save_project_changes(&changes)).await
+}
+#[tauri::command]
+pub async fn task_mentions(
+    task_id: String,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<Vec<String>> {
+    work(service.inner().clone(), move |s| s.task_mentions(&task_id)).await
+}

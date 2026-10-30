@@ -8,6 +8,8 @@ import {
   autoSyncLabel,
   colorModes,
   newNoteTitles,
+  interfaceThemes,
+  themeAccents,
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
@@ -21,7 +23,7 @@ import {
   X,
   type IconComponent,
 } from '../icons'
-import type { Appearance, ColorMode, NewNoteTitle } from '../model'
+import type { Appearance, ColorMode, InterfaceTheme, NewNoteTitle } from '../model'
 import { useReducedMotion } from '../motion'
 import { noteListModes, type NoteListMode } from '../noteListPresentation'
 import { library, useLibrarySelector } from '../storage/useLibrary'
@@ -243,7 +245,31 @@ export default function MobileSettings({
     )
   }
 
+  const themeAccent = themeAccents[value.interfaceTheme]
   const items: Item[] = [
+    {
+      id: 'interface-theme',
+      category: 'appearance',
+      group: '',
+      search: 'Theme interface style native workspace indigo bordered',
+      content: (
+        <Row label="Theme">
+          <span className="segmented" role="radiogroup" aria-label="Theme">
+            {(Object.keys(interfaceThemes) as InterfaceTheme[]).map((theme) => (
+              <button
+                key={theme}
+                type="button"
+                role="radio"
+                aria-checked={value.interfaceTheme === theme}
+                onClick={() => set('interfaceTheme', theme)}
+              >
+                {interfaceThemes[theme]}
+              </button>
+            ))}
+          </span>
+        </Row>
+      ),
+    },
     {
       id: 'color-mode',
       category: 'appearance',
@@ -278,8 +304,20 @@ export default function MobileSettings({
       search: 'Accent color highlight selection blue purple pink red orange yellow green graphite',
       content: (
         <Row label="Accent color" stacked>
-          {/* Android doesn't report an accent color, so the automatic choice shows as Blue. */}
+          {/* Android doesn't report an accent color, so the automatic choice shows as Blue
+              unless the theme brings its own accent. */}
           <span className="accent-options" role="radiogroup" aria-label="Accent color">
+            {themeAccent && (
+              <button
+                type="button"
+                role="radio"
+                className="accent-option"
+                aria-label="Theme accent"
+                aria-checked={value.accent === 'system'}
+                style={{ '--swatch': themeAccent.light } as React.CSSProperties}
+                onClick={() => set('accent', 'system')}
+              />
+            )}
             {accentColors.map((accent) => (
               <button
                 key={accent}
@@ -288,7 +326,8 @@ export default function MobileSettings({
                 className="accent-option"
                 aria-label={accents[accent].label}
                 aria-checked={
-                  value.accent === accent || (accent === 'blue' && value.accent === 'system')
+                  value.accent === accent ||
+                  (!themeAccent && accent === 'blue' && value.accent === 'system')
                 }
                 style={{ '--swatch': accents[accent].light } as React.CSSProperties}
                 onClick={() => set('accent', accent)}

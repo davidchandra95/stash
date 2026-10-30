@@ -173,6 +173,7 @@ export default function NoteDocument() {
                 <button
                   data-motion-key={`book:${book.id}`}
                   className="chip note-chip"
+                  style={{ '--chip-color': notebookColorValue(book.color) } as React.CSSProperties}
                   aria-label={book.rootId ? `File folder: ${path}` : `Remove from ${path}`}
                   disabled={!!book.rootId}
                   onClick={() =>

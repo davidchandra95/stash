@@ -16,8 +16,11 @@ export interface NoteLinkContext {
   create: (title: string) => NoteCandidate | undefined
   open: (id: string, newTab?: boolean) => void
   contextMenu?: (id: string, position: { x: number; y: number }) => void
+  /** Opens a mentioned task in its project. */
+  openTask?: (id: string) => void
 }
 const contexts = new WeakMap<Editor, NoteLinkContext>()
+export const noteLinkContext = (editor: Editor) => contexts.get(editor)
 const labelListeners = new WeakMap<Editor, Set<() => void>>()
 export function setNoteLinkContext(editor: Editor, context: NoteLinkContext) {
   contexts.set(editor, context)

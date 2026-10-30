@@ -48,6 +48,82 @@ describe('Markdown block boundaries', () => {
 })
 
 describe('file-backed Markdown', () => {
+  it.each(['*', '-', '1.', '- [x]'])(
+    'renders links and inline formatting in tight %s list items',
+    (marker) => {
+      const source = `${marker} [Guide](https://example.com/guide) with **bold**, *italic*, and \`code\`\n`
+      const editor = new Editor({ extensions: markdownExtensions, content: parseMarkdown(source) })
+      try {
+        const item = editor.view.dom.querySelector('li')!
+        expect(item.querySelector('a')?.textContent).toBe('Guide')
+        expect(item.querySelector('a')?.getAttribute('href')).toBe('https://example.com/guide')
+        expect(item.querySelector('strong')?.textContent).toBe('bold')
+        expect(item.querySelector('em')?.textContent).toBe('italic')
+        expect(item.querySelector('code')?.textContent).toBe('code')
+        expect(serializeMarkdown(editor.getJSON(), source)).toBe(source)
+      } finally {
+        editor.destroy()
+      }
+    },
+  )
+
+  it('renders links in nested and loose list paragraphs', () => {
+    const source =
+      '- [Top](top.md)\n  - **[Child](child.md)**\n\n    Continued *[guide](guide.md)*.\n\n- [x] [Done](done.md)\n'
+    const editor = new Editor({ extensions: markdownExtensions, content: parseMarkdown(source) })
+    try {
+      expect([...editor.view.dom.querySelectorAll('li a')].map((a) => a.textContent)).toEqual([
+        'Top',
+        'Child',
+        'guide',
+        'Done',
+      ])
+      expect(editor.view.dom.querySelector('li li a[href="child.md"]')?.textContent).toBe('Child')
+      expect(editor.view.dom.querySelector('li li strong')?.textContent).toBe('Child')
+      expect(editor.view.dom.querySelector('li li a[href="guide.md"]')?.textContent).toBe('guide')
+      expect(editor.view.dom.querySelector('li li em')?.textContent).toBe('guide')
+      expect(serializeMarkdown(editor.getJSON(), source)).toBe(source)
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('keeps reference links in list items resolved without changing their source', () => {
+    const source = '- [Guide][guide]\n\n[guide]: docs/guide.md "Guide"\n'
+    const editor = new Editor({ extensions: markdownExtensions, content: parseMarkdown(source) })
+    try {
+      const link = editor.view.dom.querySelector('li a')!
+      expect(link.textContent).toBe('Guide')
+      expect(link.getAttribute('href')).toBe('docs/guide.md')
+      expect(serializeMarkdown(editor.getJSON(), source)).toBe(source)
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('retains list formatting when a parsed link is edited, saved and undone', () => {
+    const source = '- [Guide](docs/guide.md) and **bold**\r\n'
+    const editor = new Editor({ extensions: markdownExtensions, content: parseMarkdown(source) })
+    try {
+      editor.commands.setTextSelection({ from: 3, to: 8 })
+      editor.commands.insertContent('Updated guide')
+      const saved = serializeMarkdown(editor.getJSON(), source)
+      expect(saved).toContain('[Updated guide](docs/guide.md)')
+      expect(saved).toContain('**bold**')
+      const reopened = new Editor({ extensions: markdownExtensions, content: parseMarkdown(saved) })
+      try {
+        expect(reopened.view.dom.querySelector('li a')?.textContent).toBe('Updated guide')
+        expect(reopened.view.dom.querySelector('li strong')?.textContent).toBe('bold')
+      } finally {
+        reopened.destroy()
+      }
+      expect(editor.commands.undo()).toBe(true)
+      expect(serializeMarkdown(editor.getJSON(), source)).toBe(source)
+    } finally {
+      editor.destroy()
+    }
+  })
+
   it('reads rich Markdown including mixed lists, tasks, tables and Mermaid', () => {
     const source =
       '# Title\n\n- one\n- [x] done\n  - nested\n\n| A | B |\n| - | - |\n| one | two |\n\n```mermaid\ngraph TD\nA-->B\n```\n'

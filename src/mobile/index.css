@@ -4,6 +4,7 @@
  * and mobile layout. The desktop sidebar and command palette are not loaded.
  */
 @import '../styles/tokens.css';
+@import '../styles/theme-workspace.css';
 @import '../styles/base.css';
 @import '../styles/controls.css';
 @import '../styles/floating.css';

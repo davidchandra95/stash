@@ -9,8 +9,12 @@ export type NativeMenuOptions = { above?: boolean; trackingId?: string }
 // Tokens also cover the asynchronous icon preparation before AppKit starts tracking.
 const pendingMenus = new Map<string, { cancelled: boolean }>()
 
+/** AppKit menus match only the native theme; other themes draw their own menus. */
 export const usesNativeContextMenu = () =>
-  isTauri() && platform.platform === 'macos' && !platform.mobile
+  isTauri() &&
+  platform.platform === 'macos' &&
+  !platform.mobile &&
+  document.documentElement.dataset.ui !== 'workspace'
 
 export async function showNativeContextMenu(
   actions: NativeMenuAction[],

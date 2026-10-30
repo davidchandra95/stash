@@ -89,6 +89,8 @@ export type View =
 
 export type WindowLayout = 'standard' | 'cards'
 export type ColorMode = 'light' | 'dark' | 'system'
+/** `native` follows macOS; `workspace` is an opaque, bordered indigo theme. */
+export type InterfaceTheme = 'native' | 'workspace'
 export type AccentColor =
   'system' | 'blue' | 'purple' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'graphite'
 
@@ -96,6 +98,7 @@ export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
   animationsEnabled: boolean
   colorMode: ColorMode
+  interfaceTheme: InterfaceTheme
   accent: AccentColor
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean

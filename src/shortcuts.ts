@@ -45,6 +45,13 @@ export const shortcutCommands: ShortcutCommand[] = [
     ['title', 'Focus note title', 'Move keyboard focus to the note title.', 'Mod+Alt+t'],
     ['back', 'Go back', 'Return to the previous note in this tab.', 'Mod+['],
     ['forward', 'Go forward', 'Open the next note in this tab history.', 'Mod+]'],
+    ['show-notes', 'Show Notes', 'Switch the sidebar and panes to notes.', 'Mod+1'],
+    [
+      'show-projects',
+      'Show Projects',
+      'Switch the sidebar and panes to projects and tasks.',
+      'Mod+2',
+    ],
     ['next-tab', 'Next tab', 'Select the next open tab.', 'Ctrl+Tab'],
     ['previous-tab', 'Previous tab', 'Select the previous open tab.', 'Ctrl+Shift+Tab'],
     ['close-tab', 'Close current tab', 'Close the active note tab.', 'Mod+w'],

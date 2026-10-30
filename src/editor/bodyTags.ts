@@ -2,7 +2,7 @@ import { platform } from '../platform'
 import { Extension, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { tagMatches } from '../tags'
+import { tagMatches, tagTone } from '../tags'
 import { confirmedTag } from './tagMark'
 import { closeHistory, isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as PMNode } from '@tiptap/pm/model'
@@ -41,6 +41,7 @@ function decorations(doc: PMNode) {
         Decoration.inline(from, to, {
           class: 'body-tag',
           'data-body-tag': tag,
+          'data-tone': tagTone(tag),
           role: 'link',
           tabindex: '0',
           'aria-label': `Open tag #${tag}`,

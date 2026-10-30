@@ -13,6 +13,8 @@ import {
   layoutNames,
   layouts,
   newNoteTitles,
+  interfaceThemes,
+  themeAccents,
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
@@ -26,7 +28,7 @@ import {
   X,
   type IconComponent,
 } from '../icons'
-import type { Appearance, ColorMode, NewNoteTitle } from '../model'
+import type { Appearance, ColorMode, InterfaceTheme, NewNoteTitle } from '../model'
 import { useMotionEnabled, useReducedMotion } from '../motion'
 import { noteListModes, type NoteListMode } from '../noteListPresentation'
 import { platform } from '../platform'
@@ -271,7 +273,38 @@ export default function Settings({
     onChange({ ...value, [key]: next })
   const nativeMac = isTauri() && platform.platform === 'macos'
 
+  const themeAccent = themeAccents[value.interfaceTheme]
   const items: Item[] = [
+    {
+      id: 'interface-theme',
+      category: 'appearance',
+      group: '',
+      search: 'Theme interface style native macOS workspace indigo bordered',
+      content: (
+        <Row
+          label="Theme"
+          description={
+            value.interfaceTheme === 'native'
+              ? 'Follows macOS materials and menus'
+              : 'Opaque framed panels with indigo accents'
+          }
+        >
+          <span className="segmented" role="radiogroup" aria-label="Theme">
+            {(Object.keys(interfaceThemes) as InterfaceTheme[]).map((theme) => (
+              <button
+                key={theme}
+                type="button"
+                role="radio"
+                aria-checked={value.interfaceTheme === theme}
+                onClick={() => set('interfaceTheme', theme)}
+              >
+                {interfaceThemes[theme]}
+              </button>
+            ))}
+          </span>
+        </Row>
+      ),
+    },
     {
       id: 'color-mode',
       category: 'appearance',
@@ -307,15 +340,24 @@ export default function Settings({
       content: (
         <Row
           label="Accent color"
-          description={value.accent === 'system' ? 'Follows your macOS accent color' : undefined}
+          description={
+            value.accent !== 'system'
+              ? undefined
+              : themeAccent
+                ? 'Uses the theme accent color'
+                : 'Follows your macOS accent color'
+          }
         >
           <span className="accent-options" role="radiogroup" aria-label="Accent color">
             <button
               type="button"
               role="radio"
-              className="accent-option is-system"
-              aria-label="Multicolor (follow macOS)"
+              className={themeAccent ? 'accent-option' : 'accent-option is-system'}
+              aria-label={themeAccent ? 'Theme accent' : 'Multicolor (follow macOS)'}
               aria-checked={value.accent === 'system'}
+              style={
+                themeAccent ? ({ '--swatch': themeAccent.light } as React.CSSProperties) : undefined
+              }
               onClick={() => set('accent', 'system')}
             />
             {accentColors.map((accent) => (
@@ -342,12 +384,18 @@ export default function Settings({
       content: (
         <Row
           label="Translucent sidebar"
-          description={nativeMac ? undefined : 'Available in the Mac app'}
+          description={
+            !nativeMac
+              ? 'Available in the Mac app'
+              : value.interfaceTheme !== 'native'
+                ? 'Available with the Native theme'
+                : undefined
+          }
         >
           <Switch
             label="Translucent sidebar"
             checked={value.translucentSidebar}
-            disabled={!nativeMac}
+            disabled={!nativeMac || value.interfaceTheme !== 'native'}
             onChange={(checked) => set('translucentSidebar', checked)}
           />
         </Row>

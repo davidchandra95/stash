@@ -4,23 +4,31 @@ import { DOMSerializer, type ResolvedPos } from '@tiptap/pm/model'
 // Only the clipboard uses tight list HTML. The document schema and saved HTML
 // retain paragraphs so editing, paragraph attributes, and persistence stay intact.
 export class ClipboardSerializer extends DOMSerializer {
+  private fragmentDepth = 0
+
   override serializeFragment(...args: Parameters<DOMSerializer['serializeFragment']>) {
-    const dom = super.serializeFragment(...args)
-    for (const item of dom.querySelectorAll('li[data-type="mixedListItem"]')) {
-      const children = [...item.children]
-      const paragraph = children[0]
-      if (
-        paragraph?.tagName === 'P' &&
-        paragraph.childNodes.length > 0 &&
-        paragraph.attributes.length === 0 &&
-        children.slice(1).every((child) => child.matches('ul, ol'))
-      ) {
-        // A single text paragraph plus optional nested lists is a tight item.
-        // Empty, styled, and multi-paragraph items carry real paragraph meaning.
-        paragraph.replaceWith(...paragraph.childNodes)
+    const outer = this.fragmentDepth++ === 0
+    try {
+      const dom = super.serializeFragment(...args)
+      for (const item of dom.querySelectorAll('li[data-type="mixedListItem"]')) {
+        const children = [...item.children]
+        const paragraph = children[0]
+        if (
+          paragraph?.tagName === 'P' &&
+          paragraph.childNodes.length > 0 &&
+          paragraph.attributes.length === 0 &&
+          children.slice(1).every((child) => child.matches('ul, ol'))
+        ) {
+          // A single text paragraph plus optional nested lists is a tight item.
+          // Empty, styled, and multi-paragraph items carry real paragraph meaning.
+          paragraph.replaceWith(...paragraph.childNodes)
+        }
       }
+      if (outer) dom.firstElementChild?.setAttribute('data-stash-copy', 'true')
+      return dom
+    } finally {
+      this.fragmentDepth--
     }
-    return dom
   }
 }
 

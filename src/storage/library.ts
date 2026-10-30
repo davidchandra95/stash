@@ -69,6 +69,7 @@ function normalizeWorkspacePreferences(
 export const defaultAppearance: Appearance = {
   animationsEnabled: true,
   colorMode: 'system',
+  interfaceTheme: 'native',
   accent: 'system',
   translucentSidebar: true,
   layout: 'standard',
@@ -1229,12 +1230,21 @@ export class LibraryStore {
       sidebarView,
     })
   }
+  setProjectView = (projectView: string | null) => {
+    if ((this.state.workspace?.projectView ?? null) === projectView) return
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      projectView,
+    })
+  }
   setWorkspace = (workspace: WorkspacePreferences) => {
     const noteListMode = workspace.noteListMode ?? this.state.workspace?.noteListMode
     if (noteListMode !== undefined)
       workspace = { ...workspace, noteListMode: normalizeNoteListMode(noteListMode) }
     if (workspace.sidebarView === undefined && this.state.workspace?.sidebarView !== undefined)
       workspace = { ...workspace, sidebarView: this.state.workspace.sidebarView }
+    if (workspace.projectView === undefined && this.state.workspace?.projectView)
+      workspace = { ...workspace, projectView: this.state.workspace.projectView }
     if (this.state.workspace?.pdfNotes && !workspace.pdfNotes)
       workspace = { ...workspace, pdfNotes: this.state.workspace.pdfNotes }
 

@@ -17,6 +17,9 @@ Performance test copy. `STASH_BENCH_LIBRARY` can select another SQLite library a
 `STASH_BENCH_NOTE` can select a note ID. Unsupported nodes or marks stop import.
 The exporter never changes the source database.
 
+Run the benchmark analysis tests with `npm run test:macos-editor`. These use Node's
+built-in test runner and are separate from the app's `npm test` Vitest suite.
+
 Both commands print a private temporary directory. Reuse the frozen input with:
 
 ```sh

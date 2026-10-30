@@ -1,5 +1,6 @@
 import { isPdfLink, parsePdfCitation } from '../pdf/citations'
 import { validNoteId } from './noteReferences'
+import { taskIdFromLink } from './taskReferences'
 import { canReadClipboard, pastePlain, insertLiteral } from './plainPaste'
 import { insertPastedContent } from './pasteContent'
 import { Extension, generateJSON, type JSONContent, type Editor } from '@tiptap/core'
@@ -36,6 +37,34 @@ export function safeHTML(html: string) {
 }
 export function markdownHTML(text: string) {
   return safeHTML(marked.parse(text, { async: false, breaks: false }) as string)
+}
+
+export function parseClipboardContent(
+  text: string,
+  html: string,
+  extensions: Parameters<typeof generateJSON>[1],
+  parseText: (text: string) => JSONContent,
+): JSONContent {
+  if (!html) return parseText(text)
+  const rich = normalizeContent(html, extensions)
+  // Internal copies and authored formatting must survive a round trip. External
+  // plain wrappers should not hide Markdown that is also on the clipboard.
+  const hasFormatting = (node: JSONContent, wrapper = false): boolean =>
+    !['doc', 'paragraph', 'text', 'hardBreak'].includes(node.type ?? '') ||
+    !!node.marks?.some((mark) => !wrapper || mark.type !== 'textStyle') ||
+    Object.entries(node.attrs ?? {}).some(
+      ([key, value]) =>
+        !['originalMarkdown', 'originalJSON'].includes(key) &&
+        value != null &&
+        value !== '' &&
+        !(key === 'textAlign' && ['left', 'start'].includes(String(value))),
+    ) ||
+    !!node.content?.some((child) => hasFormatting(child, wrapper))
+  if (text && !/data-stash-copy\s*=/i.test(html) && !hasFormatting(rich, true)) {
+    const markdown = parseText(text)
+    if (hasFormatting(markdown)) return markdown
+  }
+  return rich
 }
 export const plainPasteEditors = new WeakSet<Editor>()
 export const Clipboard = Extension.create({
@@ -82,6 +111,11 @@ export const Clipboard = Extension.create({
               insertLiteral(editor, text)
             } else if (pasteDrawings(editor, data)) {
               // The private format preserves editable drawings; external HTML is a preview.
+            } else if (taskIdFromLink(text.trim())) {
+              editor.commands.insertContent({
+                type: 'taskReference',
+                attrs: { taskId: taskIdFromLink(text.trim()), fallbackTitle: 'Task' },
+              })
             } else if (
               /^upnote2:\/\/note\/[a-zA-Z0-9_-]{1,128}$/.test(text.trim()) &&
               validNoteId(text.trim().slice('upnote2://note/'.length))
@@ -96,7 +130,9 @@ export const Clipboard = Extension.create({
             } else
               insertPastedContent(
                 editor,
-                normalizeContent(html || markdownHTML(text), editor.options.extensions),
+                parseClipboardContent(text, html, editor.options.extensions, (source) =>
+                  normalizeContent(markdownHTML(source), editor.options.extensions),
+                ),
               )
             view.dispatch(closeHistory(view.state.tr))
             return true

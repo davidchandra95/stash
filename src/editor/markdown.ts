@@ -7,7 +7,9 @@ import { Marked, type Token } from 'marked'
 import { ShortcutStarterKit as StarterKit } from './shortcuts'
 import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
-import { normalizeContent, plainPasteEditors } from './clipboard'
+import { parseClipboardContent, plainPasteEditors } from './clipboard'
+import { ClipboardSerializer } from './copy'
+import { DOMSerializer } from '@tiptap/pm/model'
 import { insertLiteral, pastePlain, canReadClipboard } from './plainPaste'
 import { insertPastedContent } from './pasteContent'
 import { Plugin } from '@tiptap/pm/state'
@@ -15,6 +17,7 @@ import { writingExtensions } from './extensions'
 import { MixedList, MixedListItem } from './mixedLists'
 import { markdownContexts } from './markdownContext'
 import { NoteReference, referenceTitle } from './noteReferences'
+import { TaskReference, taskIdFromLink, taskLink, taskTitle } from './taskReferences'
 import { findKey } from './noteTools'
 import { documentMatches, literalMatches } from './searchText'
 
@@ -115,6 +118,7 @@ const SourceAttributes = Extension.create({
     },
   ],
   addProseMirrorPlugins() {
+    const serializer = DOMSerializer.fromSchema(this.editor.schema)
     return [
       new Plugin({
         filterTransaction: (transaction) => {
@@ -133,6 +137,7 @@ const SourceAttributes = Extension.create({
           }
         },
         props: {
+          clipboardSerializer: new ClipboardSerializer(serializer.nodes, serializer.marks),
           handleClick: (_view, _pos, event) => {
             const link = (event.target as HTMLElement).closest('a[href]')
             if (!link) return false
@@ -158,6 +163,11 @@ const SourceAttributes = Extension.create({
             try {
               if (plainPasteEditors.has(this.editor) || this.editor.isActive('codeBlock'))
                 insertLiteral(this.editor, text)
+              else if (taskIdFromLink(text.trim()))
+                this.editor.commands.insertContent({
+                  type: 'taskReference',
+                  attrs: { taskId: taskIdFromLink(text.trim()), fallbackTitle: 'Task' },
+                })
               else if (/^upnote2:\/\/note\/[a-zA-Z0-9_-]{1,128}$/.test(text.trim()))
                 this.editor.commands.insertContent({
                   type: 'noteReference',
@@ -167,9 +177,12 @@ const SourceAttributes = Extension.create({
                   },
                 })
               else {
-                const content = html
-                  ? normalizeContent(html, this.editor.options.extensions)
-                  : parseMarkdown(text)
+                const content = parseClipboardContent(
+                  text,
+                  html,
+                  this.editor.options.extensions,
+                  parseMarkdown,
+                )
                 validateMarkdown(content)
                 insertPastedContent(this.editor, content)
               }
@@ -264,7 +277,7 @@ const MarkdownImage = Image.configure({ inline: true, allowBase64: true }).exten
 function paragraphs(nodes: JSONContent[]): JSONContent[] {
   const result: JSONContent[] = []
   for (const node of nodes) {
-    if (['text', 'image', 'hardBreak', 'noteReference'].includes(node.type ?? '')) {
+    if (['text', 'image', 'hardBreak', 'noteReference', 'taskReference'].includes(node.type ?? '')) {
       if (result.at(-1)?.type !== 'paragraph') result.push({ type: 'paragraph', content: [] })
       result.at(-1)!.content!.push(node)
     } else result.push(node)
@@ -286,7 +299,14 @@ const MarkdownList = MixedList.extend({
             kind: item.task ? 'task' : token.ordered ? 'number' : 'bullet',
             checked: !!item.checked,
           },
-          paragraphs(helpers.parseChildren(item.tokens ?? [])),
+          paragraphs(
+            helpers.parseChildren(
+              // Tight lists use text tokens whose children carry inline formatting.
+              (item.tokens ?? []).map((child) =>
+                child.type === 'text' && child.tokens ? { ...child, type: 'paragraph' } : child,
+              ),
+            ),
+          ),
         ),
       ),
     )
@@ -311,6 +331,19 @@ const MarkdownReference = NoteReference.extend({
   renderMarkdown: (node) =>
     `[${String(node.attrs?.fallbackTitle ?? 'Note').replace(/[[\]\\]/g, '\\$&')}](upnote2://note/${node.attrs?.noteId})`,
 })
+const MarkdownTaskReference = TaskReference.extend({
+  renderMarkdown: (node) =>
+    `[${taskTitle(node.attrs?.taskId, node.attrs?.fallbackTitle).replace(/[[\]\\]/g, '\\$&')}](${taskLink(node.attrs?.taskId)})`,
+})
+/** `[title](stash://task/<id>)` links become task mentions. */
+function taskMentions(nodes: JSONContent[]): JSONContent[] {
+  return nodes.map((node) => {
+    const href = node.marks?.find((mark) => mark.type === 'link')?.attrs?.href
+    const id = node.type === 'text' && typeof href === 'string' ? taskIdFromLink(href) : null
+    if (id) return { type: 'taskReference', attrs: { taskId: id, fallbackTitle: node.text || 'Task' } }
+    return node.content ? { ...node, content: taskMentions(node.content) } : node
+  })
+}
 const excluded = new Set([
   'drawing',
   'starterKit',
@@ -321,6 +354,7 @@ const excluded = new Set([
   'image',
   'imageClipboard',
   'noteReference',
+  'taskReference',
   'textStyleKit',
   'readableColor',
   'textAlign',
@@ -344,13 +378,14 @@ export const markdownExtensions = [
     listItem: false,
     underline: false,
     trailingNode: false,
-    link: { openOnClick: false, protocols: ['file', 'upnote2'] },
+    link: { openOnClick: false, protocols: ['file', 'upnote2', 'stash'] },
   }),
   TableKit.configure({ table: { resizable: false } }),
   MarkdownList,
   MixedListItem,
   MarkdownImage,
   MarkdownReference,
+  MarkdownTaskReference,
   RawMarkdown,
   SourceAttributes,
 ]
@@ -447,13 +482,15 @@ export function parseMarkdown(source: string): JSONContent {
     try {
       if (unsafeToken(token)) nodes = [raw(token.raw)]
       else {
-        nodes = manager.parse(token.raw + (definitions ? '\n\n' + definitions : '')).content ?? []
+        nodes = taskMentions(
+          manager.parse(token.raw + (definitions ? '\n\n' + definitions : '')).content ?? [],
+        )
         if (!nodes.length) nodes = [raw(token.raw)]
         // The Markdown manager can return a standalone inline image. Native
         // and linked documents both require inline content inside a paragraph.
         const blocks: JSONContent[] = []
         for (const node of nodes) {
-          if (['text', 'image', 'hardBreak', 'noteReference'].includes(node.type ?? '')) {
+          if (['text', 'image', 'hardBreak', 'noteReference', 'taskReference'].includes(node.type ?? '')) {
             if (blocks.at(-1)?.type !== 'paragraph') blocks.push({ type: 'paragraph', content: [] })
             blocks.at(-1)!.content!.push(node)
           } else blocks.push(node)
@@ -500,6 +537,7 @@ const nodeNames = new Set([
   'tableCell',
   'image',
   'noteReference',
+  'taskReference',
   'rawMarkdown',
 ])
 const markNames = new Set(['bold', 'italic', 'strike', 'code', 'link', 'bodyTag'])

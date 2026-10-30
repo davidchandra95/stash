@@ -19,6 +19,7 @@ export function noteNotebookContext(note: Pick<Note, 'notebookIds'>, notebooks: 
     .filter((book): book is Notebook => !!book)
   return {
     name: books[0]?.name ?? 'Uncategorized',
+    color: books[0]?.color,
     extra: Math.max(0, books.length - 1),
     description: books.length
       ? `Notebooks: ${books.map((book) => notebookPath(book, notebooks)).join(', ')}`

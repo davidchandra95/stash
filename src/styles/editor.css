@@ -584,3 +584,13 @@
   box-shadow: var(--shadow-control);
   color: var(--text);
 }
+
+/* Notebook memberships take their notebook's color. */
+.note-chip {
+  background: color-mix(in srgb, var(--chip-color, var(--text-3)) 13%, var(--bg-content));
+  color: color-mix(in srgb, var(--chip-color, var(--text-3)) 78%, var(--text));
+}
+button.note-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--chip-color, var(--text-3)) 22%, var(--bg-content));
+  color: color-mix(in srgb, var(--chip-color, var(--text-3)) 78%, var(--text));
+}

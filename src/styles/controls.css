@@ -413,3 +413,43 @@ button.chip:hover:not(:disabled) {
 .status-line[role='alert'] {
   color: var(--danger);
 }
+
+/* ───────── Color tones: data-tone picks one of the --tone-* colors ───────── */
+
+[data-tone='indigo'] {
+  --tone: var(--tone-indigo);
+}
+[data-tone='blue'] {
+  --tone: var(--tone-blue);
+}
+[data-tone='teal'] {
+  --tone: var(--tone-teal);
+}
+[data-tone='green'] {
+  --tone: var(--tone-green);
+}
+[data-tone='gold'] {
+  --tone: var(--tone-gold);
+}
+[data-tone='orange'] {
+  --tone: var(--tone-orange);
+}
+[data-tone='pink'] {
+  --tone: var(--tone-pink);
+}
+[data-tone='purple'] {
+  --tone: var(--tone-purple);
+}
+[data-tone='slate'] {
+  --tone: var(--tone-slate);
+}
+
+/* Tags keep one tone everywhere: sidebar chips and tags in note text. */
+.chip[data-tone] {
+  background: color-mix(in srgb, var(--tone) 13%, var(--bg-content));
+  color: color-mix(in srgb, var(--tone) 85%, var(--text));
+}
+button.chip[data-tone]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tone) 22%, var(--bg-content));
+  color: color-mix(in srgb, var(--tone) 85%, var(--text));
+}

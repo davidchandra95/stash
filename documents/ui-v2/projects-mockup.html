@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stash Projects Mockup</title>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+/* Projects and tasks, desktop. Values follow src/styles/tokens.css; see documents/PROJECTS_AND_TASKS.md. */
+:root {
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 16px; --text-xl: 18px;
+  --bar: 42px; --row: 28px; --control: 28px; --control-sm: 22px; --icon: 17px; --icon-sm: 15px;
+  --radius-xs: 4px; --radius-sm: 5px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 10px; --radius-2xl: 12px;
+  --accent: #007aff; --on-accent: #fff;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-text: color-mix(in srgb, var(--accent) 88%, var(--text));
+}
+:root[data-theme='light'] {
+  --wall: linear-gradient(135deg, #c9d6e8 0%, #e6d9e6 45%, #f1e2cf 100%);
+  --bg-sidebar: rgba(236, 236, 238, 0.82); --bg-content: #fff; --bg-elevated: rgba(252, 252, 253, 0.94);
+  --bg-input: rgba(0, 0, 0, 0.04); --bg-control: #fff; --bg-scrim: rgba(0, 0, 0, 0.16);
+  --text: #1d1d1f; --text-2: rgba(0, 0, 0, 0.6); --text-3: rgba(0, 0, 0, 0.47); --text-4: rgba(0, 0, 0, 0.28);
+  --line: rgba(0, 0, 0, 0.09); --line-strong: rgba(0, 0, 0, 0.15);
+  --fill-1: rgba(0, 0, 0, 0.05); --fill-2: rgba(0, 0, 0, 0.08); --fill-3: rgba(0, 0, 0, 0.11);
+  --danger: #d70015; --warning: #a05a00; --success: #248a3d;
+  --notebook-sage: #688b60; --notebook-slate: #6282ad; --notebook-lavender: #8b75a5; --notebook-clay: #a37454; --notebook-teal: #428e8e; --notebook-rose: #a86e72;
+  --tone-indigo: #494bcb; --tone-green: #2f855a; --tone-orange: #dd6b20; --tone-slate: #62748e; --tone-gold: #c48a0e; --tone-purple: #6b46c1;
+  --shadow-control: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 1px 1.5px rgba(0, 0, 0, 0.07);
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 8px 26px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-window: 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 22px 60px rgba(0, 0, 0, 0.24), 0 6px 16px rgba(0, 0, 0, 0.08);
+  --page: #f2f2f4;
+}
+:root[data-theme='dark'] {
+  --wall: linear-gradient(135deg, #1b2235 0%, #2b2034 50%, #33291f 100%);
+  --bg-sidebar: rgba(40, 40, 42, 0.8); --bg-content: #1e1e1f; --bg-elevated: rgba(44, 44, 46, 0.95);
+  --bg-input: rgba(255, 255, 255, 0.06); --bg-control: rgba(255, 255, 255, 0.1); --bg-scrim: rgba(0, 0, 0, 0.36);
+  --text: rgba(255, 255, 255, 0.9); --text-2: rgba(255, 255, 255, 0.6); --text-3: rgba(255, 255, 255, 0.44); --text-4: rgba(255, 255, 255, 0.25);
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.14);
+  --fill-1: rgba(255, 255, 255, 0.06); --fill-2: rgba(255, 255, 255, 0.09); --fill-3: rgba(255, 255, 255, 0.13);
+  --danger: #ff6961; --warning: #ffb340; --success: #30d158;
+  --notebook-sage: #98bd90; --notebook-slate: #91b4e1; --notebook-lavender: #bca5d8; --notebook-clay: #d7a583; --notebook-teal: #75c0c0; --notebook-rose: #dd9ea2;
+  --tone-indigo: #8b8df0; --tone-green: #68c98f; --tone-orange: #f6935a; --tone-slate: #93a6c2; --tone-gold: #f2b01e; --tone-purple: #b794f4;
+  --shadow-control: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 1px 1.5px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.42);
+  --shadow-window: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 24px 64px rgba(0, 0, 0, 0.5);
+  --page: #121214;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: var(--text-md) / 19px var(--font-ui); color: var(--text); background: var(--page); -webkit-font-smoothing: antialiased; overflow: hidden; }
+svg.lucide { width: var(--i, var(--icon)); height: var(--i, var(--icon)); stroke-width: 1.6; flex: none; display: block; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* ───────── Mockup controls (not part of the app) ───────── */
+.controls {
+  position: fixed; inset: 0 0 auto 0; height: 44px; z-index: 50; display: flex; align-items: center; gap: 18px;
+  padding: 0 16px; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-content) 85%, transparent); backdrop-filter: blur(20px); overflow-x: auto;
+}
+.controls b { color: var(--text); font-weight: 600; margin-right: 4px; }
+.controls .grp { display: flex; align-items: center; gap: 6px; flex: none; }
+.seg { display: inline-flex; padding: 2px; border-radius: 7px; background: var(--fill-2); gap: 2px; }
+.seg button { height: 20px; padding: 0 10px; border-radius: 5px; font-size: 12px; color: var(--text-2); }
+.seg button[aria-pressed='true'] { background: var(--bg-content); color: var(--text); box-shadow: var(--shadow-control); }
+.swatches { display: flex; gap: 6px; }
+.swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.2); }
+.swatch[aria-pressed='true'] { outline: 2px solid var(--c); outline-offset: 2px; }
+.stage { position: absolute; inset: 44px 0 0 0; background: var(--wall); display: grid; place-items: center; overflow: hidden; }
+.scaler { position: absolute; left: 50%; top: 50%; transform-origin: center; }
+
+/* ───────── Window ───────── */
+.window {
+  position: relative; width: 1280px; height: 800px; border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow-window); display: grid; grid-template-columns: 232px 1fr; background: var(--bg-content);
+}
+.window.notes { grid-template-columns: 232px 300px 1fr; }
+.lights { display: flex; gap: 8px; padding-left: 14px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.18); }
+.lights i:nth-child(1) { background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+.icon-btn { width: 24px; height: 24px; border-radius: var(--radius-md); display: grid; place-items: center; color: var(--text-2); --i: var(--icon); flex: none; }
+.icon-btn:hover { background: var(--fill-1); color: var(--text); }
+.icon-btn-sm { width: 20px; height: 20px; --i: 14px; }
+.pane-bar { height: var(--bar); flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
+.pane-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pane-count { font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.spacer { flex: 1; }
+
+/* Sidebar */
+.sidebar { display: flex; flex-direction: column; min-height: 0; background: var(--bg-sidebar); backdrop-filter: blur(40px) saturate(1.6); border-right: 1px solid var(--line); }
+.sb-top { height: var(--bar); display: flex; align-items: center; justify-content: space-between; padding-right: 10px; flex: none; }
+.sb-scroll { flex: 1; overflow: auto; padding: 2px 8px 8px; }
+.side-row { width: 100%; height: var(--row); display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: var(--radius-sm); text-align: left; --i: var(--icon-sm); }
+.side-row:hover { background: var(--fill-1); }
+.side-row[aria-current='true'] { background: var(--fill-3); }
+.side-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-row .count { font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.side-row[data-tone] > svg { box-sizing: content-box; width: 13px; height: 13px; padding: 3px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--tone) 15%, transparent); color: var(--tone); }
+.side-row.muted { color: var(--text-2); }
+.side-row.muted > svg { color: var(--text-3); }
+.sb-section { margin-top: 14px; }
+.sb-head { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 8px; font-size: var(--text-xs); font-weight: 600; color: var(--text-3); }
+.sb-head .icon-btn { opacity: 0; }
+.sb-section:hover .sb-head .icon-btn { opacity: 1; }
+.disc { width: 12px; display: grid; place-items: center; color: var(--text-3); --i: 11px; margin: 0 -4px 0 -4px; }
+.nb-dot { width: 15px; height: 15px; display: grid; place-items: center; }
+.nb-dot span { width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+.ring { width: 15px; height: 15px; flex: none; }
+.ring circle { fill: none; stroke-width: 2.4; }
+.ring .bg { stroke: color-mix(in srgb, var(--c) 25%, transparent); }
+.ring .fg { stroke: var(--c); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+.ring.planned .fg { display: none; }
+.ring.planned .bg { stroke-dasharray: 2.2 2.2; stroke: var(--c); }
+.health-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--h); flex: none; }
+.sb-foot { height: 36px; flex: none; display: flex; align-items: center; padding: 0 10px 0 16px; border-top: 1px solid var(--line); font-size: var(--text-xs); color: var(--text-2); --i: var(--icon-sm); }
+.sb-foot .status { flex: 1; display: flex; align-items: center; gap: 6px; }
+.sb-foot .status svg { color: var(--success); }
+
+/* ───────── Project page ───────── */
+.project { display: grid; grid-template-columns: 1fr 340px; min-width: 0; min-height: 0; }
+.project.no-detail { grid-template-columns: 1fr; }
+.project.no-detail .detail { display: none; }
+.plist { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
+.p-head { padding: 18px 28px 14px; border-bottom: 1px solid var(--line); }
+.p-name { display: flex; align-items: center; gap: 10px; }
+.p-name h1 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.p-name .ring { width: 20px; height: 20px; }
+.p-desc { margin: 4px 0 12px; color: var(--text-2); font-size: var(--text-sm); }
+.p-props { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pill { height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px 0 8px; border-radius: var(--radius-md); background: var(--fill-1); font-size: var(--text-sm); color: var(--text); --i: 14px; }
+.pill svg { color: var(--text-3); }
+.pill:hover { background: var(--fill-2); }
+.pill .chev { --i: 12px; margin-left: -2px; }
+.pill.link { color: var(--accent-text); }
+.pill.link svg { color: var(--c, var(--accent-text)); }
+.progress { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: var(--text-sm); color: var(--text-2); }
+.bar-track { width: 220px; height: 6px; border-radius: 3px; background: var(--fill-2); position: relative; overflow: hidden; }
+.bar-track i { position: absolute; inset: 0 auto 0 0; width: var(--p); border-radius: 3px; background: var(--accent); }
+.bar-track b { position: absolute; top: -2px; bottom: -2px; left: var(--t); width: 1.5px; background: var(--text-3); }
+.health { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--h); }
+.progress .sub { color: var(--text-3); }
+
+.p-scroll { flex: 1; overflow: auto; padding: 10px 20px 40px; }
+.new-task { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; margin-bottom: 6px; border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-4); --i: 16px; box-shadow: inset 0 0 0 0.5px var(--line); }
+.new-task svg { color: var(--text-3); }
+.new-task .hint { margin-left: auto; font-size: var(--text-xs); color: var(--text-3); }
+.new-task kbd, .kbd { font: 11px var(--font-ui); color: var(--text-3); padding: 1px 5px; border-radius: 4px; background: var(--fill-2); }
+.group-h { height: 30px; display: flex; align-items: center; gap: 6px; padding: 8px 8px 0; font-size: var(--text-xs); font-weight: 600; color: var(--text-3); --i: 12px; }
+.task { position: relative; height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: var(--radius-md); }
+.task + .task::before { content: ''; position: absolute; left: 36px; right: 8px; top: 0; height: 1px; background: var(--line); }
+.task:hover { background: var(--fill-1); }
+.task:hover::before, .task:hover + .task::before, .task.sel::before, .task.sel + .task::before, .task.menu-open::before, .task.menu-open + .task::before { opacity: 0; }
+.task.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.task.menu-open { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.task .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task.done .tt { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-4); }
+.task .meta { display: flex; align-items: center; gap: 10px; font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; --i: 13px; }
+.task .meta span { display: inline-flex; align-items: center; gap: 4px; }
+.task .meta .late { color: var(--danger); }
+.task .meta .soon { color: var(--warning); }
+.prio { display: inline-flex; gap: 1.5px; align-items: flex-end; height: 11px; }
+.prio i { width: 3px; border-radius: 1px; background: var(--fill-3); }
+.prio i:nth-child(1) { height: 5px; } .prio i:nth-child(2) { height: 8px; } .prio i:nth-child(3) { height: 11px; }
+.prio[data-p='1'] i:nth-child(-n+1), .prio[data-p='2'] i:nth-child(-n+2) { background: var(--text-2); }
+.prio[data-p='3'] i { background: var(--danger); }
+.cb { width: 16px; height: 16px; border-radius: 4px; flex: none; box-shadow: inset 0 0 0 1.25px var(--line-strong), inset 0 0 0 20px var(--bg-content); display: grid; place-items: center; --i: 11px; color: transparent; }
+.cb:hover { box-shadow: inset 0 0 0 1.25px var(--accent); }
+.cb.on { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.cb.on svg { stroke-width: 3; }
+.cb.doing { box-shadow: inset 0 0 0 1.25px var(--accent); position: relative; }
+.cb.doing::after { content: ''; position: absolute; inset: 4px 4px 4px 8px; border-radius: 0 2px 2px 0; background: var(--accent); }
+.collapsed-row { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--text-3); font-size: var(--text-sm); --i: 12px; }
+
+/* Task detail */
+.detail { display: flex; flex-direction: column; min-height: 0; }
+.d-body { flex: 1; overflow: auto; padding: 16px 20px 24px; }
+.d-title { display: flex; gap: 10px; align-items: flex-start; }
+.d-title .cb { margin-top: 3px; width: 18px; height: 18px; }
+.d-title h2 { margin: 0; font-size: var(--text-xl); line-height: 24px; font-weight: 650; }
+.props { margin-top: 16px; display: grid; grid-template-columns: 84px 1fr; row-gap: 2px; align-items: center; font-size: var(--text-sm); }
+.props dt { color: var(--text-3); }
+.props dd { margin: 0; }
+.props dd .val { height: var(--control); display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; margin-left: -8px; border-radius: var(--radius-md); --i: 14px; }
+.props dd .val:hover { background: var(--fill-1); }
+.props dd .val.empty { color: var(--text-4); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.d-h { margin: 20px 0 6px; font-size: var(--text-xs); font-weight: 600; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+.d-desc { min-height: 76px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--bg-input); box-shadow: inset 0 0 0 0.5px var(--line); font-size: var(--text-sm); line-height: 20px; color: var(--text); }
+.mention-row { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; margin: 0 -8px; border-radius: var(--radius-md); font-size: var(--text-sm); --i: 14px; }
+.mention-row svg { color: var(--text-3); }
+.mention-row:hover { background: var(--fill-1); }
+.mention-row .nb { margin-left: auto; font-size: var(--text-xs); color: var(--text-3); }
+.d-foot { padding: 10px 20px; border-top: 1px solid var(--line); font-size: var(--text-xs); color: var(--text-3); }
+
+/* ───────── Notes screen ───────── */
+.list { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
+.list .pane-bar { padding-left: 14px; }
+.proj-link { height: 22px; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px 0 5px; border-radius: 11px; background: var(--fill-1); font-size: var(--text-xs); color: var(--text-2); }
+.proj-link:hover { background: var(--fill-2); color: var(--text); }
+.proj-link .ring { width: 13px; height: 13px; }
+.filter { padding: 8px 8px 4px; }
+.field { height: var(--control); display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-4); --i: 14px; box-shadow: inset 0 0 0 0.5px var(--line); font-size: var(--text-sm); }
+.rows { flex: 1; overflow: auto; padding: 2px 8px 8px; }
+.row { position: relative; padding: 7px 8px 8px; border-radius: var(--radius-md); }
+.row + .row::before { content: ''; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: var(--line); }
+.row.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.row.sel::before, .row.sel + .row::before { display: none; }
+.row .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .m { margin-top: 1px; font-size: var(--text-xs); color: var(--text-3); }
+.editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.tabs { flex: 1; display: flex; gap: 2px; padding: 0 4px; }
+.tab { height: var(--control); max-width: 200px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 8px; border-radius: var(--radius-md); background: var(--fill-2); font-size: var(--text-sm); --i: 14px; }
+.doc-scroll { flex: 1; overflow: auto; }
+.doc { max-width: 680px; margin: 0 auto; padding: 30px 44px 120px; font-size: 15px; line-height: 1.6; }
+.doc .meta { font-size: var(--text-xs); color: var(--text-3); margin-bottom: 6px; }
+.doc h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.015em; margin: 0 0 10px; font-weight: 700; }
+.chips { display: flex; gap: 4px; margin-bottom: 20px; }
+.chip { height: 22px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px 0 7px; border-radius: 11px; background: var(--fill-1); font-size: var(--text-xs); color: var(--text-2); }
+.chip i.d { width: 7px; height: 7px; border-radius: 2px; background: var(--c); }
+.doc h2 { font-size: 19px; margin: 26px 0 6px; letter-spacing: -0.01em; }
+.doc p { margin: 0 0 10px; }
+.doc ul { margin: 0 0 10px; padding-left: 22px; }
+.doc li { margin: 2px 0; }
+.note-ref { color: var(--accent-text); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); text-underline-offset: 0.18em; }
+
+/* Task mention node */
+.task-ref { display: inline-flex; align-items: baseline; gap: 6px; padding: 0 5px 0 3px; margin: 0 1px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; cursor: default; }
+.task-ref:hover { background: var(--fill-1); }
+.task-ref .cb { width: 14px; height: 14px; border-radius: 3.5px; align-self: center; --i: 10px; }
+.task-ref .nm { color: var(--text); }
+.task-ref .due { font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.task-ref .due.late { color: var(--danger); }
+.task-ref.done .nm { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-4); }
+.task-ref.missing { box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; color: var(--text-3); }
+.task-ref.missing .nm { color: var(--text-3); }
+.task-ref.missing .why { font-size: var(--text-xs); color: var(--text-4); }
+.task-ref.selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.typing { color: var(--accent-text); }
+.caret { display: inline-block; width: 1.5px; height: 18px; background: var(--accent); vertical-align: -3px; }
+.anchor { position: relative; }
+
+/* @ picker */
+.picker {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: 360px; padding: 5px;
+  border-radius: var(--radius-xl); background: var(--bg-elevated); backdrop-filter: blur(24px); box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm); line-height: 18px; white-space: normal;
+}
+.pk-h { padding: 5px 8px 3px; font-size: var(--text-xs); font-weight: 600; color: var(--text-3); }
+.pk-row { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: var(--radius-xs); }
+.pk-row .cb { width: 14px; height: 14px; --i: 10px; }
+.pk-row .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-row .lb b { font-weight: 650; }
+.pk-row .ctx { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; }
+.pk-row .ctx .nb-dot { width: 9px; height: 9px; }
+.pk-row.hl { background: var(--accent); color: var(--on-accent); }
+.pk-row.hl .ctx { color: color-mix(in srgb, var(--on-accent) 78%, transparent); }
+.pk-row.hl .cb { box-shadow: inset 0 0 0 1.25px var(--on-accent); background: transparent; }
+.pk-row.done .lb { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-4); }
+.pk-sep { height: 1px; background: var(--line-strong); margin: 4px 8px; }
+.pk-foot { display: flex; gap: 12px; padding: 6px 8px 2px; font-size: var(--text-xs); color: var(--text-3); }
+
+/* Menus and dialogs */
+.menu { position: absolute; z-index: 20; min-width: 228px; padding: 5px; border-radius: var(--radius-lg); background: var(--bg-elevated); backdrop-filter: blur(24px); box-shadow: var(--shadow-pop); font-size: var(--text-sm); }
+.mi { height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: var(--radius-xs); --i: 14px; }
+.mi svg { color: var(--text-2); }
+.mi .lb { flex: 1; }
+.mi .sc { color: var(--text-3); font-size: var(--text-xs); }
+.mi .sub { --i: 12px; color: var(--text-3); }
+.mi.hl { background: var(--accent); color: var(--on-accent); }
+.mi.hl svg, .mi.hl .sc { color: var(--on-accent); }
+.mi.danger { color: var(--danger); } .mi.danger svg { color: var(--danger); }
+.ms { height: 1px; background: var(--line-strong); margin: 4px 8px; }
+.scrim { position: absolute; inset: 0; z-index: 30; background: var(--bg-scrim); display: grid; place-items: center; }
+.dialog { width: 440px; border-radius: var(--radius-2xl); background: var(--bg-content); box-shadow: var(--shadow-window); padding: 20px; }
+.dialog h3 { margin: 0 0 4px; font-size: var(--text-lg); }
+.dialog p { margin: 0 0 14px; color: var(--text-2); font-size: var(--text-sm); line-height: 19px; }
+.radio { display: flex; gap: 10px; padding: 8px 10px; border-radius: var(--radius-lg); font-size: var(--text-sm); }
+.radio + .radio { margin-top: 4px; }
+.radio.on { background: var(--fill-1); box-shadow: inset 0 0 0 0.5px var(--line); }
+.radio .dot { width: 16px; height: 16px; border-radius: 50%; flex: none; margin-top: 1px; box-shadow: inset 0 0 0 1.25px var(--line-strong); }
+.radio.on .dot { box-shadow: inset 0 0 0 5px var(--accent); }
+.radio small { display: block; color: var(--text-3); font-size: var(--text-xs); margin-top: 1px; }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.btn { height: var(--control); padding: 0 14px; border-radius: var(--radius-md); background: var(--bg-control); box-shadow: var(--shadow-control); font-size: var(--text-sm); }
+.btn-danger { background: var(--danger); color: #fff; box-shadow: none; }
+.form-row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 10px; margin-top: 10px; font-size: var(--text-sm); }
+.form-row label { color: var(--text-2); text-align: right; }
+.input { height: var(--control); display: flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: var(--radius-md); background: var(--bg-input); box-shadow: inset 0 0 0 0.5px var(--line-strong); --i: 14px; }
+.input.focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.input .ph { color: var(--text-4); }
+.input svg { color: var(--text-3); }
+.btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <div class="grp"><b>Screen</b>
+    <div class="seg" id="view">
+      <button data-v="project" aria-pressed="true">Project + task</button>
+      <button data-v="list">Project only</button>
+      <button data-v="menu">Task menu</button>
+      <button data-v="note">Note mentions</button>
+      <button data-v="picker">@ picker</button>
+      <button data-v="new">New project</button>
+      <button data-v="delete">Delete project</button>
+    </div>
+  </div>
+  <div class="grp"><b>Mode</b>
+    <div class="seg" id="mode"><button data-m="light" aria-pressed="true">Light</button><button data-m="dark">Dark</button></div>
+  </div>
+  <div class="grp"><b>Accent</b>
+    <div class="swatches" id="accent">
+      <button class="swatch" style="--c:#007aff" data-c="#007aff" aria-pressed="true"></button>
+      <button class="swatch" style="--c:#953d96" data-c="#953d96"></button>
+      <button class="swatch" style="--c:#f7821b" data-c="#f7821b"></button>
+      <button class="swatch" style="--c:#4fa83a" data-c="#4fa83a"></button>
+    </div>
+  </div>
+</div>
+
+<div class="stage"><div class="scaler" id="scaler">
+<div class="window" id="win">
+
+  <!-- ═════════ Sidebar ═════════ -->
+  <aside class="sidebar">
+    <div class="sb-top"><div class="lights"><i></i><i></i><i></i></div><button class="icon-btn" title="Hide sidebar"><i data-lucide="panel-left"></i></button></div>
+    <div class="sb-scroll">
+      <button class="side-row" data-tone style="--tone:var(--tone-indigo)"><i data-lucide="notebook-text"></i><span class="label">All notes</span><span class="count">24</span></button>
+      <button class="side-row" data-tone style="--tone:var(--tone-orange)"><i data-lucide="calendar"></i><span class="label">Today</span><span class="count">3</span></button>
+      <button class="side-row" data-tone style="--tone:var(--tone-green)"><i data-lucide="list-checks"></i><span class="label">To-do</span><span class="count">4</span></button>
+      <button class="side-row" data-tone style="--tone:var(--tone-slate)"><i data-lucide="inbox"></i><span class="label">Uncategorized</span><span class="count">2</span></button>
+
+      <div class="sb-section">
+        <div class="sb-head">Notebooks <button class="icon-btn icon-btn-sm" title="New notebook"><i data-lucide="plus"></i></button></div>
+        <button class="side-row"><span class="disc"></span><span class="nb-dot"><span style="--c:var(--notebook-sage)"></span></span><span class="label">Personal</span><span class="count">9</span></button>
+        <button class="side-row"><span class="disc"><i data-lucide="chevron-down"></i></span><span class="nb-dot"><span style="--c:var(--notebook-slate)"></span></span><span class="label">Work</span><span class="count">7</span></button>
+        <button class="side-row" id="nbRow" style="padding-left:24px"><span class="disc"></span><span class="nb-dot"><span style="--c:var(--notebook-teal)"></span></span><span class="label">Website relaunch</span><span class="count">4</span></button>
+        <button class="side-row"><span class="disc"></span><span class="nb-dot"><span style="--c:var(--notebook-clay)"></span></span><span class="label">Learning</span><span class="count">8</span></button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-head">Projects <button class="icon-btn icon-btn-sm" title="New project"><i data-lucide="plus"></i></button></div>
+        <button class="side-row muted"><i data-lucide="inbox"></i><span class="label">Inbox</span><span class="count">3</span></button>
+        <button class="side-row" id="projRow" aria-current="true">
+          <svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-teal)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="20.7 37.7"/></svg>
+          <span class="label">Website relaunch</span><span class="health-dot" style="--h:var(--warning)" title="At risk"></span></button>
+        <button class="side-row">
+          <svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-lavender)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="30.2 37.7"/></svg>
+          <span class="label">Q4 budget review</span></button>
+        <button class="side-row">
+          <svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-rose)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="7.5 37.7"/></svg>
+          <span class="label">Kitchen renovation</span><span class="health-dot" style="--h:var(--danger)" title="Overdue"></span></button>
+        <button class="side-row">
+          <svg class="ring planned" viewBox="0 0 16 16" style="--c:var(--notebook-sage)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6"/></svg>
+          <span class="label">Garden redesign</span></button>
+        <button class="side-row muted"><span class="disc"><i data-lucide="chevron-right"></i></span><span class="label">Other projects</span><span class="count">2</span></button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-head">Tags</div>
+      </div>
+    </div>
+    <div class="sb-foot"><span class="status"><i data-lucide="circle-check"></i>Synced 2 min ago</span><button class="icon-btn"><i data-lucide="trash-2"></i></button><button class="icon-btn"><i data-lucide="settings"></i></button></div>
+  </aside>
+
+  <!-- ═════════ Project page ═════════ -->
+  <section class="project" id="project">
+    <div class="plist">
+      <div class="pane-bar">
+        <button class="icon-btn" title="Back"><i data-lucide="chevron-left"></i></button>
+        <button class="icon-btn" title="Forward" style="color:var(--text-4)"><i data-lucide="chevron-right"></i></button>
+        <span class="spacer"></span>
+        <button class="icon-btn" title="Sort and group"><i data-lucide="arrow-down-wide-narrow"></i></button>
+        <button class="icon-btn" title="New task"><i data-lucide="square-plus"></i></button>
+        <button class="icon-btn" title="Project actions"><i data-lucide="ellipsis"></i></button>
+      </div>
+      <div class="p-head">
+        <div class="p-name">
+          <svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-teal)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="20.7 37.7"/></svg>
+          <h1>Website relaunch</h1>
+        </div>
+        <div class="p-desc">New marketing site, copy and launch checklist.</div>
+        <div class="p-props">
+          <button class="pill"><span class="status-dot" style="--c:var(--accent)"></span>Active<i class="chev" data-lucide="chevron-down"></i></button>
+          <button class="pill"><i data-lucide="calendar-range"></i>Oct 6 – Nov 28</button>
+          <button class="pill link" style="--c:var(--notebook-teal)"><i data-lucide="notebook"></i>Website relaunch</button>
+        </div>
+        <div class="progress">
+          <span class="bar-track" style="--p:55%;--t:68%" title="Marker shows time elapsed"><i></i><b></b></span>
+          <span><b style="color:var(--text)">6 of 11</b> done</span>
+          <span class="health" style="--h:var(--warning)"><span class="health-dot" style="--h:var(--warning)"></span>At risk</span>
+          <span class="sub">68% of time elapsed · 29 days left</span>
+        </div>
+      </div>
+      <div class="p-scroll">
+        <div class="new-task"><i data-lucide="plus"></i><span>New task</span><span class="hint"><kbd>N</kbd></span></div>
+
+        <div class="group-h"><i data-lucide="chevron-down"></i>Doing <span class="pane-count">2</span></div>
+        <div class="task sel"><span class="cb doing"></span><span class="tt">Write homepage copy</span><span class="meta"><span class="soon"><i data-lucide="calendar"></i>Nov 4</span><span class="prio" data-p="3"><i></i><i></i><i></i></span><span title="Mentioned in 2 notes"><i data-lucide="file-text"></i>2</span></span></div>
+        <div class="task"><span class="cb doing"></span><span class="tt">Pick a typeface pairing</span><span class="meta"><span><i data-lucide="calendar"></i>Nov 7</span><span class="prio" data-p="1"><i></i><i></i><i></i></span></span></div>
+
+        <div class="group-h"><i data-lucide="chevron-down"></i>To do <span class="pane-count">3</span></div>
+        <div class="task" id="menuTask"><span class="cb"></span><span class="tt">Migrate blog posts from the old CMS</span><span class="meta"><span class="late"><i data-lucide="calendar"></i>Oct 27</span><span class="prio" data-p="2"><i></i><i></i><i></i></span><span title="Mentioned in 1 note"><i data-lucide="file-text"></i>1</span></span></div>
+        <div class="task"><span class="cb"></span><span class="tt">Set up redirects for retired pages</span><span class="meta"><span><i data-lucide="calendar"></i>Nov 18</span></span></div>
+        <div class="task"><span class="cb"></span><span class="tt">Launch announcement email</span><span class="meta"><span><i data-lucide="calendar"></i>Nov 28</span><span class="prio" data-p="2"><i></i><i></i><i></i></span></span></div>
+
+        <div class="group-h"><i data-lucide="chevron-right"></i>Done <span class="pane-count">6</span></div>
+      </div>
+
+      <!-- Task context menu -->
+      <div class="menu hidden" id="taskMenu" style="left: 620px; top: 392px;">
+        <div class="mi"><i data-lucide="circle-check"></i><span class="lb">Complete</span><span class="sc">Space</span></div>
+        <div class="mi hl"><i data-lucide="circle-dot"></i><span class="lb">Status</span><i class="sub" data-lucide="chevron-right"></i></div>
+        <div class="mi"><i data-lucide="signal"></i><span class="lb">Priority</span><i class="sub" data-lucide="chevron-right"></i></div>
+        <div class="mi"><i data-lucide="calendar"></i><span class="lb">Due date…</span></div>
+        <div class="mi"><i data-lucide="folder-input"></i><span class="lb">Move to project…</span></div>
+        <div class="ms"></div>
+        <div class="mi"><i data-lucide="link"></i><span class="lb">Copy task link</span></div>
+        <div class="ms"></div>
+        <div class="mi danger"><i data-lucide="trash-2"></i><span class="lb">Delete</span><span class="sc">⌫</span></div>
+      </div>
+      <div class="menu hidden" id="statusMenu" style="left: 850px; top: 418px; min-width: 150px;">
+        <div class="mi"><span class="status-dot" style="--c:var(--text-4)"></span><span class="lb">To do</span><i data-lucide="check" style="color:var(--text)"></i></div>
+        <div class="mi"><span class="status-dot" style="--c:var(--accent)"></span><span class="lb">Doing</span></div>
+        <div class="mi"><span class="status-dot" style="--c:var(--success)"></span><span class="lb">Done</span></div>
+        <div class="mi"><span class="status-dot" style="--c:var(--text-3)"></span><span class="lb">Cancelled</span></div>
+      </div>
+    </div>
+
+    <!-- Task detail -->
+    <aside class="detail">
+      <div class="pane-bar"><span class="pane-title" style="padding-left:8px;font-size:var(--text-sm);color:var(--text-2)">Task</span><span class="spacer"></span><button class="icon-btn" title="Task actions"><i data-lucide="ellipsis"></i></button><button class="icon-btn" title="Close"><i data-lucide="x"></i></button></div>
+      <div class="d-body">
+        <div class="d-title"><span class="cb doing"></span><h2>Write homepage copy</h2></div>
+        <dl class="props">
+          <dt>Status</dt><dd><span class="val"><span class="status-dot" style="--c:var(--accent)"></span>Doing</span></dd>
+          <dt>Priority</dt><dd><span class="val"><span class="prio" data-p="3"><i></i><i></i><i></i></span>High</span></dd>
+          <dt>Project</dt><dd><span class="val"><svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-teal);width:14px;height:14px"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="20.7 37.7"/></svg>Website relaunch</span></dd>
+          <dt>Start</dt><dd><span class="val">Oct 28</span></dd>
+          <dt>Due</dt><dd><span class="val" style="color:var(--warning)">Nov 4 · in 5 days</span></dd>
+        </dl>
+        <div class="d-h">Description</div>
+        <div class="d-desc">Hero, three feature blocks and the pricing teaser. Keep the hero under 12 words.</div>
+        <div class="d-h">Mentioned in <span class="pane-count">2</span></div>
+        <div class="mention-row"><i data-lucide="file-text"></i>Kickoff notes<span class="nb">Website relaunch</span></div>
+        <div class="mention-row"><i data-lucide="file-text"></i>Weekly review — Oct 27<span class="nb">Work</span></div>
+      </div>
+      <div class="d-foot">Created Oct 21 · Edited today at 09:12</div>
+    </aside>
+  </section>
+
+  <!-- ═════════ Notes screen (notebook linked to the project) ═════════ -->
+  <section class="list hidden" id="list">
+    <div class="pane-bar">
+      <span class="pane-title">Website relaunch</span><span class="pane-count" style="margin-left:6px">4</span>
+      <span class="spacer"></span>
+      <button class="proj-link" title="Open project">
+        <svg class="ring" viewBox="0 0 16 16" style="--c:var(--notebook-teal)"><circle class="bg" cx="8" cy="8" r="6"/><circle class="fg" cx="8" cy="8" r="6" stroke-dasharray="20.7 37.7"/></svg>Project</button>
+      <button class="icon-btn" title="New note"><i data-lucide="square-pen"></i></button>
+    </div>
+    <div class="filter"><div class="field"><i data-lucide="list-filter"></i>Filter</div></div>
+    <div class="rows">
+      <div class="row sel"><div class="t">Kickoff notes</div><div class="m">10:05 · Website relaunch</div></div>
+      <div class="row"><div class="t">Homepage copy drafts</div><div class="m">Yesterday · Website relaunch</div></div>
+      <div class="row"><div class="t">Competitor sites</div><div class="m">Oct 22 · Website relaunch</div></div>
+      <div class="row"><div class="t">Launch checklist</div><div class="m">Oct 20 · Website relaunch</div></div>
+    </div>
+  </section>
+
+  <main class="editor hidden" id="editor">
+    <div class="pane-bar">
+      <button class="icon-btn"><i data-lucide="chevron-left"></i></button><button class="icon-btn" style="color:var(--text-4)"><i data-lucide="chevron-right"></i></button>
+      <div class="tabs"><div class="tab"><i data-lucide="file-text"></i>Kickoff notes</div></div>
+      <button class="icon-btn"><i data-lucide="maximize-2"></i></button><button class="icon-btn"><i data-lucide="list-tree"></i></button><button class="icon-btn"><i data-lucide="text-search"></i></button><button class="icon-btn"><i data-lucide="ellipsis"></i></button>
+    </div>
+    <div class="doc-scroll">
+      <article class="doc">
+        <div class="meta">October 30, 2026 at 10:05 AM · 182 words</div>
+        <h1>Kickoff notes</h1>
+        <div class="chips"><span class="chip"><i class="d" style="--c:var(--notebook-teal)"></i>Website relaunch</span></div>
+        <p>Agreed scope: new homepage, pricing and blog. Old docs stay where they are until <a class="note-ref">Docs migration plan</a> is settled.</p>
+        <h2>Owners</h2>
+        <ul>
+          <li>Copy: <span class="task-ref selected"><span class="cb doing"></span><span class="nm">Write homepage copy</span><span class="due">Nov 4</span></span> first, then pricing.</li>
+          <li>Content: <span class="task-ref"><span class="cb"></span><span class="nm">Migrate blog posts from the old CMS</span><span class="due late">Oct 27</span></span> is already late; start with the top 20 posts.</li>
+          <li>Design: <span class="task-ref done"><span class="cb on"><i data-lucide="check"></i></span><span class="nm">Wireframes for homepage</span></span> signed off on Monday.</li>
+        </ul>
+        <h2>Open questions</h2>
+        <p>Do we still need the press page? See <span class="task-ref missing"><span class="cb" style="opacity:.5"></span><span class="nm">Audit old landing pages</span><span class="why">Task not found</span></span>.</p>
+        <p id="pickerLine" class="hidden">Also ask about the announcement: <span class="anchor"><span class="typing">@lau</span><span class="caret"></span>
+          <span class="picker">
+            <span class="pk-h" style="display:block">Tasks</span>
+            <span class="pk-row hl"><span class="cb"></span><span class="lb"><b>Lau</b>nch announcement email</span><span class="ctx"><span class="nb-dot" style="--c:var(--notebook-teal);background:var(--notebook-teal);border-radius:3px"></span>Website relaunch</span></span>
+            <span class="pk-row"><span class="cb"></span><span class="lb">Plan <b>lau</b>nch party</span><span class="ctx">Inbox</span></span>
+            <span class="pk-sep" style="display:block"></span>
+            <span class="pk-row done"><span class="cb on"><i data-lucide="check"></i></span><span class="lb"><b>Lau</b>nch checklist draft</span><span class="ctx"><span class="nb-dot" style="--c:var(--notebook-teal);background:var(--notebook-teal);border-radius:3px"></span>Website relaunch</span></span>
+            <span class="pk-foot"><span><span class="kbd">↵</span> Mention</span><span><span class="kbd">↑↓</span> Move</span><span><span class="kbd">Esc</span> Close</span></span>
+          </span></span></p>
+      </article>
+    </div>
+  </main>
+
+  <!-- ═════════ New project dialog ═════════ -->
+  <div class="scrim hidden" id="newDlg">
+    <div class="dialog">
+      <h3>New project</h3>
+      <p>Projects have their own tasks, dates and progress. Link a notebook to keep the project's notes together.</p>
+      <div class="form-row"><label>Name</label><div class="input focus">Garden redesign</div></div>
+      <div class="form-row"><label>Status</label><div class="input" style="width:140px"><span class="status-dot" style="--c:var(--text-3)"></span>Planned<span class="spacer"></span><i data-lucide="chevrons-up-down"></i></div></div>
+      <div class="form-row"><label>Dates</label><div style="display:flex;gap:6px;align-items:center"><div class="input" style="width:130px"><i data-lucide="calendar"></i>Nov 10</div><span style="color:var(--text-3)">–</span><div class="input" style="width:130px"><i data-lucide="calendar"></i><span class="ph">End date</span></div></div></div>
+      <div class="form-row"><label>Notebook</label><div class="input"><span class="ph">None</span><span class="spacer"></span><i data-lucide="chevrons-up-down"></i></div></div>
+      <div class="dialog-footer"><button class="btn">Cancel</button><button class="btn btn-primary">Create project</button></div>
+    </div>
+  </div>
+
+  <!-- ═════════ Delete project dialog ═════════ -->
+  <div class="scrim hidden" id="delDlg">
+    <div class="dialog">
+      <h3>Delete “Website relaunch”?</h3>
+      <p>The project has 5 open tasks and 6 done. Notes that mention its tasks keep their text.</p>
+      <div class="radio on"><span class="dot"></span><span>Move tasks to Inbox<small>Tasks keep their dates and mentions.</small></span></div>
+      <div class="radio"><span class="dot"></span><span>Delete tasks too<small>Mentions show “Deleted task” and can be restored.</small></span></div>
+      <div class="dialog-footer"><button class="btn">Cancel</button><button class="btn btn-danger">Delete project</button></div>
+    </div>
+  </div>
+
+</div>
+</div></div>
+
+<script>
+lucide.createIcons()
+const $ = (s) => document.querySelector(s)
+const group = (id, attr, apply) => {
+  const el = document.getElementById(id)
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b))
+    apply(b.dataset[attr])
+  })
+}
+group('mode', 'm', (m) => (document.documentElement.dataset.theme = m))
+group('accent', 'c', (c) => document.documentElement.style.setProperty('--accent', c))
+group('view', 'v', (v) => {
+  const notes = v === 'note' || v === 'picker'
+  $('#win').classList.toggle('notes', notes)
+  $('#project').classList.toggle('hidden', notes)
+  $('#list').classList.toggle('hidden', !notes)
+  $('#editor').classList.toggle('hidden', !notes)
+  $('#pickerLine').classList.toggle('hidden', v !== 'picker')
+  $('#project').classList.toggle('no-detail', v === 'list' || v === 'menu' || v === 'new' || v === 'delete')
+  $('#taskMenu').classList.toggle('hidden', v !== 'menu')
+  $('#statusMenu').classList.toggle('hidden', v !== 'menu')
+  $('#menuTask').classList.toggle('menu-open', v === 'menu')
+  document.querySelector('.task.sel')?.classList.toggle('sel', false)
+  if (v === 'project') document.querySelectorAll('.task')[0].classList.add('sel')
+  $('#newDlg').classList.toggle('hidden', v !== 'new')
+  $('#delDlg').classList.toggle('hidden', v !== 'delete')
+  $('#projRow').setAttribute('aria-current', !notes)
+  $('#nbRow').setAttribute('aria-current', notes)
+})
+const fit = () => {
+  const s = $('.stage'), k = Math.min((s.clientWidth - 48) / 1280, (s.clientHeight - 48) / 800, 1)
+  $('#scaler').style.transform = `translate(-50%, -50%) scale(${k})`
+}
+addEventListener('resize', fit); fit()
+</script>
+</body>
+</html>

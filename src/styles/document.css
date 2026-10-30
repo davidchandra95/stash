@@ -666,3 +666,10 @@
     transition: none;
   }
 }
+
+/* Tags in note text keep their tone (see tagTone in src/tags.ts). */
+.body-tag[data-tone] {
+  padding: 0 2px;
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  color: color-mix(in srgb, var(--tone) 88%, var(--text));
+}

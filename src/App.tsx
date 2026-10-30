@@ -13,6 +13,7 @@ import Sidebar from './app/Sidebar'
 import NoteListPane from './app/NoteListPane'
 import EditorPane from './app/EditorPane'
 import Overlays from './app/Overlays'
+import ProjectPane from './projects/ProjectPane'
 
 const noNotes: Note[] = []
 
@@ -64,9 +65,10 @@ export default function App() {
     if (blocked) setPalette((value) => (value.open ? { ...value, open: false } : value))
   }, [blocked])
 
-  // Native vibrancy needs a transparent page behind the sidebar.
+  // Native vibrancy needs a transparent page behind the sidebar. Only the native theme uses it.
   const nativeChrome = isTauri() && platform.platform === 'macos'
-  const vibrancy = nativeChrome && appearance.translucentSidebar
+  const vibrancy =
+    nativeChrome && appearance.translucentSidebar && appearance.interfaceTheme === 'native'
   useEffect(() => {
     document.documentElement.toggleAttribute('data-vibrancy', vibrancy)
   }, [vibrancy])
@@ -91,6 +93,7 @@ export default function App() {
   const className = [
     'window',
     workspace.documentId && 'pdf-active',
+    app.projectView && 'project-active',
     app.focus && 'focus-mode',
     !sidebarVisible && 'no-sidebar',
     !app.noteListVisible && 'no-note-list',
@@ -125,6 +128,7 @@ export default function App() {
               <div {...app.paneResize.dividerProps('noteList')} aria-controls="note-list" />
             )}
             <EditorPane />
+            {app.projectView && <ProjectPane />}
             <Overlays />
             <CommandPalette
               open={palette.open}

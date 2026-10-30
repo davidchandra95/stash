@@ -15,6 +15,9 @@ import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
 import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
+import { projectStore, useProjects } from '../projects/store'
+import type { Project } from '../projects/model'
+import { taskLink } from '../editor/taskReferences'
 import { useLibraryShell, useNoteIds } from '../storage/libraryReaders'
 import { libraryProjection, type NavigationNote } from '../storage/librarySelectors'
 import { useNotebookMove } from '../useNotebookMove'
@@ -123,10 +126,20 @@ export function useAppController() {
     appRef,
     library.ready || !!library.startupError,
     library.ready ? dark : true,
-    library.ready ? `${appearance.colorMode}:${appearance.accent}` : 'startup-error',
-    library.ready && nativeMac && appearance.translucentSidebar,
+    library.ready
+      ? `${appearance.colorMode}:${appearance.accent}:${appearance.interfaceTheme}`
+      : 'startup-error',
+    library.ready &&
+      nativeMac &&
+      appearance.translucentSidebar &&
+      appearance.interfaceTheme === 'native',
   )
-  useSystemAccent(nativeMac && library.ready && appearance.accent === 'system')
+  useSystemAccent(
+    nativeMac &&
+      library.ready &&
+      appearance.accent === 'system' &&
+      appearance.interfaceTheme === 'native',
+  )
   const [sidebarView, setView] = useState<View | null>(null)
   const view =
     sidebarView ??
@@ -271,6 +284,36 @@ export function useAppController() {
   const [pdfImporting, setPdfImporting] = useState(false)
   const pdfInput = useRef<HTMLInputElement>(null)
   useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
+  const projects = useProjects(library.ready)
+  useEffect(() => libraryStore.registerFlush(projectStore.flush), [])
+  /** The open project page: a project ID, 'inbox', 'all' (the overview), or null for notes. */
+  const [projectView, setProjectView] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [projectLayout, setProjectLayout] = useState<'list' | 'board'>('list')
+  const [projectEditing, setProjectEditing] = useState<Project | 'new' | null>(null)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [projectNotice, setProjectNotice] = useState<{ message: string; undo?: () => void } | null>(
+    null,
+  )
+  const openProject = (id: string) => {
+    setProjectView(id)
+    setSelectedTaskId(null)
+    setFocus(false)
+  }
+  /** Opens a task's project (or the Inbox) with the task selected. */
+  const openTask = (id: string) => {
+    const task = projectStore.getSnapshot().tasks.find((t) => t.id === id && t.deletedAt === null)
+    if (!task) return
+    setProjectView(task.projectId ?? 'inbox')
+    setSelectedTaskId(task.id)
+    setFocus(false)
+  }
+  const copyTaskLink = (id: string) => {
+    const text = taskLink(id)
+    void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((error) =>
+      setProjectNotice({ message: `Couldn’t copy the task link. ${String(error)}` }),
+    )
+  }
   const workspace = useWorkspace({
     notes,
     initialNotes: () => libraryStore.getSnapshot().notes,
@@ -295,7 +338,35 @@ export function useAppController() {
       }
     },
   })
-  const noteListVisible = noteList && !focus && !workspace.documentId
+  const noteListVisible = noteList && !focus && !workspace.documentId && !projectView
+  // Opening a note or PDF from anywhere (palette, links, sidebar) leaves the project page.
+  useEffect(() => {
+    if (workspace.activation) setProjectView(null)
+  }, [workspace.activation])
+  // Reopen the project page that was open at quit, once projects have loaded.
+  const projectRestored = useRef(false)
+  useEffect(() => {
+    if (projectRestored.current || !library.ready || !projects.ready) return
+    projectRestored.current = true
+    const saved = library.workspace?.projectView
+    if (saved && projectPageExists(saved, projects.projects)) setProjectView(saved)
+  }, [library.ready, projects.ready])
+  useEffect(() => {
+    if (projectRestored.current) libraryStore.setProjectView(projectView)
+  }, [projectView])
+  /** The app area shown in the sidebar and main panes. Projects is open while a project page is. */
+  const domain: Domain = projectView ? 'projects' : 'notes'
+  // Switching back to Projects reopens the page that was last open there.
+  const lastProjectView = useRef('tasks:today')
+  useEffect(() => {
+    if (projectView) lastProjectView.current = projectView
+  }, [projectView])
+  const switchDomain = (next: Domain) => {
+    if (next === domain) return
+    if (next === 'notes') return setProjectView(null)
+    const last = lastProjectView.current
+    openProject(projectPageExists(last, projectStore.getSnapshot().projects) ? last : 'tasks:today')
+  }
   const paneResize = usePaneResize({
     appRef,
     savedWidths: library.workspace?.paneWidths,
@@ -693,6 +764,7 @@ export function useAppController() {
     })
   const { update, create: createNote } = useNoteActions(animateRows)
   const navigate = (next: View) => {
+    setProjectView(null)
     setView(next)
     setQuery('')
     const snapshot = libraryStore.getSnapshot()
@@ -785,6 +857,7 @@ export function useAppController() {
       setNotes((old) => [...old, created])
       return { ...created, notebook: notebookLabel(created) }
     },
+    openTask,
     open: (id, newTab = false) => {
       const target = libraryStore.getSnapshot().notes.find((n) => n.id === id)
       if (!target || target.trashed) {
@@ -806,6 +879,7 @@ export function useAppController() {
       create: (title) => latestNoteLinks.current.create(title),
       open: (id, newTab) => latestNoteLinks.current.open(id, newTab),
       contextMenu: (id, position) => latestNoteLinks.current.contextMenu?.(id, position),
+      openTask: (id) => latestNoteLinks.current.openTask?.(id),
     }),
     [notes, notebooks],
   )
@@ -1078,6 +1152,8 @@ export function useAppController() {
       forward: workspace.canForward ? () => workspace.move(1) : undefined,
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),
+      'show-notes': () => switchDomain('notes'),
+      'show-projects': projects.ready ? () => switchDomain('projects') : undefined,
       'close-tab': () => {
         workspace.closeActive()
       },
@@ -1193,6 +1269,24 @@ export function useAppController() {
     setMatchNavigation,
     contentsResize,
     pdfs,
+    projects,
+    projectView,
+    setProjectView,
+    openProject,
+    domain,
+    switchDomain,
+    openTask,
+    copyTaskLink,
+    selectedTaskId,
+    setSelectedTaskId,
+    projectLayout,
+    setProjectLayout,
+    projectEditing,
+    setProjectEditing,
+    projectToDelete,
+    setProjectToDelete,
+    projectNotice,
+    setProjectNotice,
     pdfImportError,
     setPdfImportError,
     pdfImporting,
@@ -1276,3 +1370,8 @@ export function useAppController() {
 }
 
 export type AppController = ReturnType<typeof useAppController>
+export type Domain = 'notes' | 'projects'
+
+const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming']
+const projectPageExists = (id: string, projects: Project[]) =>
+  fixedProjectPages.includes(id) || projects.some((p) => p.id === id && p.deletedAt === null)

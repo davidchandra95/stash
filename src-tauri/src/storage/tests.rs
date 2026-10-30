@@ -561,6 +561,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
     prefs.workspace = Some(WorkspacePreferences {
         note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
+        project_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -589,7 +590,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        10
+        11
     );
 }
 
@@ -601,6 +602,7 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
     prefs.workspace = Some(WorkspacePreferences {
         note_list_mode: NoteListMode::Compact,
         sidebar_view: Some("book:empty".into()),
+        project_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -632,6 +634,7 @@ fn workspace_rejects_multiple_preview_tabs() {
     prefs.workspace = Some(WorkspacePreferences {
         note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
+        project_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec![],
         pane_widths: None,
@@ -1037,7 +1040,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                10
+                11
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))
@@ -1128,6 +1131,7 @@ fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
     prefs.workspace = Some(WorkspacePreferences {
         note_list_mode: NoteListMode::Compact,
         sidebar_view: None,
+        project_view: None,
             pdf_notes: Default::default(),
         recent_note_ids: vec!["a".into(), "b".into()],
         pane_widths: None,

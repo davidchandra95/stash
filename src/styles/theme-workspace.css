@@ -1,0 +1,240 @@
+/*
+ * Workspace theme (<html data-ui="workspace">): an opaque, bordered workspace on a cool grey
+ * frame, slate text and an indigo accent kept for selection, focus and primary actions. It
+ * replaces macOS materials: no vibrancy, no translucent menus, hairline borders over shadows.
+ * Loaded after tokens.css; every value here overrides a token, so area styles stay shared.
+ */
+
+:root[data-ui='workspace'] {
+  --font-ui: Inter, 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --radius-sm: 6px;
+  --radius-xl: 8px;
+  --accent-soft: color-mix(in srgb, var(--accent) 11%, var(--bg-content));
+  --text-selection: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* Dense product type on desktop only; Android keeps its touch sizes. */
+:root[data-ui='workspace']:not([data-platform='mobile']) {
+  --text-md: 13px;
+  --leading: 18px;
+}
+
+:root[data-ui='workspace']:not([data-theme='dark']) {
+  --bg-window: #eef0f4;
+  --bg-sidebar: #eef0f4;
+  --bg-sidebar-translucent: #eef0f4;
+  --bg-content: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-elevated-solid: #ffffff;
+  --bg-input: #ffffff;
+  --bg-control: #ffffff;
+  --bg-code: #eef0f4;
+  --bg-scrim: rgba(30, 36, 51, 0.32);
+  --bg-notice: #1e2433;
+  --on-notice: #ffffff;
+
+  --text: #1f2a3a;
+  --text-heading: #08093f;
+  --text-2: #686878;
+  --text-3: #62748e;
+  --text-4: #a3b0c2;
+
+  --scrollbar-idle: rgba(98, 116, 142, 0.16);
+  --scrollbar-hover: rgba(98, 116, 142, 0.36);
+  --scrollbar-active: rgba(98, 116, 142, 0.56);
+
+  --line: #dfe4e7;
+  --line-strong: #cdd5dc;
+  --fill-1: #eef0f4;
+  --fill-2: #e3e7ef;
+  --fill-3: #e8ebf3;
+  --fill-frame: rgba(98, 116, 142, 0.12);
+
+  --danger: #c53030;
+  --danger-fill: #c53030;
+  --danger-soft: #fde8e8;
+  --warning: #9a6a00;
+  --success: #38a169;
+  --success-mark: #38a169;
+  --mark: rgba(242, 176, 30, 0.3);
+  --mark-current: rgba(242, 176, 30, 0.62);
+
+  --notebook-sage: #3f7d3a;
+  --notebook-slate: #62748e;
+  --notebook-lavender: #6d6bc0;
+  --notebook-ochre: #b7860f;
+  --notebook-teal: #2f8582;
+
+  --shadow-control: 0 0 0 1px #dfe4e7;
+  --shadow-card: 0 0 0 1px #dfe4e7;
+  --shadow-pop: 0 0 0 1px #dfe4e7, 0 8px 24px rgba(31, 42, 58, 0.12);
+  --shadow-window: 0 0 0 1px #dfe4e7, 0 20px 56px rgba(11, 12, 59, 0.18);
+}
+
+:root[data-ui='workspace'][data-theme='dark'] {
+  --bg-window: #0e1520;
+  --bg-sidebar: #0e1520;
+  --bg-sidebar-translucent: #0e1520;
+  --bg-content: #141d2c;
+  --bg-elevated: #172031;
+  --bg-elevated-solid: #172031;
+  --bg-input: #0e1520;
+  --bg-control: #172031;
+  --bg-code: #172031;
+  --bg-scrim: rgba(0, 0, 0, 0.5);
+  --bg-notice: #1e2433;
+  --on-notice: #f8fafc;
+
+  --text: #f8fafc;
+  --text-heading: #f8fafc;
+  --text-2: #b3bdcc;
+  --text-3: #8a9ab2;
+  --text-4: #4f5d74;
+
+  --scrollbar-idle: rgba(248, 250, 252, 0.08);
+  --scrollbar-hover: rgba(248, 250, 252, 0.22);
+  --scrollbar-active: rgba(248, 250, 252, 0.38);
+
+  --line: #202a3e;
+  --line-strong: #2d394f;
+  --fill-1: #172031;
+  --fill-2: #1d2739;
+  --fill-3: #222d43;
+  --fill-frame: rgba(248, 250, 252, 0.06);
+
+  --danger: #f07a7a;
+  --danger-fill: #c53030;
+  --danger-soft: rgba(197, 48, 48, 0.18);
+  --warning: #f2b01e;
+  --success: #5cc48a;
+  --success-mark: #38a169;
+  --mark: rgba(242, 176, 30, 0.26);
+  --mark-current: rgba(242, 176, 30, 0.5);
+
+  --notebook-sage: #7fb877;
+  --notebook-slate: #93a6c2;
+  --notebook-lavender: #a4a3ec;
+  --notebook-ochre: #e0b44f;
+  --notebook-teal: #6cc0bc;
+
+  --shadow-control: 0 0 0 1px #202a3e;
+  --shadow-card: 0 0 0 1px #202a3e;
+  --shadow-pop: 0 0 0 1px #2d394f, 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-window: 0 0 0 1px #2d394f, 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+/* ───────── Surfaces: opaque, bordered, no blur ───────── */
+
+:root[data-ui='workspace']
+  :is(
+    .menu,
+    .popover,
+    .notice,
+    .palette,
+    .toolbar,
+    .context-tools,
+    .slash-menu,
+    .rich-menu,
+    .note-outline
+  ) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-ui='workspace'] .notice {
+  background: var(--bg-notice);
+  color: var(--on-notice);
+}
+:root[data-ui='workspace'] .notice[role='alert'] > span:first-child {
+  color: #fca5a5;
+}
+:root[data-ui='workspace'] .notice .btn {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  color: var(--on-notice);
+}
+:root[data-ui='workspace'] .field-error {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-xs);
+  background: var(--danger-soft);
+}
+
+:root[data-ui='workspace'] .btn-primary {
+  box-shadow: none;
+  font-weight: 600;
+}
+
+/* ───────── Window: a framed content card on the sidebar's frame ───────── */
+
+:root[data-ui='workspace'] .window {
+  --frame-gap: 8px;
+  background: var(--bg-window);
+}
+:root[data-ui='workspace'] .window > .sidebar {
+  border-right: 0;
+  background: transparent;
+}
+/* Standard layout: the notes list and editor share one card. */
+:root[data-ui='workspace'] .window:not(.layout-cards) > .note-list,
+:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane {
+  margin: var(--frame-gap) 0;
+  border: 1px solid var(--line);
+  background: var(--bg-content);
+}
+:root[data-ui='workspace'] .window:not(.layout-cards) > .note-list {
+  border-right-color: var(--line);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane {
+  margin-right: var(--frame-gap);
+  border-left: 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+:root[data-ui='workspace'] .window:not(.layout-cards).no-sidebar > .note-list {
+  margin-left: var(--frame-gap);
+}
+:root[data-ui='workspace'] .window:not(.layout-cards):is(.no-note-list, .pdf-active) > .note-list {
+  margin: 0;
+  border: 0;
+}
+:root[data-ui='workspace']
+  .window:not(.layout-cards):is(.no-note-list, .pdf-active)
+  > .editor-pane {
+  border-left: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+:root[data-ui='workspace']
+  .window:not(.layout-cards):is(.no-note-list, .pdf-active).no-sidebar
+  > .editor-pane {
+  margin-left: var(--frame-gap);
+}
+
+/* ───────── Sidebar: rows on the frame, selection lifted onto the card color ───────── */
+
+:root[data-ui='workspace'] .side-row {
+  font-weight: 500;
+}
+:root[data-ui='workspace'] button.side-row:hover:not(:disabled),
+:root[data-ui='workspace'] .side-row.has-actions:hover {
+  background: var(--fill-frame);
+}
+:root[data-ui='workspace'] .side-row.is-selected,
+:root[data-ui='workspace'] .side-row.is-selected:hover {
+  background: var(--bg-content);
+  box-shadow: var(--shadow-control);
+  font-weight: 600;
+}
+
+/* ───────── Writing surface: navy headings ───────── */
+
+:root[data-ui='workspace'] .note-title {
+  color: var(--text-heading);
+}
+:root[data-ui='workspace'] .tiptap h1 {
+  --heading-color: var(--heading-h1-color, var(--text-heading));
+}
+:root[data-ui='workspace'] .tiptap h2 {
+  --heading-color: var(--heading-h2-color, var(--text-heading));
+}
+:root[data-ui='workspace'] .tiptap h3 {
+  --heading-color: var(--heading-h3-color, var(--text-heading));
+}
