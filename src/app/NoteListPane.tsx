@@ -1,5 +1,7 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { memo, useEffect, useRef, type PointerEvent, type RefObject } from 'react'
+import ProjectRing from '../projects/ProjectRing'
+import { progress } from '../projects/model'
 import AppTooltip from '../components/AppTooltip'
 import NoteContextMenu, { type NoteAction } from '../components/NoteContextMenu'
 import NoteListNotebook from '../components/NoteListNotebook'
@@ -43,6 +45,35 @@ function RadioItems<T extends string>({
       ))}
     </Dropdown.RadioGroup>
   )
+}
+
+/** Projects that link to the notebook in view. */
+function LinkedProjects() {
+  const app = useApp()
+  const blocked = useBlocked()
+  const bookId = app.view.startsWith('book:') ? app.view.slice(5) : null
+  if (!bookId) return null
+  const { projects, tasks } = app.projects
+  return projects
+    .filter((project) => project.deletedAt === null && project.notebookId === bookId)
+    .map((project) => (
+      <AppTooltip key={project.id} label={`Open project “${project.name}”`} disabled={blocked}>
+        <button
+          className="project-link-chip"
+          disabled={blocked}
+          onClick={() => app.openProject(project.id)}
+        >
+          <ProjectRing
+            project={project}
+            ratio={
+              progress(tasks.filter((t) => t.deletedAt === null && t.projectId === project.id))
+                .ratio
+            }
+          />
+          Project
+        </button>
+      </AppTooltip>
+    ))
 }
 
 function ListMenu() {
@@ -239,6 +270,7 @@ export default trackApp(function NoteListPane() {
             <span className="count">{filtered.length.toLocaleString('en-US')}</span>
           )}
         </h1>
+        <LinkedProjects />
         <ListMenu />
         <AppTooltip
           instant

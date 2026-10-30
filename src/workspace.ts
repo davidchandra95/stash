@@ -45,6 +45,8 @@ export function normalizePdfNotes(value: unknown): Record<string, PdfNotesPrefer
 export type WorkspacePreferences = {
   noteListMode?: NoteListMode
   sidebarView?: View
+  /** The open project page: a project ID, 'inbox' or 'all'. */
+  projectView?: string | null
   pdfNotes?: Record<string, PdfNotesPreferences>
   recentNoteIds?: string[]
   noteLists?: Record<string, NoteListPreferences>

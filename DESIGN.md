@@ -36,6 +36,7 @@ lists what changes for touch. Shared components must keep working on both.
 | Settings                 | `src/app/Settings.tsx`                                   | `src/styles/settings.css`                           |
 | Android                  | `src/mobile/*`                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
 | PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
+| Projects and tasks       | `src/projects/*`                                         | `src/styles/projects.css`                           |
 
 All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
 `useApp()` and render; they don't own workspace logic. Panes are wrapped in `trackApp()`
@@ -124,6 +125,8 @@ when a token exists.
   view options" menu, New note. Editor bar: Back/Forward, tabs, note controls (Focus mode, Table
   of contents, Find in note, Note actions).
 - Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
+- A project page (sidebar Projects section) replaces the notes list and editor; opening any
+  notes view, note or PDF leaves it. Selecting a task adds a detail panel on the right.
 - The sidebar footer holds sync status, Trash and Settings. There is no account menu.
 - Settings opens centered and can be dragged by its title bars, staying inside the window; it
   re-centers each time it opens.
@@ -153,6 +156,30 @@ Use the shared classes before writing new CSS:
   (`src/nativeContextMenu.ts`); keep their actions identical to the Radix menus.
 - All hover hints use `AppTooltip`. Icon-only buttons pass `instant`; everything else uses the
   700ms delay.
+
+## Projects and tasks
+
+- Sidebar projects show a 17px progress ring in the project color (dashed while planned) and a
+  6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
+  collapsed "Other projects" row.
+- Task checkboxes: empty for to do, half-filled with the accent for doing, accent-filled for
+  done. Done and cancelled titles are struck through in `--text-3`.
+- Task rows are 34px with inset dividers; selection uses the notes-list treatment
+  (`--accent-soft` with an accent hairline). Due dates turn `--warning` within two days and
+  `--danger` when late. Priority is three bars; high is `--danger`.
+- The project header's progress bar marks the elapsed share of the project's dates.
+- Board columns are `--fill-1` panels (radius `--radius-lg`) holding `--bg-content` cards with
+  `--shadow-card`; the drop position is a 2px accent line, and the target column gets an accent
+  inset outline. Timeline bars use the project color at 28% with the done share filled solid;
+  today is a 1.5px `--danger` line.
+- All projects is a full-width table (38px rows, sortable column headers, `--line` row dividers)
+  that opens a project on click or Return. Missing values render in `--text-4`.
+- A task mention in a note is an inline chip with a `--line` outline: checkbox, title, due
+  date. A missing or deleted task uses a dashed outline and muted text. Typing `@` at the start
+  of a word opens a task picker built from the note-link menu rows; it shows nothing, rather than
+  an empty state, when no task matches.
+- Task and project menus are Radix menus on every platform; destructive items use
+  `.menu-item.is-danger`.
 
 ## Writing surface
 

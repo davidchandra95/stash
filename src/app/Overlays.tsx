@@ -12,6 +12,9 @@ import {
 } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
 import { X } from '../icons'
+import ProjectDialog from '../projects/ProjectDialog'
+import DeleteProjectDialog from '../projects/DeleteProjectDialog'
+import { projectStore } from '../projects/store'
 import { trackApp, useApp, useBlocked } from './context'
 
 /** Transient status at the bottom of the window: errors, undo and progress. */
@@ -59,6 +62,38 @@ function Notices() {
           </button>
         </div>
       )}
+      {app.projects.saveError && (
+        <div className="notice" role="alert">
+          <span>Couldn’t save the task change. {app.projects.saveError}</span>
+          <button className="btn" onClick={projectStore.clearSaveError}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {app.projectNotice && (
+        <div className="notice" role="status" aria-live="polite">
+          <span>{app.projectNotice.message}</span>
+          {app.projectNotice.undo && (
+            <button
+              className="btn"
+              disabled={blocked}
+              onClick={() => {
+                app.projectNotice?.undo?.()
+                app.setProjectNotice(null)
+              }}
+            >
+              Undo
+            </button>
+          )}
+          <button
+            className="icon-btn icon-btn-sm"
+            aria-label="Dismiss notice"
+            onClick={() => app.setProjectNotice(null)}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
+      )}
       {notebookMove.busy && (
         <div className="notice" role="status">
           <span>Saving notebook change…</span>
@@ -96,6 +131,19 @@ export default trackApp(function Overlays() {
   return (
     <>
       <Notices />
+      <ProjectDialog
+        open={!!app.projectEditing}
+        project={app.projectEditing === 'new' ? undefined : (app.projectEditing ?? undefined)}
+        notebooks={notebooks}
+        onClose={() => app.setProjectEditing(null)}
+        onCreated={(project) => app.openProject(project.id)}
+      />
+      <DeleteProjectDialog
+        project={app.projectToDelete}
+        tasks={app.projects.tasks}
+        onClose={() => app.setProjectToDelete(null)}
+        notify={app.setProjectNotice}
+      />
       {noteContext && (
         <div
           className="menu note-link-context"
