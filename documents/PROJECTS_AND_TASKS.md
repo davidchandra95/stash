@@ -1,6 +1,6 @@
 # Projects and tasks (proposal)
 
-Status: Phases 1–4 implemented on desktop. Android, subtasks and recurring tasks are proposals.
+Status: Phases 1–4 implemented on desktop. Android has projects, tasks and mentions; Due today, Upcoming, Board and Timeline are desktop only. Subtasks and recurring tasks are proposals.
 
 ## Goal
 
@@ -110,7 +110,12 @@ Add these to [DESIGN.md](../DESIGN.md) when the UI is implemented.
 
 ### Android
 
-A stack: project list → project page → task detail, with the same new-task row. Mentions in the mobile editor render and toggle the same way as on desktop.
+Implemented. A stack: project list → project page → task detail, with the same new-task row. Mentions in the mobile editor render and toggle the same way as on desktop.
+
+- **Drawer.** A Projects section after Notebooks: All projects, Inbox, then active and planned projects with a progress ring and a health dot. Choosing a project starts the stack at the project list, so Back walks to it, then leaves the app.
+- **Project page.** The app bar keeps the drawer button, as in a note. Status, dates and notebook pills open bottom sheets; Project actions also edits (the desktop dialog, with stacked labels) and deletes. Groups run Doing, To do, then Done collapsed.
+- **Task page.** Title, then 48px property rows that open bottom sheets, description and "Mentioned in". Text saves on blur, when leaving the page, and when the app is hidden. The task's ⋮ sheet completes, moves, copies a link and deletes, with Undo.
+- **`@` picker.** Touch keyboards compose every word, so on mobile the picker keeps reading the query during composition. Choosing a task commits the composition first.
 
 ## Sync (future work)
 
@@ -131,7 +136,7 @@ Each phase ships on its own and keeps existing tests passing.
 
 ### 1. Tasks and projects data, basic Projects UI
 
-Implemented (desktop): schema 11 (`projects_schema.sql`), `list_projects` and `save_projects` commands (`storage/projects.rs`; one transaction per batch, revision checks), the store in `src/projects/store.ts` with session data in the browser preview, the sidebar section, project and Inbox pages, task detail panel, project dialogs, and undo for deletes. Not yet done: the Android screens, and restoring an open project page on relaunch. The `icon` column is reserved and not editable yet.
+Implemented (desktop): schema 11 (`projects_schema.sql`), `list_projects` and `save_projects` commands (`storage/projects.rs`; one transaction per batch, revision checks), the store in `src/projects/store.ts` with session data in the browser preview, the sidebar section, project and Inbox pages, task detail panel, project dialogs, and undo for deletes. Not yet done: restoring an open project page on relaunch (Android starts at All notes, as it does for notes). The `icon` column is reserved and not editable yet.
 
 - Schema migration, task and project store in the controller, Tauri commands, browser-preview session data.
 - Sidebar Projects section, Inbox, project page with create, edit, complete, reorder and delete, task detail panel.

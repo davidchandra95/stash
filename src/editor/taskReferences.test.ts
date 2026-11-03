@@ -5,6 +5,7 @@ import { writingExtensions } from './extensions'
 import { parseMarkdown, serializeMarkdown, validateMarkdown } from './markdown'
 import { mentionMatch, taskIdFromLink, taskSuggestions } from './taskReferences'
 import { noteMentionsTask } from '../projects/mentions'
+import { platform } from '../platform'
 import type { Task } from '../projects/model'
 
 const task = (id: string, title: string, fields: Partial<Task> = {}): Task => ({
@@ -39,6 +40,16 @@ describe('@ mentions', () => {
     expect(mentionMatch(editorWith('(@launch email'))?.query).toBe('launch email')
     expect(mentionMatch(editorWith('mail me at ana@example'))).toBeNull()
     expect(mentionMatch(editorWith('no mention'))).toBeNull()
+  })
+
+  it('reads the query during composition only on mobile, where every word composes', () => {
+    const editor = editorWith('Ask @lau')
+    editor.view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    expect(editor.view.composing).toBe(true)
+    expect(mentionMatch(editor)).toBeNull()
+    platform.mobile = true
+    expect(mentionMatch(editor)?.query).toBe('lau')
+    platform.mobile = false
   })
 
   it('suggests open tasks before finished ones, prefix matches first', () => {

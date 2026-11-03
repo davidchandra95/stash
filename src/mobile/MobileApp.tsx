@@ -34,12 +34,14 @@ import {
   Files,
   FolderPlus,
   Inbox,
+  ListChecks,
   ListTodo,
   Menu,
   MoreHorizontal,
   MoreVertical,
   BookPlus,
   PenLine,
+  Plus,
   Search,
   Settings2,
   X,
@@ -79,9 +81,27 @@ import { startAutoSync } from '../autoSync'
 import {
   initialNavigation,
   mobileNavigation,
+  projectRoute,
   type MobileRoute,
   type SettingsCategory,
 } from './navigation'
+import { projectStore, useProjects } from '../projects/store'
+import type { Notify } from '../projects/actions'
+import { bySort, health, isOpenProject, progress, type Project } from '../projects/model'
+import ProjectRing from '../projects/ProjectRing'
+import ProjectDialog from '../projects/ProjectDialog'
+import DeleteProjectDialog from '../projects/DeleteProjectDialog'
+import { taskLink } from '../editor/taskReferences'
+import {
+  openCount,
+  ProjectList,
+  ProjectPage,
+  projectName,
+  projectSheetTitle,
+  ProjectSheetBody,
+  TaskPage,
+  type ProjectSheet,
+} from './MobileProjects'
 
 const viewNames: Record<string, string> = {
   all: 'All notes',
@@ -112,10 +132,15 @@ type Overlay =
   | { kind: 'drawer' | 'list-actions' }
   | { kind: 'note-actions' | 'organization' | 'information'; id: string }
   | { kind: 'book-actions'; id: string }
+  | ProjectSheet
+const isProjectSheet = (overlay: Overlay | null): overlay is ProjectSheet =>
+  !!overlay && (overlay.kind.startsWith('project-') || overlay.kind.startsWith('task-'))
 
 export default function MobileApp() {
   const state = useLibrary()
   const { notes, notebooks, appearance } = state
+  const projectData = useProjects(state.ready)
+  useEffect(() => library.registerFlush(projectStore.flush), [])
   const [navigation, dispatch] = useReducer(mobileNavigation, undefined, initialNavigation)
   const route = navigation.routes.at(-1)!
   const [overlay, setOverlay] = useState<Overlay | null>(null)
@@ -123,6 +148,9 @@ export default function MobileApp() {
     null,
   )
   const [deleteBook, setDeleteBook] = useState<Notebook | null>(null)
+  const [projectDialog, setProjectDialog] = useState<{ project?: Project } | null>(null)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [projectNotice, setProjectNotice] = useState<Parameters<Notify>[0]>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [findOpen, setFindOpen] = useState(false)
   const [contentsOpen, setContentsOpen] = useState(false)
@@ -221,7 +249,11 @@ export default function MobileApp() {
       ? `note:${route.id}`
       : route.kind === 'list'
         ? `list:${route.view}`
-        : `settings:${route.category ?? ''}`
+        : route.kind === 'settings'
+          ? `settings:${route.category ?? ''}`
+          : route.kind === 'projects'
+            ? 'projects'
+            : `${route.kind}:${route.id}`
   const animateRows = useAnimatedItems(
     scroll,
     '[data-motion-key]',
@@ -318,6 +350,18 @@ export default function MobileApp() {
       setSearchOpen(false)
     })
   const openNote = (id: string) => push({ kind: 'note', id, scroll: 0 })
+  const openTask = (id: string) => push({ kind: 'task', id, scroll: 0 })
+  const openProjects = (project?: string) =>
+    void perform(() => {
+      dispatch({ type: 'projects', project })
+      setSearchOpen(false)
+    })
+  const copyTaskLink = (id: string) => {
+    const text = taskLink(id)
+    void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((e) =>
+      setError(`Couldn’t copy the task link. ${String(e)}`),
+    )
+  }
   const newNote = (notebookId?: string) =>
     void perform(() => {
       const view = route.kind === 'list' ? route.view : 'all'
@@ -381,9 +425,11 @@ export default function MobileApp() {
       nestedMenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
       return
     }
-    if (bookDialog || deleteBook) {
+    if (bookDialog || deleteBook || projectDialog || projectToDelete) {
       setBookDialog(null)
       setDeleteBook(null)
+      setProjectDialog(null)
+      setProjectToDelete(null)
       return
     }
     if (overlay) {
@@ -437,7 +483,11 @@ export default function MobileApp() {
         ? route.category
           ? categoryNames[route.category]
           : 'Settings'
-        : ''
+        : route.kind === 'projects'
+          ? 'Projects'
+          : ''
+  const routeTask =
+    route.kind === 'task' ? projectData.tasks.find((t) => t.id === route.id) : undefined
   const variables = {
     '--title-font': fontFamily(appearance.titleFont),
     '--note-font': fontFamily(appearance.noteFont),
@@ -473,7 +523,9 @@ export default function MobileApp() {
       ? notebooks.find((b) => b.id === route.view.slice(5))
       : undefined
   const overlayNote =
-    overlay && 'id' in overlay ? notes.find((n) => n.id === overlay.id) : undefined
+    overlay && 'id' in overlay && !isProjectSheet(overlay)
+      ? notes.find((n) => n.id === overlay.id)
+      : undefined
   const overlayBook =
     overlay?.kind === 'book-actions' ? notebooks.find((b) => b.id === overlay.id) : undefined
   const count = (view: View) =>
@@ -524,6 +576,23 @@ export default function MobileApp() {
         notebooks.filter((b) => b.parentId === book.id).map((b) => bookRow(b, true, depth + 1))}
     </div>
   )
+  const projectRow = (project: Project) => {
+    const own = projectData.tasks.filter((t) => t.deletedAt === null && t.projectId === project.id)
+    const state = health(project, own)
+    const selected = route.kind === 'project' && route.id === project.id
+    return (
+      <button
+        key={project.id}
+        className={selected ? 'selected' : ''}
+        aria-current={selected ? 'page' : undefined}
+        onClick={() => openProjects(project.id)}
+      >
+        <ProjectRing project={project} ratio={progress(own).ratio} />
+        <span>{project.name}</span>
+        {state && state !== 'on_track' && <i className={`health-dot is-${state}`} aria-hidden />}
+      </button>
+    )
+  }
   const viewRow = (view: View, label: string, showCount = true) => {
     const Icon = viewIcons[view]
     const selected = route.kind === 'list' && route.view === view
@@ -569,20 +638,25 @@ export default function MobileApp() {
       }
       openNote(id)
     },
+    openTask,
   }
-  const saveFailure = (error || state.error || state.syncError) && (
+  // A failed task save has already reloaded the stored state, so it only needs dismissing.
+  const projectFailure = projectData.saveError || projectData.error
+  const saveFailure = (error || state.error || state.syncError || projectFailure) && (
     <div className="mobile-error" role="alert">
-      <span>{error || state.error || state.syncError}</span>
+      <span>{error || state.error || state.syncError || projectFailure}</span>
       <button
         className="btn btn-sm"
         onClick={() =>
           void perform(async () => {
-            if (state.syncError && !state.error) await library.sync()
-            else await library.flush()
+            if (error || state.error) await library.flush()
+            else if (state.syncError) await library.sync()
+            else if (projectData.saveError) projectStore.clearSaveError()
+            else await projectStore.open()
           }, false)
         }
       >
-        Retry
+        {!error && !state.error && !state.syncError && projectData.saveError ? 'Dismiss' : 'Retry'}
       </button>
     </div>
   )
@@ -604,7 +678,7 @@ export default function MobileApp() {
     <ShortcutContext.Provider value={appearance.shortcuts ?? {}}>
       <div className="mobile-app" ref={root} style={variables}>
         <header className={`mobile-header${route.kind === 'note' ? ' mobile-note-header' : ''}`}>
-          {route.kind !== 'note' && navigation.routes.length > 1 ? (
+          {route.kind !== 'note' && route.kind !== 'project' && navigation.routes.length > 1 ? (
             <button className="icon-btn" aria-label="Back" onClick={back}>
               <ArrowLeft />
             </button>
@@ -617,7 +691,13 @@ export default function MobileApp() {
               <Menu />
             </button>
           )}
-          {route.kind !== 'note' && (
+          {route.kind === 'project' && <span className="mobile-header-fill" />}
+          {route.kind === 'task' && (
+            <span className="mobile-header-context">
+              {routeTask && projectName(routeTask.projectId, projectData.projects)}
+            </span>
+          )}
+          {route.kind !== 'note' && route.kind !== 'project' && route.kind !== 'task' && (
             <h1>
               {headingNotebook && (
                 <NotebookIconGlyph
@@ -641,7 +721,37 @@ export default function MobileApp() {
               <Search />
             </button>
           )}
-          {route.kind !== 'settings' && (
+          {route.kind === 'projects' && (
+            <button
+              className="icon-btn"
+              aria-label="New project"
+              disabled={blocked}
+              onClick={() => setProjectDialog({})}
+            >
+              <Plus aria-hidden="true" />
+            </button>
+          )}
+          {route.kind === 'project' && route.id !== 'inbox' && (
+            <button
+              className="icon-btn"
+              aria-label="Project actions"
+              disabled={blocked}
+              onClick={() => setOverlay({ kind: 'project-actions', id: route.id })}
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </button>
+          )}
+          {route.kind === 'task' && (
+            <button
+              className="icon-btn"
+              aria-label="Task actions"
+              disabled={blocked || !routeTask || routeTask.deletedAt !== null}
+              onClick={() => setOverlay({ kind: 'task-actions', id: route.id })}
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </button>
+          )}
+          {(route.kind === 'list' || route.kind === 'note') && (
             <button
               className="icon-btn"
               aria-label={route.kind === 'note' ? 'Note actions' : 'Page actions'}
@@ -875,10 +985,88 @@ export default function MobileApp() {
             onCategory={(category) => push({ kind: 'settings', category })}
           />
         )}
+        {route.kind === 'projects' && (
+          <ProjectList
+            key={routeKey}
+            projects={projectData.projects}
+            tasks={projectData.tasks}
+            ready={projectData.ready}
+            showCounts={appearance.sidebarCounts}
+            scrollRef={scroll}
+            onOpen={(id) => push(projectRoute(id))}
+          />
+        )}
+        {route.kind === 'project' && (
+          <ProjectPage
+            key={routeKey}
+            id={route.id}
+            projects={projectData.projects}
+            tasks={projectData.tasks}
+            notebooks={notebooks}
+            ready={projectData.ready}
+            disabled={blocked}
+            collapsed={route.collapsed}
+            scrollRef={scroll}
+            onCollapsed={(collapsed) =>
+              dispatch({
+                type: 'replace',
+                route: { ...route, collapsed, scroll: scroll.current?.scrollTop ?? route.scroll },
+              })
+            }
+            onOpenTask={openTask}
+            onSheet={setOverlay}
+          />
+        )}
+        {route.kind === 'task' && (
+          <TaskPage
+            key={routeKey}
+            id={route.id}
+            projects={projectData.projects}
+            tasks={projectData.tasks}
+            notes={notes}
+            ready={projectData.ready}
+            disabled={blocked}
+            scrollRef={scroll}
+            onOpenNote={openNote}
+            onSheet={setOverlay}
+          />
+        )}
+        {projectNotice && (
+          <div className="notices">
+            <div className="notice" role="status" aria-live="polite">
+              <span>{projectNotice.message}</span>
+              {projectNotice.undo && (
+                <button
+                  className="btn btn-sm"
+                  disabled={blocked}
+                  onClick={() => {
+                    projectNotice.undo?.()
+                    setProjectNotice(null)
+                  }}
+                >
+                  Undo
+                </button>
+              )}
+              <button
+                className="icon-btn"
+                aria-label="Dismiss notice"
+                onClick={() => setProjectNotice(null)}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
         {overlay && (
           <MobileSheet
             title={
-              overlay.kind === 'drawer'
+              isProjectSheet(overlay)
+                ? projectSheetTitle(
+                    overlay,
+                    projectData.projects.find((p) => p.id === overlay.id),
+                    projectData.tasks.find((t) => t.id === overlay.id),
+                  )
+                : overlay.kind === 'drawer'
                 ? 'Stash'
                 : overlay.kind === 'organization'
                   ? 'Notebooks'
@@ -917,6 +1105,46 @@ export default function MobileApp() {
                   </div>
                   <nav aria-label="Notebooks">
                     {notebooks.filter((b) => !b.parentId).map((b) => bookRow(b, true))}
+                  </nav>
+                  <div className="mobile-section-label">
+                    <span>Projects</span>
+                    <button
+                      className="icon-btn"
+                      aria-label="New project"
+                      onClick={() => {
+                        setOverlay(null)
+                        setProjectDialog({})
+                      }}
+                    >
+                      <Plus aria-hidden="true" />
+                    </button>
+                  </div>
+                  <nav aria-label="Projects">
+                    <button
+                      className={route.kind === 'projects' ? 'selected' : ''}
+                      aria-current={route.kind === 'projects' ? 'page' : undefined}
+                      onClick={() => openProjects()}
+                    >
+                      <ListChecks aria-hidden="true" />
+                      <span>All projects</span>
+                    </button>
+                    <button
+                      className={route.kind === 'project' && route.id === 'inbox' ? 'selected' : ''}
+                      aria-current={
+                        route.kind === 'project' && route.id === 'inbox' ? 'page' : undefined
+                      }
+                      onClick={() => openProjects('inbox')}
+                    >
+                      <Inbox aria-hidden="true" />
+                      <span>Inbox</span>
+                      <small className="count">
+                        {(appearance.sidebarCounts && openCount(projectData.tasks, null)) || ''}
+                      </small>
+                    </button>
+                    {projectData.projects
+                      .filter((p) => p.deletedAt === null && isOpenProject(p))
+                      .sort(bySort)
+                      .map(projectRow)}
                   </nav>
                   <div className="mobile-section-label">Tags</div>
                   <nav aria-label="Tags">
@@ -960,6 +1188,31 @@ export default function MobileApp() {
               </>
             ) : (
               <div className="mobile-sheet-actions">
+                {isProjectSheet(overlay) && (
+                  <ProjectSheetBody
+                    sheet={overlay}
+                    projects={projectData.projects}
+                    tasks={projectData.tasks}
+                    notebooks={notebooks}
+                    disabled={blocked}
+                    notify={setProjectNotice}
+                    onSheet={setOverlay}
+                    onClose={() => setOverlay(null)}
+                    onEditProject={(project) => {
+                      setOverlay(null)
+                      setProjectDialog({ project })
+                    }}
+                    onDeleteProject={(project) => {
+                      setOverlay(null)
+                      setProjectToDelete(project)
+                    }}
+                    onOpenNotebook={(id) => navigate(`book:${id}`, true)}
+                    onCopyTaskLink={copyTaskLink}
+                    onDeletedTask={(id) => {
+                      if (route.kind === 'task' && route.id === id) dispatch({ type: 'back' })
+                    }}
+                  />
+                )}
                 {overlay.kind === 'list-actions' && (
                   <>
                     <button
@@ -1246,6 +1499,24 @@ export default function MobileApp() {
             }}
           />
         )}
+        {projectDialog && (
+          <ProjectDialog
+            open
+            project={projectDialog.project}
+            notebooks={notebooks}
+            onClose={() => setProjectDialog(null)}
+            onCreated={(project) => openProjects(project.id)}
+          />
+        )}
+        <DeleteProjectDialog
+          project={projectToDelete}
+          tasks={projectData.tasks}
+          onClose={() => setProjectToDelete(null)}
+          notify={(notice) => {
+            setProjectNotice(notice)
+            if (notice) dispatch({ type: 'projects' })
+          }}
+        />
         {state.syncing && (
           <div className="mobile-busy" role="status">
             <span>
