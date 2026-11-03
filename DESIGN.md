@@ -290,6 +290,10 @@ surfaces. Don't add colors there; use the tokens.
 - **Note:** the formatting bar floats above the keyboard on `--bg-elevated-solid` (no blur, so
   the writing-tools sheet inside it isn't clipped) and scrolls sideways. The table of contents
   is an overlay panel. Mobile keeps the native caret and selection.
+- **Projects** are a stack of pages: project list, project page, task page. The drawer lists them
+  after Notebooks. Task rows are at least 56px with a 22px checkbox that takes taps across the
+  48px target, as does the small checkbox in a task mention. Project pills and task property rows
+  open bottom sheets. Undo for a delete is a `.notice` above the keyboard.
 - **Settings** are pages with the desktop Settings content and groups, minus desktop-only items
   (translucent sidebar, writing width, formatting toolbar, cursor drawing, shortcuts). Sliders
   stack under their label.

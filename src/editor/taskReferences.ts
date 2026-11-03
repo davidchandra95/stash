@@ -2,6 +2,7 @@ import { Node, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { closeHistory } from '@tiptap/pm/history'
 import { hideMenu } from '../motion'
+import { platform } from '../platform'
 import { attachDomTooltip } from '../components/AppTooltip'
 import { noteLinkContext, validNoteId } from './noteReferences'
 import { projectStore } from '../projects/store'
@@ -41,14 +42,18 @@ export function taskSuggestions(tasks: Task[], query: string, limit = 8) {
     .slice(0, limit)
 }
 
-/** `@query` at the caret, where `@` starts a word. */
+/**
+ * `@query` at the caret, where `@` starts a word. Touch keyboards compose every word, so on
+ * mobile the query is read during composition too; otherwise the picker would close at the
+ * first letter.
+ */
 export function mentionMatch(editor: Editor) {
   const { $from, empty } = editor.state.selection
   if (
     !empty ||
     !$from.parent.isTextblock ||
     $from.parent.type.spec.code ||
-    editor.view.composing ||
+    (editor.view.composing && !platform.mobile) ||
     $from.marks().some((mark) => mark.type.name === 'code')
   )
     return null
@@ -211,10 +216,9 @@ export const TaskReference = Node.create({
       menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - menu.offsetWidth - 8))}px`
       menu.style.top = `${Math.max(8, rect.bottom + menu.offsetHeight + 8 < innerHeight ? rect.bottom + 5 : rect.top - menu.offsetHeight - 5)}px`
     }
-    const choose = (index: number) => {
-      const m = match(),
-        task = options()[index]
-      if (!m || !task) return
+    const insert = (task: Task) => {
+      const m = mentionMatch(editor)
+      if (!m) return
       editor.view.dispatch(closeHistory(editor.state.tr))
       editor
         .chain()
@@ -226,6 +230,20 @@ export const TaskReference = Node.create({
         .run()
       editor.view.dispatch(closeHistory(editor.state.tr))
       hide()
+    }
+    const choose = (index: number) => {
+      const task = options()[index]
+      if (!match() || !task) return
+      if (!editor.view.composing) {
+        insert(task)
+        return
+      }
+      // Replacing text the keyboard is still composing would bring it back: commit it first.
+      editor.view.dom.blur()
+      setTimeout(() => {
+        editor.commands.focus()
+        insert(task)
+      }, 60)
     }
     const render = () => {
       if (!menu) return
@@ -322,7 +340,7 @@ export const TaskReference = Node.create({
               return false
             },
             compositionstart: () => {
-              hide()
+              if (!platform.mobile) hide()
               return false
             },
           },

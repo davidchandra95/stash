@@ -59,6 +59,12 @@ select {
   .mobile-note-header .icon-btn:hover:not(:active) {
     background: var(--fill-1);
   }
+  .task-check:hover:not(:disabled, .is-doing, .is-done, .is-cancelled) {
+    box-shadow: inset 0 0 0 1.25px var(--line-strong);
+  }
+  .task-ref:hover:not(.ProseMirror-selectednode) {
+    background: none;
+  }
 }
 
 /* ───────── Shared controls at touch size ───────── */
@@ -1456,6 +1462,444 @@ select {
   font-size: var(--text-md);
 }
 
+/* ───────── Projects and tasks ───────── */
+
+.mobile-header-fill {
+  flex: 1;
+}
+.mobile-header-context {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0 var(--space-2);
+  color: var(--text-2);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-project-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--space-8);
+}
+.mobile-row-copy,
+.mobile-task-label {
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+  text-align: start;
+}
+.mobile-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-row-title:is(.is-done, .is-cancelled) {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.mobile-row-meta {
+  display: flex;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.mobile-row-meta .is-late,
+.mobile-prop-value .is-late {
+  color: var(--danger);
+}
+.mobile-row-meta .is-soon,
+.mobile-prop-value .is-soon {
+  color: var(--warning);
+}
+
+/* Project list */
+.mobile-project-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-6);
+  text-align: start;
+}
+.mobile-project-row::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: var(--space-6);
+  height: 1px;
+  background: var(--line);
+}
+.mobile-project-row:active {
+  background: var(--fill-1);
+}
+.mobile-project-row > .ui-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-2);
+}
+
+/* Drawer rows */
+.mobile-drawer nav > button > .project-ring {
+  width: 20px;
+  height: 20px;
+}
+.mobile-drawer nav > button > .health-dot {
+  width: 7px;
+  height: 7px;
+}
+
+/* Project page */
+.mobile-project-head {
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+.mobile-project-head h1 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 30px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.mobile-project-head > p {
+  margin-top: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+.mobile-project-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.mobile-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-sm);
+  padding: 0 var(--space-5) 0 10px;
+  border-radius: 18px;
+  background: var(--fill-1);
+  font-size: var(--text-sm);
+}
+.mobile-pill::before {
+  content: '';
+  position: absolute;
+  inset: calc((var(--control-sm) - var(--target)) / 2) 0;
+}
+.mobile-pill:active:not(:disabled) {
+  background: var(--fill-2);
+}
+.mobile-pill > .ui-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+}
+.mobile-project-head .progress-track {
+  width: 100%;
+  margin-top: var(--space-6);
+}
+.mobile-project-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.mobile-project-progress strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.mobile-project-scroll > .new-task {
+  height: var(--target);
+  margin: var(--space-5) var(--space-6) var(--space-1);
+  padding: 0 var(--space-5);
+  gap: var(--space-5);
+  border-radius: 10px;
+}
+.mobile-project-scroll > .new-task > .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+.mobile-project-empty {
+  padding-inline: var(--space-7);
+}
+.mobile-task-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--target);
+  padding: var(--space-2) var(--space-7) 0;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+}
+.mobile-task-group > .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+.mobile-task-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding-inline: 0 var(--space-2);
+}
+.mobile-task-row::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 52px;
+  height: 1px;
+  background: var(--line);
+}
+.mobile-task-row:has(> .mobile-task-label:active) {
+  background: var(--fill-1);
+}
+.mobile-task-row > .task-check {
+  margin-inline: var(--space-6) 14px;
+}
+.mobile-task-row > .icon-btn {
+  color: var(--text-3);
+}
+.mobile-task-label {
+  align-self: stretch;
+  align-content: center;
+  padding-block: var(--space-3);
+}
+.mobile-task-label:focus-visible {
+  outline-offset: -2px;
+}
+/* Checkboxes draw at 22px and take taps across the 48px target. */
+.mobile-app :is(.mobile-task-row, .mobile-task-title) > .task-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.mobile-app :is(.mobile-task-row, .mobile-task-title) > .task-check.is-doing {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.mobile-app :is(.mobile-task-row, .mobile-task-title) > .task-check.is-doing::after {
+  inset: 5px 5px 5px 11px;
+}
+.mobile-app :is(.mobile-task-row, .mobile-task-title) > .task-check.is-done {
+  box-shadow: none;
+}
+.mobile-app :is(.mobile-task-row, .mobile-task-title) > .task-check .ui-icon {
+  width: 15px;
+  height: 15px;
+}
+.task-check::before {
+  content: '';
+  position: absolute;
+  inset: calc((100% - var(--target)) / 2);
+}
+.task-mention-option .task-check::before {
+  content: none;
+}
+
+/* Task page */
+.mobile-task-page {
+  padding: var(--space-5) var(--space-6) var(--space-8);
+}
+.mobile-task-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+.mobile-task-title > .task-check {
+  margin-top: var(--space-2);
+}
+.mobile-task-title > textarea {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 28px;
+}
+.mobile-task-props {
+  overflow: hidden;
+  margin-top: var(--space-6);
+  border-radius: 12px;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.mobile-task-props > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  min-height: var(--row);
+  padding: 0 var(--space-5) 0 var(--space-6);
+  text-align: start;
+}
+.mobile-task-props > button + button {
+  border-top: 1px solid var(--line);
+}
+.mobile-task-props > button:active:not(:disabled) {
+  background: var(--fill-2);
+}
+.mobile-task-props > button > .ui-icon:first-child {
+  width: 20px;
+  height: 20px;
+  color: var(--text-3);
+}
+.mobile-prop-key {
+  flex: none;
+  width: 72px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.mobile-prop-value {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-task-props .mobile-prop-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-4);
+}
+.mobile-task-heading {
+  display: block;
+  margin: 18px var(--space-2) var(--space-4);
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.mobile-task-page .mobile-task-heading + .mobile-task-props {
+  margin-top: 0;
+}
+.mobile-task-description {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  height: auto;
+  overflow: hidden;
+  border-radius: 12px;
+  line-height: var(--leading);
+  resize: none;
+}
+.mobile-task-hint {
+  margin-inline: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+/* Sheets */
+.mobile-sheet-actions > .mobile-choice {
+  gap: var(--space-5);
+}
+.mobile-sheet-actions > .mobile-choice > .mobile-choice-check {
+  width: 18px;
+  height: 18px;
+  margin-inline-start: auto;
+  color: var(--accent);
+}
+.mobile-date-fields {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0 var(--space-5) var(--space-4);
+}
+.mobile-date-fields > div {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+.mobile-date-fields > div > span {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.mobile-date-fields .field {
+  width: 100%;
+  min-height: var(--control);
+}
+
+/* Undo sits above the keyboard, clear of the home indicator. */
+.mobile-app .notices {
+  bottom: calc(var(--mobile-bottom, 0px) + var(--space-6) + env(safe-area-inset-bottom));
+  width: calc(100% - var(--space-8));
+}
+.mobile-app .notice {
+  min-height: var(--target);
+  padding-block: 0;
+  padding-inline: var(--space-6) 0;
+  border-radius: 12px;
+}
+.mobile-app .notice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mobile-app .notice .btn {
+  flex: none;
+  min-height: var(--control-sm);
+  padding: 1px 12px;
+}
+
+/* A project form's 88px labels leave too little on a phone: stack them. */
+.project-form {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.project-form > label,
+.project-form-label {
+  margin-top: var(--space-4);
+  text-align: start;
+}
+.project-form-error {
+  grid-column: 1;
+}
+.project-dialog form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(var(--mobile-height, 100dvh) - 32px);
+}
+.project-dialog .dialog-body {
+  overflow-y: auto;
+}
+
+/* Mentions: the small checkbox takes taps across the 48px target (see .task-check). */
+.task-ref {
+  white-space: normal;
+}
+
 /* ───────── Landscape and short screens ───────── */
 
 /* Keep a writing line visible with a tall landscape keyboard. */
@@ -1488,5 +1932,12 @@ select {
   }
   .mobile-settings > .settings-search {
     margin: 0 auto var(--space-6);
+  }
+  .mobile-task-page > * {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  .mobile-task-page > .mobile-task-heading {
+    margin-inline: auto;
   }
 }

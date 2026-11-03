@@ -9,7 +9,8 @@ import { library } from '../storage/useLibrary'
 import { clearSessions, getEditor } from '../editor/session'
 import { platform } from '../platform'
 import type { Note } from '../model'
-import { initialNavigation, mobileNavigation } from './navigation'
+import { initialNavigation, mobileNavigation, projectRoute } from './navigation'
+import { projectStore } from '../projects/store'
 vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
   ...(await importOriginal<typeof tauriCore>()),
   isTauri: vi.fn(() => false),
@@ -303,4 +304,197 @@ it('closes the table of contents from its own header', async () => {
   await click('Close table of contents')
   await androidBack()
   expect(document.querySelector('.mobile-list')).toBeTruthy()
+})
+
+const page = () => document.querySelector('.mobile-app')!
+const taskRow = (title: string) =>
+  [...document.querySelectorAll<HTMLElement>('.mobile-task-row')].find((row) =>
+    row.textContent?.includes(title),
+  )!
+const storedTask = (title: string) =>
+  projectStore.getSnapshot().tasks.find((t) => t.title === title && t.deletedAt === null)!
+async function drawerProject(name: string) {
+  await click('Open navigation')
+  const nav = document.querySelector('nav[aria-label="Projects"]')!
+  const row = [...nav.querySelectorAll('button')].find((b) => b.textContent?.startsWith(name))!
+  expect(row, name).toBeTruthy()
+  await act(async () => row.click())
+}
+async function openTaskRow(title: string) {
+  await act(async () => taskRow(title).querySelector<HTMLElement>('.mobile-task-label')!.click())
+}
+async function openProp(key: string) {
+  const row = [...document.querySelectorAll<HTMLElement>('.mobile-task-props button')].find(
+    (b) => b.querySelector('.mobile-prop-key')?.textContent === key,
+  )!
+  await act(async () => row.click())
+}
+async function setText(el: HTMLTextAreaElement | HTMLInputElement, value: string) {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(proto.prototype, 'value')!.set!.call(el, value)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+it('seeds the project stack from the drawer so Back walks to the project list', () => {
+  const list = mobileNavigation(initialNavigation(), { type: 'projects' })
+  expect(list.routes.map((r) => r.kind)).toEqual(['projects'])
+  const seeded = mobileNavigation(list, { type: 'projects', project: 'p1' })
+  expect(seeded.routes).toEqual([{ kind: 'projects', scroll: 0 }, projectRoute('p1')])
+  const task = mobileNavigation(seeded, {
+    type: 'push',
+    route: { kind: 'task', id: 't1', scroll: 0 },
+  })
+  expect(mobileNavigation(mobileNavigation(task, { type: 'back' }), { type: 'back' })).toEqual(list)
+  expect(mobileNavigation(list, { type: 'back' })).toBe(list)
+  expect(mobileNavigation(task, { type: 'library', view: 'all' }).routes).toHaveLength(1)
+})
+
+it('opens the project store and waits for task saves when the library flushes', async () => {
+  expect(projectStore.getSnapshot().ready).toBe(true)
+  const register = vi.spyOn(library, 'registerFlush')
+  await act(async () => root.render(<MobileApp key="again" />))
+  expect(register).toHaveBeenCalledWith(projectStore.flush)
+})
+
+it('walks drawer, project, task and back with Android Back', async () => {
+  await click('Open navigation')
+  await click('All projects')
+  expect(document.querySelector('.mobile-header h1')?.textContent).toBe('Projects')
+  expect(page().textContent).toContain('Website relaunch')
+  await click('Open navigation')
+  const nav = document.querySelector('nav[aria-label="Projects"]')!
+  expect(nav.textContent).toContain('Inbox')
+  expect(nav.textContent).toContain('Garden redesign')
+  await act(async () => document.querySelector<HTMLElement>('.mobile-scrim')?.click())
+  await androidBack()
+  await drawerProject('Website relaunch')
+  expect(document.querySelector('.mobile-project-head h1')?.textContent).toBe('Website relaunch')
+  expect(document.querySelector('[aria-label="Open navigation"]')).toBeTruthy()
+  await openTaskRow('Write homepage copy')
+  expect(document.querySelector<HTMLTextAreaElement>('[aria-label="Task title"]')?.value).toBe(
+    'Write homepage copy',
+  )
+  expect(document.querySelector('.mobile-header-context')?.textContent).toBe('Website relaunch')
+  await click('Task actions')
+  expect(document.querySelector('.mobile-sheet')).toBeTruthy()
+  await androidBack()
+  expect(document.querySelector('.mobile-sheet')).toBeNull()
+  expect(document.querySelector('[aria-label="Task title"]')).toBeTruthy()
+  await androidBack()
+  expect(document.querySelector('.mobile-project-head h1')?.textContent).toBe('Website relaunch')
+  await androidBack()
+  expect(document.querySelector('.mobile-header h1')?.textContent).toBe('Projects')
+  vi.mocked(tauriCore.invoke).mockClear()
+  await androidBack()
+  expect(tauriCore.invoke).toHaveBeenCalledWith('mobile_background')
+})
+
+it('creates, edits, completes and deletes a task, with undo', async () => {
+  await drawerProject('Inbox')
+  const field = document.querySelector<HTMLInputElement>('input[aria-label="New task"]')!
+  await setText(field, 'Water the ferns')
+  await act(async () =>
+    field.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  )
+  expect(field.value).toBe('')
+  expect(taskRow('Water the ferns')).toBeTruthy()
+
+  await openTaskRow('Water the ferns')
+  // Android Back can leave a focused field without a blur; the edit must still save.
+  await setText(
+    document.querySelector<HTMLTextAreaElement>('[aria-label="Task title"]')!,
+    'Water the big ferns',
+  )
+  await androidBack()
+  expect(storedTask('Water the big ferns')).toBeTruthy()
+
+  await openTaskRow('Water the big ferns')
+  await openProp('Status')
+  await click('Doing')
+  expect(storedTask('Water the big ferns').status).toBe('doing')
+  await openProp('Priority')
+  await click('High')
+  expect(storedTask('Water the big ferns').priority).toBe(3)
+  await androidBack()
+
+  await act(async () =>
+    taskRow('Water the big ferns').querySelector<HTMLElement>('[role="checkbox"]')!.click(),
+  )
+  expect(storedTask('Water the big ferns').status).toBe('done')
+  // Done is collapsed by default.
+  expect(document.querySelector('section[aria-label="Done"]')?.textContent).not.toContain('ferns')
+  await act(async () =>
+    document.querySelector<HTMLElement>('section[aria-label="Done"] button')!.click(),
+  )
+  await act(async () =>
+    taskRow('Water the big ferns')
+      .querySelector<HTMLElement>('[aria-label="Actions for Water the big ferns"]')!
+      .click(),
+  )
+  await click('Delete task')
+  expect(storedTask('Water the big ferns')).toBeUndefined()
+  await click('Undo')
+  expect(storedTask('Water the big ferns')).toBeTruthy()
+})
+
+it('leaves a deleted task page, and creates and deletes projects', async () => {
+  await click('Open navigation')
+  await click('New project')
+  await setText(document.querySelector<HTMLInputElement>('#project-name')!, 'Move house')
+  await click('Create project')
+  expect(document.querySelector('.mobile-project-head h1')?.textContent).toBe('Move house')
+  const field = document.querySelector<HTMLInputElement>('input[aria-label="New task"]')!
+  await setText(field, 'Pack books')
+  await act(async () =>
+    field.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  )
+  await openTaskRow('Pack books')
+  await click('Task actions')
+  await click('Delete task')
+  expect(document.querySelector('.mobile-project-head h1')?.textContent).toBe('Move house')
+  await click('Project actions')
+  await click('Delete project')
+  await act(async () =>
+    document
+      .querySelector('.dialog form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  )
+  expect(document.querySelector('.mobile-header h1')?.textContent).toBe('Projects')
+  expect(document.querySelector('.mobile-project-scroll')?.textContent).not.toContain('Move house')
+  expect(document.querySelector('.notice')?.textContent).toContain('Deleted “Move house”')
+})
+
+it('renders, toggles and opens task mentions in the mobile editor', async () => {
+  const task = storedTask('Book the dentist')
+  const note = makeNote('Mention note', 'parent')
+  note.content = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'taskReference', attrs: { taskId: task.id, fallbackTitle: 'Old title' } },
+        ],
+      },
+    ],
+  }
+  await act(async () => library.setNotes([note]))
+  await click('Mention note')
+  const chip = document.querySelector<HTMLElement>('.task-ref')!
+  expect(chip.querySelector('.task-ref-title')?.textContent).toBe('Book the dentist')
+  const before = library.getSnapshot().notes[0].updated
+  await act(async () => chip.querySelector<HTMLElement>('[role="checkbox"]')!.click())
+  expect(storedTask('Book the dentist').status).toBe('done')
+  expect(chip.dataset.status).toBe('done')
+  expect(library.getSnapshot().notes[0].updated).toBe(before)
+  await act(async () => chip.querySelector<HTMLElement>('[role="checkbox"]')!.click())
+  expect(storedTask('Book the dentist').status).toBe('todo')
+  await act(async () => chip.querySelector<HTMLElement>('.task-ref-title')!.click())
+  expect(document.querySelector<HTMLTextAreaElement>('[aria-label="Task title"]')?.value).toBe(
+    'Book the dentist',
+  )
+  await androidBack()
+  expect(document.querySelector('.task-ref')).toBeTruthy()
 })
