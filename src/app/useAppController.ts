@@ -1,7 +1,7 @@
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
-import { colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
+import { colorModeIcons, colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
 import { platform } from '../platform'
 import {
   available,
@@ -63,9 +63,6 @@ import {
   FileText,
   FolderInput,
   Maximize2,
-  Moon,
-  SunMoon,
-  Sun,
   RefreshCw,
   Settings2,
   Columns2,
@@ -140,7 +137,8 @@ export function useAppController() {
     library.ready &&
       nativeMac &&
       appearance.translucentSidebar &&
-      appearance.interfaceTheme === 'native',
+      appearance.interfaceTheme === 'native' &&
+      appearance.colorMode !== 'sepia',
   )
   useSystemAccent(
     nativeMac &&
@@ -1163,8 +1161,8 @@ export function useAppController() {
     ...(Object.entries(colorModes) as [ColorMode, string][]).map(([mode, name]) => ({
       id: `appearance-${mode}`,
       label: `Appearance: ${name}`,
-      keywords: 'theme color mode light dark system',
-      icon: mode === 'dark' ? Moon : mode === 'light' ? Sun : SunMoon,
+      keywords: 'theme color mode light sepia dark system',
+      icon: colorModeIcons[mode],
       checked: appearance.colorMode === mode,
       run: () => setAppearance({ ...appearance, colorMode: mode }),
     })),
@@ -1408,7 +1406,7 @@ export function useAppController() {
 export type AppController = ReturnType<typeof useAppController>
 export type Domain = 'notes' | 'projects'
 
-const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming']
+const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming', 'tasks:calendar']
 /** Where the app is right now, as a stop on the Back/Forward timeline. */
 function currentPlace(
   projectView: string | null,

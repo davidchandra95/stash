@@ -11,6 +11,7 @@ import { platform } from '../platform'
 import type { Note } from '../model'
 import { initialNavigation, mobileNavigation, projectRoute } from './navigation'
 import { projectStore } from '../projects/store'
+import type { Project } from '../projects/model'
 vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
   ...(await importOriginal<typeof tauriCore>()),
   isTauri: vi.fn(() => false),
@@ -347,6 +348,22 @@ const taskRow = (title: string) =>
   [...document.querySelectorAll<HTMLElement>('.mobile-task-row')].find((row) =>
     row.textContent?.includes(title),
   )!
+const fixtureProject = {
+  id: 'timeline-project',
+  name: 'Timeline project',
+  description: '',
+  status: 'active',
+  startDate: null,
+  endDate: null,
+  color: 'teal',
+  icon: null,
+  notebookId: null,
+  sort: 1,
+  created: 1,
+  updated: 1,
+  revision: 0,
+  deletedAt: null,
+} as unknown as Project
 const storedTask = (title: string) =>
   projectStore.getSnapshot().tasks.find((t) => t.title === title && t.deletedAt === null)!
 async function drawerProject(name: string) {
@@ -385,6 +402,59 @@ it('seeds the project stack from the drawer so Back walks to the project list', 
   expect(mobileNavigation(mobileNavigation(task, { type: 'back' }), { type: 'back' })).toEqual(list)
   expect(mobileNavigation(list, { type: 'back' })).toBe(list)
   expect(mobileNavigation(task, { type: 'library', view: 'all' }).routes).toHaveLength(1)
+})
+
+it('seeds Due today and Upcoming above the project list so Back walks to it', () => {
+  const state = mobileNavigation(initialNavigation(), { type: 'projects', tasks: 'upcoming' })
+  expect(state.routes.map((route) => route.kind)).toEqual(['projects', 'tasks'])
+  expect(mobileNavigation(state, { type: 'back' }).routes.map((route) => route.kind)).toEqual([
+    'projects',
+  ])
+})
+
+it('schedules a task from smart input and lists it under Upcoming with its project', async () => {
+  await drawerProject('Inbox')
+  const input = page().querySelector<HTMLInputElement>('.new-task-input')!
+  await setText(input, 'Call vendor tomorrow @2pm')
+  expect(page().querySelector('.new-task [role="status"]')!.textContent).toContain('Tomorrow, 14:00')
+  await act(async () => input.form!.requestSubmit())
+  await vi.waitFor(() => expect(storedTask('Call vendor').schedule?.kind).toBe('point'))
+  await drawerProject('Upcoming')
+  expect(page().querySelector('.mobile-heading-title')!.textContent).toBe('Upcoming')
+  expect(taskRow('Call vendor').textContent).toContain('Inbox')
+})
+
+it('switches a project to Board columns and the project list to a Timeline', async () => {
+  await drawerProject('All projects')
+  await act(async () => {
+    await projectStore.save({
+      projects: [{ ...fixtureProject, startDate: '2026-01-01', endDate: '2026-03-01' }],
+    })
+  })
+  const layout = (name: string) =>
+    [...document.querySelectorAll<HTMLElement>('.mobile-layout-switch button')].find(
+      (b) => b.textContent === name,
+    )!
+  await act(async () => layout('Timeline').click())
+  expect(page().querySelector('.timeline-grid')).toBeTruthy()
+  await act(async () => page().querySelector<HTMLElement>('button.timeline-label')!.click())
+  await setText(page().querySelector<HTMLInputElement>('.new-task-input')!, 'Card')
+  await act(async () => page().querySelector<HTMLFormElement>('.new-task')!.requestSubmit())
+  await vi.waitFor(() => expect(storedTask('Card')).toBeTruthy())
+  await act(async () => layout('Board').click())
+  const columns = [...document.querySelectorAll('.mobile-board-column')]
+  expect(columns.map((column) => column.getAttribute('aria-label'))).toEqual([
+    'To do',
+    'Doing',
+    'Done',
+  ])
+  expect(columns[0].textContent).toContain('Card')
+})
+
+it('offers PDFs in the drawer', async () => {
+  await click('Open navigation')
+  expect(document.querySelector('nav[aria-label="PDFs"]')).toBeTruthy()
+  expect(document.querySelector('[aria-label="Open PDF"]')).toBeTruthy()
 })
 
 it('opens the project store and waits for task saves when the library flushes', async () => {

@@ -68,7 +68,7 @@ describe('normalizeAppearance', () => {
     ).toBe('light')
   })
 
-  it.each([undefined, null, 'sepia', 1, 'true'])(
+  it.each([undefined, null, 'solarized', 1, 'true'])(
     'falls back to the default color mode for %s with no legacy flag',
     (colorMode) => {
       expect(normalizeAppearance(saved({ colorMode }), defaultAppearance).colorMode).toBe(
@@ -76,6 +76,12 @@ describe('normalizeAppearance', () => {
       )
     },
   )
+
+  it('keeps a saved sepia color mode', () => {
+    expect(normalizeAppearance(saved({ colorMode: 'sepia' }), defaultAppearance).colorMode).toBe(
+      'sepia',
+    )
+  })
 
   it('ignores a non-boolean legacy dark flag', () => {
     expect(normalizeAppearance(saved({ dark: 'yes' }), defaultAppearance).colorMode).toBe(
@@ -246,6 +252,17 @@ it('switches color mode and accent without replacing the editor, draft, selectio
       expect(document.querySelector('[role="dialog"]')).toBe(dialog)
       unchanged()
     }
+
+    await act(() => radio('Appearance', 'Sepia').click())
+    expect(library.getSnapshot().appearance.colorMode).toBe('sepia')
+    expect(html.dataset.theme).toBe('light')
+    expect(html.dataset.tint).toBe('sepia')
+    expect(html.style.colorScheme).toBe('light')
+    unchanged()
+    await act(() => radio('Appearance', 'Dark').click())
+    expect(html.dataset.theme).toBe('dark')
+    expect(html.dataset.tint).toBeUndefined()
+    unchanged()
 
     for (const accent of ['purple', 'yellow', 'graphite'] as const) {
       await act(() => radio('Accent color', accents[accent].label).click())

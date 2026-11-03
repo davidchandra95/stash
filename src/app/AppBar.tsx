@@ -1,7 +1,39 @@
+import * as Dropdown from '@radix-ui/react-dropdown-menu'
+import { colorModeIcons, colorModes } from '../appearance'
 import AppTooltip from '../components/AppTooltip'
 import { ChevronLeft, ChevronRight, Search } from '../icons'
+import type { ColorMode } from '../model'
 import { trackApp, useApp, useBlocked } from './context'
+import RadioItems from './RadioItems'
 import { NoteListToggle, SidebarToggle } from './WindowControls'
+
+function AppearanceMenu() {
+  const app = useApp()
+  const blocked = useBlocked()
+  const { appearance } = app
+  const Icon = colorModeIcons[appearance.colorMode]
+  return (
+    <Dropdown.Root>
+      <AppTooltip instant label="Appearance" disabled={blocked}>
+        <Dropdown.Trigger asChild>
+          <button className="icon-btn" aria-label="Appearance" disabled={blocked}>
+            <Icon aria-hidden="true" />
+          </button>
+        </Dropdown.Trigger>
+      </AppTooltip>
+      <Dropdown.Portal>
+        <Dropdown.Content className="menu" align="end" sideOffset={4} collisionPadding={8}>
+          <RadioItems<ColorMode>
+            label="Appearance"
+            labels={colorModes}
+            value={appearance.colorMode}
+            onChange={(colorMode) => app.setAppearance({ ...appearance, colorMode })}
+          />
+        </Dropdown.Content>
+      </Dropdown.Portal>
+    </Dropdown.Root>
+  )
+}
 
 /** The window's global toolbar: window controls, Back/Forward and search across both areas. */
 export default trackApp(function AppBar({ onSearch }: { onSearch: () => void }) {
@@ -55,7 +87,9 @@ export default trackApp(function AppBar({ onSearch }: { onSearch: () => void }) 
           <kbd aria-hidden="true">{app.shortcutFor('quick-open')}</kbd>
         </button>
       </div>
-      <div className="app-bar-side" data-tauri-drag-region />
+      <div className="app-bar-side app-bar-end" data-tauri-drag-region>
+        <AppearanceMenu />
+      </div>
     </header>
   )
 })

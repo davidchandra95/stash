@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.use({ timezoneId: 'Asia/Jakarta' })
+
 const storeModules = new WeakMap<Page, string>()
 async function openInbox(page: Page) {
   await page.clock.install({ time: new Date('2026-11-03T10:00:00+07:00') })
@@ -29,21 +31,28 @@ async function saved(
           return projectStore
             .getSnapshot()
             .tasks.some(
-              (task: { title: string; dueDate: string | null; dueTime: string | null }) =>
-                task.title === title && task.dueDate === dueDate && task.dueTime === dueTime,
+              (task: {
+                title: string
+                dueDate: string | null
+                dueTime: string | null
+                dueLinked?: boolean
+                schedule?: { kind: string; start: number; end?: number }
+              }) =>
+                task.title === title &&
+                (dueTime
+                  ? task.dueLinked &&
+                    task.dueDate === null &&
+                    task.dueTime === null &&
+                    task.schedule?.kind === 'point' &&
+                    task.schedule.end === undefined &&
+                    task.schedule.start === Date.parse(`${dueDate}T${dueTime}:00+07:00`)
+                  : task.dueDate === dueDate && task.dueTime === null && !task.schedule),
             )
         },
         { title, dueDate, dueTime, url: storeModules.get(page)! },
       ),
     )
     .toBe(true)
-}
-
-/** Pages the calendar forward to the day's month, then picks it. */
-async function pickDay(page: Page, name: string) {
-  const day = page.getByRole('button', { name, exact: true })
-  while (!(await day.count())) await page.getByRole('button', { name: 'Next month' }).click()
-  await day.click()
 }
 
 test('recognizes, edits, cancels and saves dates with keyboard and paste', async ({ page }) => {
@@ -54,7 +63,7 @@ test('recognizes, edits, cancels and saves dates with keyboard and paste', async
   await input(page).press('ControlOrMeta+V')
   await expect(page.locator('.smart-task-match')).toHaveText(['tomorrow', 'at 9am'])
   await expect(
-    page.getByRole('button', { name: 'Due: Tomorrow, 09:00. Change date' }),
+    page.getByRole('button', { name: 'Schedule: Tomorrow, 09:00. Change date' }),
   ).toBeVisible()
   await input(page).press('Enter')
   await saved(page, 'Meet', '2026-11-04', '09:00')
@@ -90,7 +99,8 @@ test('manual dates, recognition controls, long drafts and composition are safe',
   await openInbox(page)
   await input(page).fill('Review tomorrow')
   await page.getByRole('button', { name: 'Due: Tomorrow. Change date' }).click()
-  await pickDay(page, 'Thursday, December 10, 2026')
+  await page.getByRole('button', { name: 'Next month' }).click()
+  await page.getByRole('button', { name: /December 10, 2026/ }).click()
   await page.keyboard.press('Escape')
   await expect(page.locator('.smart-task-match')).toHaveCount(0)
   await input(page).press('Enter')
@@ -163,24 +173,28 @@ test('times preview, save, display and remain editable on tasks', async ({ page 
   await openInbox(page)
   await input(page).fill('Throw trash @2pm')
   await expect(page.locator('.smart-task-match')).toHaveText('@2pm')
-  await expect(page.getByRole('button', { name: 'Due: Today, 14:00. Change date' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Schedule: Today, 14:00. Change date' }),
+  ).toBeVisible()
   await input(page).press('Enter')
   await saved(page, 'Throw trash', '2026-11-03', '14:00')
   const row = page.getByRole('option', { name: /Throw trash/ })
   await expect(row).toContainText('14:00')
   await row.click()
-  await expect(page.locator('#task-dueTime')).toHaveValue('14:00')
-  await page.locator('#task-dueTime').fill('17:45')
+  await expect(page.getByLabel('Start time')).toHaveValue('14:00')
+  await page.getByLabel('Start time').fill('17:45')
+  await page.getByRole('button', { name: 'Apply schedule' }).click()
   await saved(page, 'Throw trash', '2026-11-03', '17:45')
   await expect(row).toContainText('17:45')
-  await page.locator('#task-dueDate').click()
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
-  await saved(page, 'Throw trash', null)
-  await expect(page.locator('#task-dueTime')).toHaveValue('')
-  await expect(page.locator('#task-dueTime')).toBeDisabled()
+  await page.getByRole('combobox', { name: 'Schedule', exact: true }).selectOption('none')
+  await page.getByRole('button', { name: 'Apply schedule' }).click()
+  await saved(page, 'Throw trash', '2026-11-03')
+  await expect(page.getByLabel('Start time')).toHaveCount(0)
 
   await input(page).fill('Early call @9am')
-  await expect(page.getByRole('button', { name: 'Due: Today, 09:00. Change date' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Schedule: Today, 09:00. Change date' }),
+  ).toBeVisible()
   await input(page).press('Enter')
   await saved(page, 'Early call', '2026-11-03', '09:00')
 })
@@ -196,17 +210,19 @@ test('date and time recognition cancel separately and manual time overrides are 
   await saved(page, 'Call @2pm', '2026-11-04')
   await input(page).fill('Call tomorrow @2pm')
   await page.locator('.smart-task-match').filter({ hasText: 'tomorrow' }).click()
-  await expect(page.getByRole('button', { name: 'Due: Today, 14:00. Change date' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Schedule: Today, 14:00. Change date' }),
+  ).toBeVisible()
   await input(page).press('Enter')
   await saved(page, 'Call tomorrow', '2026-11-03', '14:00')
 
   await input(page).fill('Manual call tomorrow @2pm')
-  await page.getByRole('button', { name: 'Due: Tomorrow, 14:00. Change date' }).click()
-  await page.getByLabel('Due time', { exact: true }).fill('18:30')
+  await page.getByRole('button', { name: 'Schedule: Tomorrow, 14:00. Change date' }).click()
+  await page.getByLabel('Scheduled time', { exact: true }).fill('18:30')
   await page.keyboard.press('Escape')
   await expect(page.locator('.smart-task-match')).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'Due: Tomorrow, 18:30. Change date' }),
+    page.getByRole('button', { name: 'Schedule: Tomorrow, 18:30. Change date' }),
   ).toBeVisible()
   await input(page).press('Enter')
   await saved(page, 'Manual call tomorrow @2pm', '2026-11-04', '18:30')
@@ -224,12 +240,12 @@ test('relative previews refresh at local midnight and manual dates stay fixed', 
   await saved(page, 'Midnight review', '2026-11-05')
   await input(page).fill('Fixed review tomorrow')
   await page.getByRole('button', { name: 'Due: Tomorrow. Change date' }).click()
-  await pickDay(page, 'Sunday, December 20, 2026')
+  await page.getByRole('button', { name: 'Next month' }).click()
+  await page.getByRole('button', { name: /December 20, 2026/ }).click()
   await page.getByRole('button', { name: 'Use date and time from text' }).click()
-  await expect(
-    page.locator('.smart-task-options [aria-selected="true"] button'),
-  ).toHaveAccessibleName('Thursday, November 5, 2026')
-  await pickDay(page, 'Sunday, December 20, 2026')
+  await expect(page.getByRole('gridcell', { selected: true })).toContainText('5')
+  await page.getByRole('button', { name: 'Next month' }).click()
+  await page.getByRole('button', { name: /December 20, 2026/ }).click()
   await page.keyboard.press('Escape')
   await page.clock.setSystemTime(new Date('2026-11-05T10:00:00+07:00'))
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))

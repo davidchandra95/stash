@@ -77,6 +77,33 @@ it('deletes a task with undo', async () => {
   expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.deletedAt).toBeNull()
 })
 
+it('undoes only scheduling fields and preserves a later title or status edit', async () => {
+  const { projectStore, createTask, saveTaskSchedule, updateTask } = await load()
+  const task = createTask(null, 'Plan work')
+  await projectStore.flush()
+  const notify = vi.fn()
+  await saveTaskSchedule(task, { kind: 'allDay', start: '2026-11-03', end: '2026-11-05' }, notify)
+  updateTask(task, { title: 'Renamed work', status: 'doing' })
+  await projectStore.flush()
+  notify.mock.calls[0][0].undo()
+  await projectStore.flush()
+  expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)).toMatchObject({ title: 'Renamed work', status: 'doing', schedule: null, dueLinked: false })
+})
+
+it('does not undo a later deadline change over an earlier move', async () => {
+  const { projectStore, createTask, saveTaskSchedule, updateTask } = await load()
+  const task = createTask(null, 'Plan work')
+  await projectStore.flush()
+  const notify = vi.fn()
+  await saveTaskSchedule(task, { kind: 'allDay', start: '2026-11-03', end: '2026-11-05' }, notify)
+  updateTask(task, { dueDate: '2026-12-01' })
+  await projectStore.flush()
+  notify.mock.calls[0][0].undo()
+  await projectStore.flush()
+  expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)).toMatchObject({ dueDate: '2026-12-01', dueLinked: false })
+  expect(notify.mock.lastCall?.[0].message).toContain('changed again')
+})
+
 it('deletes a project, moving its tasks to the Inbox, and undoes it', async () => {
   const { projectStore, deleteProject } = await load()
   const project = projectStore.getSnapshot().projects[0]

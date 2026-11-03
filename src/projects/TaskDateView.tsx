@@ -1,3 +1,4 @@
+import { effectiveDueDate } from './schedule'
 import { useRef, type KeyboardEvent } from 'react'
 import { useApp, useBlocked } from '../app/context'
 import { Calendar, CalendarClock } from '../icons'
@@ -9,7 +10,7 @@ import NewTask from './NewTask'
 import {
   dueState,
   formatDate,
-  formatTaskDue,
+  formatTaskTiming,
   priorities,
   today,
   todayGroups,
@@ -111,10 +112,10 @@ export default function TaskDateView({ view }: { view: DateView }) {
                       <TaskCheckbox task={task} disabled={blocked} />
                       <span className="task-title">{task.title}</span>
                       <span className="task-meta">
-                        {(group.id === 'overdue' || !isToday || task.dueTime) && task.dueDate && (
+                        {(group.id === 'overdue' || !isToday || task.dueTime || task.schedule) && (effectiveDueDate(task) || task.schedule) && (
                           <span className={`task-due is-${due}`}>
                             <Calendar aria-hidden="true" />
-                            {isToday && group.id !== 'overdue' ? task.dueTime : formatTaskDue(task, current)}
+                            {formatTaskTiming(task, current)}
                           </span>
                         )}
                         {task.priority > 0 && (

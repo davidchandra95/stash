@@ -281,13 +281,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 12 {
+        if version > 13 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 12 {
+        if version > 0 && version < 13 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -392,10 +392,12 @@ impl Store {
                 .map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
-        if version < 12 {
+        if version < 13 {
             let tx = store.conn.transaction().map_err(db_err)?;
-            tx.execute_batch(include_str!("task_due_time_schema.sql"))
-                .map_err(db_err)?;
+            if version < 12 {
+                tx.execute_batch(include_str!("task_due_time_schema.sql")).map_err(db_err)?;
+            }
+            tx.execute_batch(include_str!("task_schedule_schema.sql")).map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
         store.recover_pdf_imports()?;
@@ -1065,7 +1067,7 @@ fn validate_appearance(value: &Value) -> Result<()> {
             .all(|key| value.get(key).is_none_or(|v| v.as_str().is_some_and(|s| !s.is_empty())))
         && value.get("colorMode").is_none_or(|v| {
             v.as_str()
-                .is_some_and(|s| matches!(s, "light" | "dark" | "system"))
+                .is_some_and(|s| matches!(s, "light" | "sepia" | "dark" | "system"))
         })
         && value.get("accent").is_none_or(|v| {
             v.as_str().is_some_and(|s| {

@@ -1,6 +1,8 @@
 # Weekly task calendar implementation plan
 
-Status: proposed. Research and code inspection on 3 November 2026. This plan does not implement the feature.
+Status: implemented in the working tree. The desktop week view, durable task schedules, smart input and Android day/three-day UI share the same task store. See [Calendar](PROJECTS_AND_TASKS.md#calendar) for current behavior and [storage](LOCAL_STORAGE.md#task-calendar-schema-13) for the current data contract. The original research and proposed phases below record the design intent.
+
+Verification on 3 November 2026: 958 frontend tests, 14 focused Playwright tests and 110 Rust tests passed (2 Rust tests ignored). The production frontend build and isolated Mac debug bundle built successfully. Browser checks covered both Stash themes, light and dark mode, desktop widths of 1280px and 900px, and mobile portrait, landscape and short viewports. In the isolated Mac app, a timed point and the open Calendar page survived quit and reopen; a forced revision conflict displayed an error and restored the saved task. Android device acceptance remains open.
 
 ## Goal and scope
 

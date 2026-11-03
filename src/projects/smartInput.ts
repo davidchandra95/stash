@@ -9,6 +9,7 @@ export interface DateMatch extends InputSpan {
 }
 export interface TimeMatch extends InputSpan {
   time: string
+  endTime?: string
 }
 export type ScheduleMatch = DateMatch | TimeMatch
 
@@ -47,6 +48,12 @@ const expression = new RegExp(
 )
 const timeExpression =
   /(?<![\p{L}\p{N}_/@.:-])(?:@|at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2})(?![\p{L}\p{N}_/@:-]|\.[\p{L}\p{N}])/giu
+const timeToken = '(?:\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)|\\d{1,2}:\\d{2})'
+const timeRangeExpression = new RegExp(
+  `(?<![\\p{L}\\p{N}_/@.:-])(?:@|at\\s+|from\\s+)?(${timeToken})\\s*(?:to|until|[-–])\\s*(${timeToken})(?![\\p{L}\\p{N}_/@:-])`,
+  'giu',
+)
+const timeRanges = (text: string) => [...text.matchAll(timeRangeExpression)]
 
 function blockedSchedule(text: string) {
   if (repeatSchedule.test(text)) return true
@@ -63,7 +70,14 @@ function blockedSchedule(text: string) {
   for (let i = 1; i < candidates.length; i++) {
     const previous = candidates[i - 1]
     const between = text.slice(previous.index + previous[0].length, candidates[i].index)
-    if (/^\s*(?:to|through|thru|until|[-–])\s*$/i.test(between)) return true
+    if (
+      /^\s*(?:to|through|thru|until|[-–])\s*$/i.test(between) &&
+      !timeRanges(text).some(
+        (range) =>
+          previous.index >= range.index && candidates[i].index < range.index + range[0].length,
+      )
+    )
+      return true
     if (/^\s*and\s*$/i.test(between) && /\bbetween\s*$/i.test(text.slice(0, previous.index)))
       return true
   }
@@ -81,9 +95,35 @@ function unsupportedContext(before: string, after: string) {
 export function recognizeTimes(text: string): TimeMatch[] {
   if (blockedSchedule(text)) return []
   const matches: TimeMatch[] = []
+  const parseTime = (text: string) => {
+    const parts = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i.exec(text.trim())
+    if (!parts) return null
+    let hour = Number(parts[1])
+    const minute = Number(parts[2] ?? 0)
+    if (minute > 59 || (parts[3] ? hour < 1 || hour > 12 : hour > 23)) return null
+    if (parts[3]) hour = (hour % 12) + (parts[3].toLowerCase() === 'pm' ? 12 : 0)
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  }
+  const ranges = timeRanges(text)
+  for (const range of ranges) {
+    if (unsupportedContext(text.slice(0, range.index), text.slice(range.index + range[0].length)))
+      continue
+    const time = parseTime(range[1]),
+      endTime = parseTime(range[2])
+    if (time && endTime && time !== endTime)
+      matches.push({
+        start: range.index,
+        end: range.index + range[0].length,
+        text: range[0],
+        time,
+        endTime,
+      })
+  }
   for (const match of text.matchAll(timeExpression)) {
     const start = match.index
     const end = start + match[0].length
+    if (ranges.some((range) => start >= range.index && start < range.index + range[0].length))
+      continue
     if (unsupportedContext(text.slice(0, start), text.slice(end))) continue
     const parts = /^(?:@|at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i.exec(match[0])!
     let hour = Number(parts[1])
@@ -97,7 +137,7 @@ export function recognizeTimes(text: string): TimeMatch[] {
       time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
     })
   }
-  return matches
+  return matches.sort((a, b) => a.start - b.start)
 }
 
 const calendar = (date: string) => new Date(`${date}T12:00:00Z`)

@@ -12,11 +12,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import android.util.Base64
 import android.webkit.WebView
+import androidx.activity.result.ActivityResult
+import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -132,6 +135,30 @@ class StashPlatformPlugin(private val activity: Activity): Plugin(activity) {
     @Command fun background(invoke: Invoke) {
         activity.moveTaskToBack(true)
         invoke.resolve()
+    }
+    @Command fun pickPdf(invoke: Invoke) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/pdf")
+        startActivityForResult(invoke, intent, "pickedPdf")
+    }
+    @ActivityCallback fun pickedPdf(invoke: Invoke, result: ActivityResult) {
+        val uri = result.data?.data
+        if (result.resultCode != Activity.RESULT_OK || uri == null) { invoke.resolve(JSObject()); return }
+        // Rust reads paths, not content URIs. A large document must not hold up the main thread.
+        Thread {
+            try {
+                val resolver = activity.contentResolver
+                val shown = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { row ->
+                    if (row.moveToFirst()) row.getString(0) else null
+                }
+                val name = File(shown ?: "").name.ifBlank { "Document.pdf" }
+                val directory = File(activity.cacheDir, "pdf-import")
+                directory.deleteRecursively()
+                check(directory.mkdirs())
+                val target = File(directory, name)
+                resolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                invoke.resolve(JSObject().put("path", target.path))
+            } catch (e: Exception) { invoke.reject("Could not read that file") }
+        }.start()
     }
     @Command fun openUrl(invoke: Invoke) {
         try {

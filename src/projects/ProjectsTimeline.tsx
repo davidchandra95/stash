@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react'
 import AppTooltip from '../components/AppTooltip'
-import { useApp } from '../app/context'
 import { notebookColorValue } from '../notebookColors'
 import ProjectRing from './ProjectRing'
 import {
@@ -23,11 +22,12 @@ const pct = (value: number) => `${value * 100}%`
 export default function ProjectsTimeline({
   rows,
   current,
+  onOpen,
 }: {
   rows: ProjectSummary[]
   current: string
+  onOpen: (id: string) => void
 }) {
-  const app = useApp()
   const dated = rows.filter((row) => row.project.startDate || row.project.endDate)
   const undated = rows.filter((row) => !row.project.startDate && !row.project.endDate)
   const range = timelineRange(
@@ -82,7 +82,7 @@ export default function ProjectsTimeline({
               }`
               return (
                 <div className="timeline-row" role="listitem" key={project.id}>
-                  <button className="timeline-label" onClick={() => app.openProject(project.id)}>
+                  <button className="timeline-label" onClick={() => onOpen(project.id)}>
                     <ProjectRing project={project} ratio={progress.ratio} />
                     <span className="truncate">{project.name}</span>
                   </button>
@@ -91,7 +91,7 @@ export default function ProjectsTimeline({
                       <button
                         className={`timeline-bar ${milestone ? 'is-milestone' : ''} ${health ? `is-${health}` : ''}`}
                         aria-label={label}
-                        onClick={() => app.openProject(project.id)}
+                        onClick={() => onOpen(project.id)}
                         style={
                           {
                             '--bar-color': notebookColorValue(project.color),
@@ -118,7 +118,7 @@ export default function ProjectsTimeline({
             <button
               key={project.id}
               className="timeline-label"
-              onClick={() => app.openProject(project.id)}
+              onClick={() => onOpen(project.id)}
             >
               <ProjectRing project={project} ratio={progress.ratio} />
               <span className="truncate">{project.name}</span>

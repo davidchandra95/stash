@@ -97,7 +97,7 @@ it('updates Edit visibility when editability changes and keeps read-only preview
   value.setEditable(true, false)
   expect(actions.hidden).toBe(false)
 })
-it('keeps mobile preview access without an Edit control', () => {
+it('opens drawings on tap on mobile, without an Edit control', () => {
   platform.mobile = true
   const value = drawingEditor(),
     open = vi.fn()
@@ -106,10 +106,10 @@ it('keeps mobile preview access without an Edit control', () => {
   value.view.dom.querySelector<HTMLButtonElement>('.drawing-preview')!.click()
   expect(open).toHaveBeenCalledTimes(1)
 })
-it('blocks insertion on mobile, in Markdown, and in read-only editors', () => {
+it('inserts on mobile, and blocks insertion in Markdown and read-only editors', () => {
   expect(runCommand(editor(true), 'drawing')).toBe(false)
   platform.mobile = true
-  expect(runCommand(editor(), 'drawing')).toBe(false)
+  expect(runCommand(editor(), 'drawing')).toBe(true)
   platform.mobile = false
   const value = editor()
   value.setEditable(false)

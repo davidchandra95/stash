@@ -1,6 +1,22 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Plugin } from 'vite'
+/**
+ * PDF.js sizes pages with CSS round(), which Android System WebView lacks before Chrome 125. There
+ * a page collapses to zero height, so use the same size without snapping it to whole pixels.
+ */
+export function sizePagesWithoutRound(code: string) {
+  let replaced = 0
+  const next = code.replace(
+    /`round\(down, (var\(--total-scale-factor\) \* \$\{page(?:Width|Height)\}px), var\(--scale-round-[xy]\)\)`/g,
+    (round, size) => {
+      replaced++
+      return `(CSS.supports('width', 'round(down, 1px, 1px)') ? ${round} : \`calc(${size})\`)`
+    },
+  )
+  if (replaced !== 2) throw Error('PDF.js page sizing changed. Review sizePagesWithoutRound.')
+  return next
+}
 /** Serve and emit the exact assets shipped with the pinned renderer, without a CDN. */
 export function pdfAssets(): Plugin {
   const assets = new Map<string, Buffer>()
@@ -23,6 +39,8 @@ export function pdfAssets(): Plugin {
         // PDF.js also ships generic .sidebar and button styles. Contain all of them.
         return { code: `.pdf-reader {\n${code.replaceAll(':root', '&')}\n}`, map: null }
       }
+      if (id.split('?')[0].endsWith('/pdfjs-dist/legacy/build/pdf.mjs'))
+        return { code: sizePagesWithoutRound(code), map: null }
     },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {

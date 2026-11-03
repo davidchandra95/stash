@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useEffect, useSyncExternalStore } from 'react'
 import { previewProjectData } from './fixtures'
+import { validateSchedule } from './schedule'
 import type { Project, ProjectData, Task } from './model'
 
 /**
@@ -17,10 +18,10 @@ const publish = (patch: Partial<Snapshot>) => {
   snapshot = { ...snapshot, ...patch }
   listeners.forEach((listener) => listener())
 }
-const confirmed = { projects: new Map<string, number>(), tasks: new Map<string, number>() }
+const confirmed = { projects: new Map<string, Project>(), tasks: new Map<string, Task>() }
 const remember = (data: Partial<ProjectData>) => {
-  data.projects?.forEach((p) => confirmed.projects.set(p.id, p.revision))
-  data.tasks?.forEach((t) => confirmed.tasks.set(t.id, t.revision))
+  data.projects?.forEach((p) => confirmed.projects.set(p.id, p))
+  data.tasks?.forEach((t) => confirmed.tasks.set(t.id, t))
 }
 const merge = <T extends { id: string }>(list: T[], changed: T[] = []) => {
   if (!changed.length) return list
@@ -33,6 +34,8 @@ const merge = <T extends { id: string }>(list: T[], changed: T[] = []) => {
 type Changes = { projects?: Project[]; tasks?: Task[] }
 let queue: Promise<void> = Promise.resolve()
 let opening: Promise<void> | undefined
+let saveGeneration = 0
+let reloadingAfterFailure = false
 
 function saveRequest(changes: Changes) {
   return {
@@ -47,7 +50,7 @@ function saveRequest(changes: Changes) {
       color: p.color,
       sort: p.sort,
       deleted: p.deletedAt !== null,
-      expectedRevision: confirmed.projects.get(p.id) ?? 0,
+      expectedRevision: confirmed.projects.get(p.id)?.revision ?? 0,
     })),
     tasks: (changes.tasks ?? []).map((t) => ({
       id: t.id,
@@ -59,9 +62,11 @@ function saveRequest(changes: Changes) {
       startDate: t.startDate,
       dueDate: t.dueDate,
       dueTime: t.dueTime,
+      schedule: t.schedule ?? null,
+      dueLinked: t.dueLinked ?? false,
       sort: t.sort,
       deleted: t.deletedAt !== null,
-      expectedRevision: confirmed.tasks.get(t.id) ?? 0,
+      expectedRevision: confirmed.tasks.get(t.id)?.revision ?? 0,
     })),
   }
 }
@@ -70,7 +75,7 @@ function saveRequest(changes: Changes) {
 function previewSave(changes: Changes): ProjectData {
   const at = Date.now()
   const stamp = <T extends Project | Task>(record: T, kind: 'projects' | 'tasks'): T => {
-    const revision = confirmed[kind].get(record.id) ?? 0
+    const revision = confirmed[kind].get(record.id)?.revision ?? 0
     const done = record.status === 'done'
     return {
       ...record,
@@ -114,19 +119,36 @@ export const projectStore = {
   },
   /** Saves full records. Missing ones are created; `deletedAt` marks deletion. */
   save(changes: Changes): Promise<void> {
+    if (reloadingAfterFailure)
+      return Promise.reject(Error('Reloading stored tasks. Try again in a moment.'))
+    for (const task of changes.tasks ?? []) {
+      try {
+        validateSchedule(task.schedule)
+        if (task.dueLinked && (!task.schedule || task.dueDate || task.dueTime))
+          throw Error('A linked deadline must use its schedule only.')
+      } catch (error) {
+        saveGeneration++
+        publish({ saveError: String(error) })
+        return Promise.reject(error)
+      }
+    }
+    const generation = saveGeneration
     publish({
       projects: merge(snapshot.projects, changes.projects),
       tasks: merge(snapshot.tasks, changes.tasks),
       saveError: '',
     })
     const run = async () => {
+      if (generation !== saveGeneration)
+        throw Error('An earlier save failed. Review the restored task and try again.')
       try {
         const saved = native
           ? await invoke<ProjectData>('save_projects', { changes: saveRequest(changes) })
           : previewSave(changes)
         remember(saved)
         // A record edited again while this save ran keeps its newer local value.
-        const unchanged = <T extends { id: string }>(list: T[], sent: T[] = []) =>
+        const unchanged =
+          <T extends { id: string }>(list: T[], sent: T[] = []) =>
           (record: T) => {
             const local = list.find((old) => old.id === record.id)
             return !local || sent.includes(local)
@@ -136,11 +158,24 @@ export const projectStore = {
             snapshot.projects,
             saved.projects.filter(unchanged(snapshot.projects, changes.projects)),
           ),
-          tasks: merge(snapshot.tasks, saved.tasks.filter(unchanged(snapshot.tasks, changes.tasks))),
+          tasks: merge(
+            snapshot.tasks,
+            saved.tasks.filter(unchanged(snapshot.tasks, changes.tasks)),
+          ),
         })
       } catch (error) {
-        publish({ saveError: String(error) })
-        await load().catch((reload) => publish({ error: String(reload) }))
+        saveGeneration++
+        reloadingAfterFailure = true
+        publish({
+          projects: [...confirmed.projects.values()],
+          tasks: [...confirmed.tasks.values()],
+          saveError: String(error),
+        })
+        try {
+          await load().catch((reload) => publish({ error: String(reload) }))
+        } finally {
+          reloadingAfterFailure = false
+        }
         throw error
       }
     }
@@ -149,7 +184,10 @@ export const projectStore = {
     return result
   },
   /** Waits for queued saves, for quit. */
-  flush: () => queue,
+  flush: async () => {
+    await queue
+    if (snapshot.saveError) throw Error(snapshot.saveError)
+  },
   clearSaveError: () => publish({ saveError: '' }),
 }
 

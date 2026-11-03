@@ -1,3 +1,5 @@
+import { effectiveDueDate, clockAt, displayZone, calendarDate, dayAt, type TaskSchedule } from './schedule'
+export { effectiveDueDate } from './schedule'
 export type ProjectStatus = 'planned' | 'active' | 'on_hold' | 'done' | 'cancelled'
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'cancelled'
 export type Priority = 0 | 1 | 2 | 3
@@ -31,6 +33,8 @@ export interface Task {
   dueDate: string | null
   /** Local wall-clock time as HH:mm; requires a dueDate. No notification is implied. */
   dueTime: string | null
+  schedule?: TaskSchedule | null
+  dueLinked?: boolean
   completedAt: number | null
   sort: number
   deletedAt: number | null
@@ -73,13 +77,10 @@ export const isOpenProject = (project: Project) =>
 
 /** Today's local calendar date as YYYY-MM-DD. */
 export function today(now = new Date()) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  return dayAt(now.getTime())
 }
-const dayNumber = (date: string) => {
-  const [y, m, d] = date.split('-').map(Number)
-  return Date.UTC(y, m - 1, d) / 86_400_000
-}
+const dayNumber = (date: string) => calendarDate('1970-01-01').until(calendarDate(date)).days
+
 export const daysBetween = (from: string, to: string) => dayNumber(to) - dayNumber(from)
 
 const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -94,10 +95,16 @@ export function formatDate(date: string, current = today()) {
   const value = new Date(dayNumber(date) * 86_400_000)
   return (date.slice(0, 4) === current.slice(0, 4) ? dateFormat : yearFormat).format(value)
 }
-export function formatTaskDue(task: Pick<Task, 'dueDate' | 'dueTime'>, current = today()) {
-  return task.dueDate
-    ? `${formatDate(task.dueDate, current)}${task.dueTime ? `, ${task.dueTime}` : ''}`
-    : ''
+export function formatTaskDue(task: Pick<Task, 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked'>, current = today()) {
+  const due = effectiveDueDate(task)
+  return due ? `${formatDate(due, current)}${task.dueTime ? `, ${task.dueTime}` : ''}` : ''
+}
+export function formatTaskTiming(task: Task, current = today()) {
+  const due = formatTaskDue(task, current)
+  if (!task.schedule || task.schedule.kind === 'allDay') return due
+  const zone = displayZone()
+  const time = clockAt(task.schedule.start, zone)
+  return `${due ? `${due} · ` : ''}Work ${time}`
 }
 export function formatRange(start: string | null, end: string | null, current = today()) {
   if (start && end) return `${formatDate(start, current)} – ${formatDate(end, current)}`
@@ -106,9 +113,10 @@ export function formatRange(start: string | null, end: string | null, current = 
   return ''
 }
 /** How a due date reads against today: overdue, due within two days, or later. */
-export function dueState(task: Pick<Task, 'dueDate' | 'status'>, current = today()) {
-  if (!task.dueDate || task.status === 'done' || task.status === 'cancelled') return 'none'
-  const days = daysBetween(current, task.dueDate)
+export function dueState(task: Pick<Task, 'dueDate' | 'status' | 'schedule' | 'dueLinked'>, current = today()) {
+  const due = effectiveDueDate(task)
+  if (!due || task.status === 'done' || task.status === 'cancelled') return 'none'
+  const days = daysBetween(current, due)
   return days < 0 ? 'late' : days <= 2 ? 'soon' : 'later'
 }
 
@@ -251,19 +259,19 @@ export interface DateGroup {
   tasks: Task[]
 }
 const byDue = (a: Task, b: Task) =>
-  (a.dueDate ?? '').localeCompare(b.dueDate ?? '') || b.priority - a.priority || bySort(a, b)
+  (effectiveDueDate(a) ?? '').localeCompare(effectiveDueDate(b) ?? '') || b.priority - a.priority || bySort(a, b)
 
 /**
  * Today: open tasks that are overdue or due today, plus tasks due by today that were finished
  * today, so ticking one doesn't make it vanish.
  */
 export function todayGroups(tasks: Task[], current = today()): DateGroup[] {
-  const live = tasks.filter((t) => t.deletedAt === null && t.dueDate && t.dueDate <= current)
-  const overdue = live.filter((t) => isOpen(t) && t.dueDate! < current).sort(byDue)
+  const live = tasks.filter((t) => t.deletedAt === null && effectiveDueDate(t) && effectiveDueDate(t)! <= current)
+  const overdue = live.filter((t) => isOpen(t) && effectiveDueDate(t)! < current).sort(byDue)
   const due = live
     .filter(
       (t) =>
-        (isOpen(t) && t.dueDate === current) ||
+        (isOpen(t) && effectiveDueDate(t) === current) ||
         (t.status === 'done' && t.completedAt !== null && dateOf(t.completedAt) === current),
     )
     .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || byDue(a, b))
@@ -279,10 +287,10 @@ export function upcomingGroups(tasks: Task[], current = today()): DateGroup[] {
   const groups = new Map<string, DateGroup>()
   const weekEnd = addDays(current, 7)
   const sorted = tasks
-    .filter((t) => t.deletedAt === null && isOpen(t) && t.dueDate && t.dueDate > current)
+    .filter((t) => t.deletedAt === null && isOpen(t) && effectiveDueDate(t) && effectiveDueDate(t)! > current)
     .sort(byDue)
   for (const task of sorted) {
-    const due = task.dueDate!
+    const due = effectiveDueDate(task)!
     const withinWeek = due <= weekEnd
     const id = withinWeek ? due : due.slice(0, 7)
     const label = withinWeek

@@ -309,7 +309,7 @@ export default function Settings({
       id: 'color-mode',
       category: 'appearance',
       group: '',
-      search: 'Appearance color mode light dark auto system theme',
+      search: 'Appearance color mode light sepia dark auto system theme',
       content: (
         <Row label="Appearance">
           <span className="mode-options" role="radiogroup" aria-label="Appearance">
@@ -389,13 +389,15 @@ export default function Settings({
               ? 'Available in the Mac app'
               : value.interfaceTheme !== 'native'
                 ? 'Available with the Native theme'
-                : undefined
+                : value.colorMode === 'sepia'
+                  ? 'Not available in Sepia'
+                  : undefined
           }
         >
           <Switch
             label="Translucent sidebar"
             checked={value.translucentSidebar}
-            disabled={!nativeMac || value.interfaceTheme !== 'native'}
+            disabled={!nativeMac || value.interfaceTheme !== 'native' || value.colorMode === 'sepia'}
             onChange={(checked) => set('translucentSidebar', checked)}
           />
         </Row>

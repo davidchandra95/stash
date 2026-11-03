@@ -133,6 +133,8 @@
   object-fit: contain;
 }
 .drawing-dialog-mobile {
+  /* Above the mobile dialog scrim, which sits over the keyboard-aware sheets. */
+  z-index: 803;
   inset: 0;
   height: auto;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)

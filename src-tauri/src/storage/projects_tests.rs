@@ -27,9 +27,91 @@ fn task(id: &str, project_id: Option<&str>) -> SaveTask {
         start_date: None,
         due_date: Some("2026-11-04".into()),
         due_time: None,
+        schedule: None,
+        due_linked: false,
         sort: 1.0,
         deleted: false,
         expected_revision: 0,
+    }
+}
+
+#[test]
+fn schedules_round_trip_and_reject_invalid_or_stale_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let schedules = vec![
+        TaskSchedule::AllDay { start: "2026-11-02".into(), end: "2026-11-05".into() },
+        TaskSchedule::Point { start: 1_793_688_000_000, time_zone: "Asia/Jakarta".into() },
+        TaskSchedule::Range { start: 1_793_688_000_000, end: 1_793_691_600_000, time_zone: "America/New_York".into() },
+    ];
+    for (index, schedule) in schedules.into_iter().enumerate() {
+        let mut input = task(&format!("scheduled-{index}"), None);
+        input.due_date = None;
+        input.due_linked = true;
+        input.schedule = Some(schedule.clone());
+        let saved = store.save_project_changes(&changes(vec![], vec![input.clone()])).unwrap();
+        assert_eq!(saved.tasks[0].schedule, Some(schedule));
+        assert!(saved.tasks[0].due_linked);
+        assert!(store.save_project_changes(&changes(vec![], vec![input])).unwrap_err().contains("changed"));
+    }
+    let before = store.project_data().unwrap();
+    drop(store);
+    let mut store = Store::open(dir.path()).unwrap();
+    assert_eq!(store.project_data().unwrap().tasks, before.tasks);
+    let point = serde_json::to_value(&before.tasks[1].schedule).unwrap();
+    assert!(point.get("end").is_none());
+    for schedule in [
+        TaskSchedule::AllDay { start: "2026-02-29".into(), end: "2026-03-01".into() },
+        TaskSchedule::AllDay { start: "2026-11-04".into(), end: "2026-11-04".into() },
+        TaskSchedule::Point { start: 0, time_zone: "Not/A_Zone".into() },
+        TaskSchedule::Point { start: i64::MAX, time_zone: "UTC".into() },
+        TaskSchedule::Range { start: 5, end: 4, time_zone: "UTC".into() },
+    ] {
+        let mut input = task("invalid-schedule", None);
+        input.schedule = Some(schedule);
+        assert!(store.save_project_changes(&changes(vec![], vec![input])).unwrap_err().contains("schedule"));
+    }
+    let mut linked = task("invalid-link", None);
+    linked.due_linked = true;
+    assert!(store.save_project_changes(&changes(vec![], vec![linked])).unwrap_err().contains("linked"));
+    assert!(store.conn.execute("UPDATE tasks SET due_date='2026-11-03' WHERE due_linked=1", []).is_err());
+    let invalid = serde_json::json!({"kind":"point","start":0,"end":1,"timeZone":"UTC"});
+    assert!(serde_json::from_value::<TaskSchedule>(invalid).is_err());
+}
+
+#[test]
+fn version_twelve_schedule_upgrade_preserves_legacy_wall_times_and_backup() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut input = task("legacy-time", None);
+    input.due_time = Some("14:00".into());
+    let before = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    assert_eq!(store.project_data().unwrap().tasks, before.tasks);
+    let path = fs::read_dir(dir.path().join("backups")).unwrap().next().unwrap().unwrap().path();
+    let backup = Connection::open(path).unwrap();
+    assert_eq!(backup.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 12);
+    assert_eq!(backup.query_row("SELECT due_time FROM tasks", [], |r| r.get::<_, String>(0)).unwrap(), "14:00");
+}
+
+#[test]
+fn schedule_upgrade_backup_failure_and_migration_failure_preserve_version_twelve() {
+    for backup_failure in [true, false] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(dir.path()).unwrap();
+        store.save_project_changes(&changes(vec![], vec![task("kept", None)])).unwrap();
+        store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+        if !backup_failure { store.conn.execute_batch("ALTER TABLE tasks ADD COLUMN due_linked TEXT;").unwrap(); }
+        drop(store);
+        if backup_failure { fs::write(dir.path().join("backups"), b"blocked").unwrap(); }
+        assert!(Store::open(dir.path()).is_err());
+        let db = Connection::open(dir.path().join("library.sqlite3")).unwrap();
+        assert_eq!(db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 12);
+        assert_eq!(db.query_row("SELECT count(*) FROM tasks WHERE id='kept'", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+        let columns = db.prepare("PRAGMA table_info(tasks)").unwrap().query_map([], |r| r.get::<_, String>(1)).unwrap().collect::<std::result::Result<Vec<_>, _>>().unwrap();
+        assert!(!columns.contains(&"schedule".to_string()));
     }
 }
 fn changes(projects: Vec<SaveProject>, tasks: Vec<SaveTask>) -> ProjectChanges {
@@ -86,13 +168,13 @@ fn version_eleven_migration_preserves_tasks_and_backs_up_before_adding_due_time(
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
     let before = store.save_project_changes(&changes(vec![project("p")], vec![task("t", Some("p"))])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
     drop(store);
     let mut store = Store::open(dir.path()).unwrap();
     let after = store.project_data().unwrap();
     assert_eq!(after.projects, before.projects);
     assert_eq!(after.tasks, before.tasks);
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 12);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 13);
     let backups: Vec<_> = fs::read_dir(dir.path().join("backups")).unwrap().map(|entry| entry.unwrap().path()).collect();
     assert_eq!(backups.len(), 1);
     let backup = Connection::open(&backups[0]).unwrap();
@@ -240,7 +322,7 @@ fn version_ten_libraries_gain_project_tables_after_a_backup() {
 
     let mut store = Store::open(dir.path()).unwrap();
     let version: i64 = store.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 12);
+    assert_eq!(version, 13);
     assert_eq!(store.note("a", false).unwrap().title, "Kept");
     store
         .save_project_changes(&changes(vec![project("p")], vec![]))

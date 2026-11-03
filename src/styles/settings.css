@@ -247,6 +247,12 @@
 .mode-preview.is-light i {
   background: #e6e6e9;
 }
+.mode-preview.is-sepia {
+  background: #f6eedb;
+}
+.mode-preview.is-sepia i {
+  background: #e9dfc8;
+}
 .mode-preview.is-dark {
   background: #1e1e1f;
 }

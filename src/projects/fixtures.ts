@@ -1,9 +1,10 @@
 import { today } from './model'
+import { addDays } from './schedule'
 import type { Project, ProjectData, Task } from './model'
 
 /** Fictional session-only projects for the browser preview. Dates follow today. */
 export function previewProjectData(now = new Date()): ProjectData {
-  const shift = (days: number) => today(new Date(now.getTime() + days * 86_400_000))
+  const shift = (days: number) => addDays(today(now), days)
   const at = now.getTime()
   const project = (
     fields: Pick<Project, 'id' | 'name' | 'status' | 'color' | 'sort'> & Partial<Project>,
@@ -34,6 +35,8 @@ export function previewProjectData(now = new Date()): ProjectData {
     startDate: null,
     dueDate: null,
     dueTime: null,
+    schedule: null,
+    dueLinked: false,
     completedAt: fields.status === 'done' ? at : null,
     sort,
     deletedAt: null,

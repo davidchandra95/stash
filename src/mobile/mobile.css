@@ -2019,3 +2019,99 @@ select {
     margin-inline: auto;
   }
 }
+
+/* Task and project layouts. */
+.mobile-layout-switch {
+  display: flex;
+  margin: var(--space-3) var(--space-7);
+}
+.mobile-layout-switch > button {
+  flex: 1;
+}
+.mobile-task-group.is-late {
+  color: var(--danger);
+}
+.mobile-board {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--space-3);
+  padding-inline: var(--space-3);
+}
+.mobile-board-column {
+  flex: 0 0 min(86%, 360px);
+  min-width: 0;
+  scroll-snap-align: start;
+  border-radius: var(--radius-lg);
+  background: var(--fill-1);
+}
+.mobile-board-column > .mobile-sheet-note {
+  padding-inline: var(--space-7);
+}
+.mobile-app .timeline {
+  --label: 116px;
+  padding-inline: var(--space-3);
+}
+.mobile-app .timeline-row:not(.timeline-header) {
+  height: var(--target);
+}
+.mobile-app .timeline-label {
+  min-height: var(--target);
+}
+
+/* PDF reader page. */
+.mobile-pdf {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.mobile-pdf .pdf-reader {
+  flex: 1;
+  min-height: 0;
+}
+.mobile-pdf .pdf-toolbar {
+  overflow-x: auto;
+}
+/* The timeline scrolls sideways so month labels stay readable; project names stay in view. */
+.mobile-app .timeline {
+  overflow-x: auto;
+}
+.mobile-app .timeline-grid {
+  min-width: 620px;
+}
+.mobile-app .timeline-grid .timeline-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-content);
+}
+/* A recognized date gets its own line, so a phone keeps the title in view while typing. */
+.mobile-app .new-task {
+  flex-wrap: wrap;
+  height: auto;
+}
+.mobile-app .new-task > kbd {
+  display: none;
+}
+.mobile-app .new-task .smart-task-field {
+  flex: 1 1 0;
+  height: var(--target);
+  font-size: var(--text-md);
+  line-height: var(--target);
+}
+.mobile-app .new-task .new-task-input {
+  height: var(--target);
+  min-height: 0;
+  font-size: var(--text-md);
+  line-height: var(--target);
+}
+.mobile-app .new-task:has(.smart-task-date-trigger span) .smart-task-date {
+  flex-basis: 100%;
+  order: 1;
+  margin-top: calc(var(--space-3) * -1);
+  padding-bottom: var(--space-2);
+  padding-left: var(--space-7);
+}

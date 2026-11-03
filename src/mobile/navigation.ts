@@ -1,14 +1,20 @@
 import type { View } from '../model'
+import type { PdfNavigation } from '../pdf/model'
 import type { TaskGroup } from '../projects/model'
+export type TaskDateView = 'today' | 'upcoming'
 export type SettingsCategory = 'appearance' | 'typography' | 'editor' | 'sync'
 export type MobileRoute =
   | { kind: 'list'; view: View; query: string; scroll: number; sortTitle: boolean }
   | { kind: 'note'; id: string; focusTitle?: boolean; scroll: number }
   | { kind: 'settings'; category?: SettingsCategory }
+  | { kind: 'calendar' }
   | { kind: 'projects'; scroll: number }
   /** `id` is a project ID, or 'inbox'. */
   | { kind: 'project'; id: string; scroll: number; collapsed: TaskGroup[] }
   | { kind: 'task'; id: string; scroll: number }
+  /** Tasks from every project, by due date. */
+  | { kind: 'tasks'; view: TaskDateView; scroll: number }
+  | { kind: 'pdf'; id: string; target?: PdfNavigation }
 export type MobileNavigation = { routes: MobileRoute[] }
 /** Done starts collapsed, as on desktop. */
 export const projectRoute = (id: string): MobileRoute => ({
@@ -26,7 +32,7 @@ export type NavigationAction =
   | { type: 'replace'; route: MobileRoute }
   | { type: 'library'; view: View }
   /** From the drawer: the project list, with a project on top so Back walks to the list. */
-  | { type: 'projects'; project?: string }
+  | { type: 'projects'; project?: string; tasks?: TaskDateView }
 export function mobileNavigation(
   state: MobileNavigation,
   action: NavigationAction,
@@ -47,6 +53,7 @@ export function mobileNavigation(
         routes: [
           { kind: 'projects', scroll: 0 },
           ...(action.project ? [projectRoute(action.project)] : []),
+          ...(action.tasks ? [{ kind: 'tasks' as const, view: action.tasks, scroll: 0 }] : []),
         ],
       }
   }

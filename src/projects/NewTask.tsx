@@ -1,10 +1,20 @@
+import { DateCalendar } from '../components/DateField'
+import {
+  addDays,
+  calendarDate,
+  displayZone,
+  resolveWallTime,
+  subscribeDisplayZone,
+  type TaskSchedule,
+} from './schedule'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import AppTooltip from '../components/AppTooltip'
-import { DateCalendar } from '../components/DateField'
 import { useApp } from '../app/context'
+import type { Appearance } from '../model'
+import { platform } from '../platform'
 import { Calendar, Plus, X } from '../icons'
-import { createTask } from './actions'
+import { createTaskConfirmed } from './actions'
 import { daysBetween, formatDate, today } from './model'
 import {
   moveDismissedDates,
@@ -21,48 +31,65 @@ function useToday() {
     let timer: ReturnType<typeof setTimeout>
     const refresh = () => {
       setCurrent(today())
-      const next = new Date()
-      next.setHours(24, 0, 0, 0)
+      const next = calendarDate(today()).add({ days: 1 }).toZonedDateTime(displayZone())
       clearTimeout(timer)
-      timer = setTimeout(refresh, next.getTime() - Date.now() + 50)
+      timer = setTimeout(refresh, next.epochMilliseconds - Date.now() + 50)
     }
     refresh()
-    window.addEventListener('focus', refresh)
+    const unsubscribe = subscribeDisplayZone(refresh)
     document.addEventListener('visibilitychange', refresh)
     return () => {
       clearTimeout(timer)
-      window.removeEventListener('focus', refresh)
+      unsubscribe()
       document.removeEventListener('visibilitychange', refresh)
     }
   }, [])
   return current
 }
 
-export default function NewTask({
-  projectId,
-  disabled,
-  dueToday = false,
-}: {
+export default function NewTask(props: {
   projectId: string | null
   disabled: boolean
   dueToday?: boolean
 }) {
   const app = useApp()
+  return <NewTaskForm {...props} appearance={app.appearance} onAppearance={app.setAppearance} />
+}
+
+export function NewTaskForm({
+  projectId,
+  disabled,
+  dueToday = false,
+  appearance,
+  onAppearance,
+}: {
+  projectId: string | null
+  disabled: boolean
+  dueToday?: boolean
+  appearance: Appearance
+  onAppearance: (appearance: Appearance) => void
+}) {
   const [draft, setDraft] = useState('')
   const [dismissed, setDismissed] = useState<ScheduleMatch[]>([])
-  const [explicit, setExplicit] = useState<{ date: string | null; time: string | null } | null>(
-    null,
-  )
-  const enabled = app.appearance.smartTaskDates
-  const keepDateWords = app.appearance.keepTaskDateWords
+  const [explicit, setExplicit] = useState<{
+    date: string | null
+    time: string | null
+    endTime?: string | null
+  } | null>(null)
+  const enabled = appearance.smartTaskDates
+  const keepDateWords = appearance.keepTaskDateWords
   const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [offset, setOffset] = useState<'' | 'earlier' | 'later'>('')
   const input = useRef<HTMLInputElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
+  // Touch keyboards compose every word, and Enter ends the word, so only desktop IMEs hold Enter.
   const composing = useRef(false)
+  const imeComposing = () => !platform.mobile && composing.current
   const id = useId()
   const current = useToday()
-  const tomorrow = new Date(`${current}T12:00:00Z`)
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+  const tomorrow = addDays(current, 1)
   const eligible = (candidate: ScheduleMatch) =>
     !dismissed.some((item) => item.start === candidate.start && item.text === candidate.text)
   const automatic = enabled && explicit === null
@@ -82,7 +109,10 @@ export default function NewTask({
         ? 'Tomorrow'
         : formatDate(dueDate, current)
     : 'No due date'
-  const label = `${dayLabel}${dueTime ? `, ${dueTime}` : ''}`
+  const endTime = dueTime ? (explicit ? explicit.endTime : timeMatch?.endTime) : null
+  const nextDay = endTime && dueTime && endTime < dueTime
+  const label = `${dayLabel}${dueTime ? `, ${dueTime}${endTime ? ` to ${endTime}${nextDay ? ' next day' : ''}` : ''}` : ''}`
+  const prefix = dueTime ? 'Schedule' : 'Due'
   const spanKey = matches.map((match) => `${match.start}:${match.end}`).join(',')
   const placeholder = dueToday ? 'New task due today' : 'New task'
   const syncScroll = () => {
@@ -95,6 +125,8 @@ export default function NewTask({
     setDraft('')
     setDismissed([])
     setExplicit(null)
+    setOffset('')
+    setError('')
   }
   const cancelMatch = (match?: ScheduleMatch) => {
     setDismissed((items) => [...items, ...(match ? [match] : matches)])
@@ -104,12 +136,42 @@ export default function NewTask({
   return (
     <form
       className="new-task"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault()
-        if (disabled || composing.current || !draft.trim()) return
-        createTask(projectId, taskTitle(draft, matches, keepDateWords), { dueDate, dueTime })
-        reset()
-        input.current?.focus()
+        if (disabled || saving || imeComposing() || !draft.trim()) return
+        setError('')
+        try {
+          let schedule: TaskSchedule | null = null
+          if (dueDate && dueTime) {
+            const zone = displayZone()
+            const start = resolveWallTime(dueDate, dueTime, zone, offset || undefined)
+            schedule = endTime
+              ? {
+                  kind: 'range',
+                  start,
+                  end: resolveWallTime(
+                    endTime < dueTime ? addDays(dueDate, 1) : dueDate,
+                    endTime,
+                    zone,
+                    offset || undefined,
+                  ),
+                  timeZone: zone,
+                }
+              : { kind: 'point', start, timeZone: zone }
+          }
+          setSaving(true)
+          await createTaskConfirmed(projectId, taskTitle(draft, matches, keepDateWords), {
+            dueDate: schedule ? null : dueDate,
+            dueTime: null,
+            schedule,
+            dueLinked: !!schedule,
+          })
+          reset()
+        } catch (error) {
+          setError(String(error))
+        } finally {
+          setSaving(false)
+        }
       }}
     >
       <Plus aria-hidden="true" />
@@ -123,7 +185,7 @@ export default function NewTask({
                   type="button"
                   tabIndex={-1}
                   className="smart-task-match"
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => cancelMatch(match)}
                 >
@@ -143,7 +205,9 @@ export default function NewTask({
           value={draft}
           maxLength={500}
           disabled={disabled}
+          readOnly={saving}
           autoComplete="off"
+          enterKeyHint="done"
           onScroll={syncScroll}
           onSelect={syncScroll}
           onKeyUp={syncScroll}
@@ -159,7 +223,11 @@ export default function NewTask({
             setDraft(next)
           }}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || composing.current || event.keyCode === 229) {
+            if (saving) return
+            if (
+              !platform.mobile &&
+              (event.nativeEvent.isComposing || composing.current || event.keyCode === 229)
+            ) {
               if (event.key === 'Enter') event.preventDefault()
               return
             }
@@ -184,21 +252,23 @@ export default function NewTask({
         />
       </div>
       <span className="sr-only" id={`${id}-preview`} role="status">
-        {`Due: ${label}${dueDate ? ` (${dueDate})` : ''}.`}
+        {`${prefix}: ${label}${dueDate ? ` (${dueDate})` : ''}.${dueTime ? ' Due day follows the schedule.' : ''}`}
         {matches.length > 0 &&
           ` Recognized ${matches.map((match) => `“${match.text}”`).join(' and ')}. ${keepDateWords ? 'Recognized words stay in the title.' : 'Recognized words are removed when added.'} Select recognized words and press Delete to keep them as text.`}
       </span>
       <div className="smart-task-date">
         <Popover.Root open={open && !disabled} onOpenChange={setOpen}>
           <AppTooltip
-            label={dueDate ? `Due ${label}. Change date` : 'Set due date and smart input options'}
+            label={
+              dueDate ? `${prefix}: ${label}. Change date` : 'Set due date and smart input options'
+            }
           >
             <Popover.Trigger asChild>
               <button
                 type="button"
                 className="btn btn-plain btn-sm smart-task-date-trigger"
-                aria-label={`Due: ${label}. Change date`}
-                disabled={disabled}
+                aria-label={`${prefix}: ${label}. Change date`}
+                disabled={disabled || saving}
               >
                 <Calendar aria-hidden="true" />
                 {dueDate && <span>{label}</span>}
@@ -217,12 +287,12 @@ export default function NewTask({
                 <DateCalendar
                   value={dueDate}
                   onChange={(date) => {
-                    if (!disabled) setExplicit({ date, time: dueTime })
+                    if (!disabled && !saving) setExplicit({ date, time: dueTime, endTime })
                   }}
                 />
               </div>
               <label className="field-label" htmlFor={`${id}-time`}>
-                Due time
+                Scheduled time
               </label>
               <div className="smart-task-shortcuts">
                 <input
@@ -230,37 +300,66 @@ export default function NewTask({
                   className="field smart-task-time"
                   type="time"
                   value={dueTime ?? ''}
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onChange={(event) =>
-                    setExplicit({ date: dueDate ?? current, time: event.target.value || null })
+                    setExplicit({
+                      date: dueDate ?? current,
+                      time: event.target.value || null,
+                      endTime,
+                    })
                   }
                 />
                 {dueTime && (
                   <button
                     type="button"
                     className="btn btn-plain btn-sm"
-                    disabled={disabled}
+                    disabled={disabled || saving}
                     onClick={() => setExplicit({ date: dueDate, time: null })}
                   >
                     Clear time
                   </button>
                 )}
               </div>
+              {dueTime && (
+                <>
+                  <label className="field-label" htmlFor={`${id}-end-time`}>
+                    End time (optional)
+                  </label>
+                  <input
+                    id={`${id}-end-time`}
+                    className="field"
+                    type="time"
+                    value={endTime ?? ''}
+                    disabled={disabled || saving}
+                    onChange={(event) =>
+                      setExplicit({
+                        date: dueDate,
+                        time: dueTime,
+                        endTime: event.target.value || null,
+                      })
+                    }
+                  />
+                </>
+              )}
               <div className="smart-task-shortcuts">
                 <button
                   type="button"
                   className="btn btn-sm"
-                  disabled={disabled}
-                  onClick={() => setExplicit({ date: current, time: dueTime })}
+                  disabled={disabled || saving}
+                  onClick={() => setExplicit({ date: current, time: dueTime, endTime })}
                 >
                   Today
                 </button>
                 <button
                   type="button"
                   className="btn btn-sm"
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onClick={() =>
-                    setExplicit({ date: tomorrow.toISOString().slice(0, 10), time: dueTime })
+                    setExplicit({
+                      date: tomorrow,
+                      time: dueTime,
+                      endTime,
+                    })
                   }
                 >
                   Tomorrow
@@ -268,7 +367,7 @@ export default function NewTask({
                 <button
                   type="button"
                   className="btn btn-plain btn-sm"
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onClick={() => setExplicit({ date: null, time: null })}
                 >
                   No date
@@ -278,7 +377,7 @@ export default function NewTask({
                 <button
                   type="button"
                   className="btn-link"
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onClick={() => {
                     setExplicit(null)
                     setDismissed([])
@@ -292,9 +391,9 @@ export default function NewTask({
                 <input
                   type="checkbox"
                   checked={enabled}
-                  disabled={disabled}
+                  disabled={disabled || saving}
                   onChange={(event) =>
-                    app.setAppearance({ ...app.appearance, smartTaskDates: event.target.checked })
+                    onAppearance({ ...appearance, smartTaskDates: event.target.checked })
                   }
                 />
                 Recognize dates and times
@@ -305,17 +404,14 @@ export default function NewTask({
                   checked={keepDateWords}
                   disabled={disabled || !enabled}
                   onChange={(event) =>
-                    app.setAppearance({
-                      ...app.appearance,
-                      keepTaskDateWords: event.target.checked,
-                    })
+                    onAppearance({ ...appearance, keepTaskDateWords: event.target.checked })
                   }
                 />
                 Keep recognized words in title
               </label>
               <p className="field-help">
-                Try “tomorrow @2pm” or “at 14:30”. Times without a date use today. Repeats and
-                reminders stay as text.
+                Try “tomorrow @2pm” or “at 14:30”. Try “2pm to 3pm” for a range. Times without a
+                date use today. Repeats and reminders stay as text.
               </p>
             </Popover.Content>
           </Popover.Portal>
@@ -326,7 +422,7 @@ export default function NewTask({
               type="button"
               className="icon-btn-sm"
               aria-label="Cancel schedule recognition"
-              disabled={disabled}
+              disabled={disabled || saving}
               onClick={() => cancelMatch()}
             >
               <X aria-hidden="true" />
@@ -339,7 +435,7 @@ export default function NewTask({
               type="button"
               className="icon-btn-sm"
               aria-label="Clear due date"
-              disabled={disabled}
+              disabled={disabled || saving}
               onClick={() => setExplicit({ date: null, time: null })}
             >
               <X aria-hidden="true" />
@@ -348,6 +444,28 @@ export default function NewTask({
         )}
       </div>
       {draft && <kbd aria-hidden="true">↵</kbd>}
+      {error && (
+        <div className="smart-task-error">
+          <p className="field-error" role="alert">
+            {error}
+          </p>
+          {error.includes('occurs twice') && (
+            <label className="field-label">
+              Repeated time
+              <select
+                className="field"
+                aria-label="Repeated time"
+                value={offset}
+                onChange={(event) => setOffset(event.target.value as typeof offset)}
+              >
+                <option value="">Choose offset</option>
+                <option value="earlier">Earlier offset</option>
+                <option value="later">Later offset</option>
+              </select>
+            </label>
+          )}
+        </div>
+      )}
     </form>
   )
 }

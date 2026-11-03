@@ -1,3 +1,4 @@
+import { effectiveDueDate, schedulePatch, type TaskSchedule } from './schedule'
 import { newId, projectStore } from './store'
 import { bySort, sortBetween, type Project, type Task, type TaskStatus } from './model'
 
@@ -14,10 +15,12 @@ const live = () => {
     tasks: tasks.filter((t) => t.deletedAt === null),
   }
 }
-const latest = (task: Task) => projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
+const latest = (task: Task) =>
+  projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
 
 export function updateTask(task: Task, patch: Partial<Task>) {
   const next = { ...latest(task), ...patch }
+  if ('dueDate' in patch && !('dueLinked' in patch)) next.dueLinked = false
   if (!next.dueDate) next.dueTime = null
   save({ tasks: [next] })
 }
@@ -29,10 +32,10 @@ export function toggleTask(task: Task) {
   setTaskStatus(task, latest(task).status === 'done' ? 'todo' : 'done')
 }
 /** New tasks go to the top of To do. */
-export function createTask(
+export function buildTask(
   projectId: string | null,
   title: string,
-  fields: Partial<Pick<Task, 'dueDate' | 'dueTime'>> = {},
+  fields: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked'>> = {},
 ): Task {
   const siblings = live().tasks.filter((t) => t.projectId === projectId && t.status === 'todo')
   const first = siblings.sort(bySort)[0]
@@ -47,6 +50,8 @@ export function createTask(
     startDate: null,
     dueDate: null,
     dueTime: null,
+    schedule: null,
+    dueLinked: false,
     completedAt: null,
     sort: sortBetween(undefined, first?.sort),
     deletedAt: null,
@@ -55,8 +60,17 @@ export function createTask(
     revision: 0,
     ...fields,
   }
+  return task
+}
+export function createTask(...args: Parameters<typeof buildTask>): Task {
+  const task = buildTask(...args)
   save({ tasks: [task] })
   return task
+}
+export async function createTaskConfirmed(...args: Parameters<typeof buildTask>): Promise<Task> {
+  const task = buildTask(...args)
+  await projectStore.save({ tasks: [task] })
+  return latest(task)
 }
 export function moveTask(task: Task, projectId: string | null) {
   const last = live()
@@ -125,5 +139,55 @@ export function deleteProject(project: Project, deleteTasks: boolean, notify: No
       ? `Deleted “${original.name}” and its tasks`
       : `Deleted “${original.name}”. Its tasks moved to the Inbox.`,
     undo: () => save({ projects: [{ ...original, deletedAt: null }], tasks }),
+  })
+}
+
+/** Calendar writes wait for confirmation; undo changes only scheduling fields. */
+export async function saveTaskSchedule(task: Task, schedule: TaskSchedule | null, notify?: Notify) {
+  const original = latest(task)
+  const patch = schedulePatch(original, schedule)
+  await projectStore.save({ tasks: [{ ...original, ...patch }] })
+  const saved = latest(task)
+  if (JSON.stringify(saved.schedule) !== JSON.stringify(patch.schedule)) return
+  notify?.({
+    message: `Scheduled “${saved.title}”`,
+    undo: () => {
+      const current = latest(task)
+      if (
+        JSON.stringify(current.schedule) !== JSON.stringify(patch.schedule) ||
+        current.dueLinked !== patch.dueLinked ||
+        current.dueDate !== patch.dueDate ||
+        current.dueTime !== patch.dueTime
+      ) {
+        notify({ message: 'The schedule changed again. Open task details to edit it.' })
+        return
+      }
+      save({
+        tasks: [
+          {
+            ...current,
+            schedule: original.schedule ?? null,
+            dueLinked: original.dueLinked ?? false,
+            dueDate: original.dueDate,
+            dueTime: original.dueTime,
+          },
+        ],
+      })
+    },
+  })
+}
+
+export async function moveDueMarker(task: Task, date: string, notify?: Notify) {
+  const original = latest(task)
+  await projectStore.save({ tasks: [{ ...original, dueDate: date, dueLinked: false }] })
+  notify?.({
+    message: `Moved deadline for “${original.title}”`,
+    undo: () => {
+      const current = latest(task)
+      if (current.dueDate !== date || current.dueLinked) return
+      save({
+        tasks: [{ ...current, dueDate: effectiveDueDate(original), dueTime: original.dueTime }],
+      })
+    },
   })
 }

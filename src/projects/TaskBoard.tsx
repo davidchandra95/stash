@@ -1,3 +1,4 @@
+import { effectiveDueDate } from './schedule'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/context'
 import { Calendar } from '../icons'
@@ -6,7 +7,7 @@ import { deleteTask, toggleTask, updateTask } from './actions'
 import {
   boardColumns,
   dueState,
-  formatTaskDue,
+  formatTaskTiming,
   groupOf,
   sortBetween,
   type Task,
@@ -146,12 +147,12 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                           {task.title}
                         </span>
                       </div>
-                      {(task.dueDate || task.priority > 0) && (
+                      {(effectiveDueDate(task) || task.schedule || task.priority > 0) && (
                         <div className="task-meta board-card-meta">
-                          {task.dueDate && (
+                          {(effectiveDueDate(task) || task.schedule) && (
                             <span className={`task-due is-${due}`}>
                               <Calendar aria-hidden="true" />
-                              {formatTaskDue(task)}
+                              {formatTaskTiming(task)}
                             </span>
                           )}
                           {task.priority > 0 && <PriorityBars priority={task.priority} />}

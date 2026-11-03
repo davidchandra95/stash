@@ -1,4 +1,9 @@
+import ScheduleEditor from '../projects/ScheduleEditor'
+import { effectiveDueDate, schedulePatch } from '../projects/schedule'
+import { projectStore } from '../projects/store'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { NewTaskForm } from '../projects/NewTask'
+import ProjectsTimeline from '../projects/ProjectsTimeline'
 import {
   Calendar,
   Check,
@@ -14,10 +19,9 @@ import {
   MoreVertical,
   Notebook as NotebookIcon,
   Pencil,
-  Plus,
   Trash2,
 } from '../icons'
-import type { Note, Notebook } from '../model'
+import type { Appearance, Note, Notebook } from '../model'
 import { notebookColorValue } from '../notebookColors'
 import ProjectRing from '../projects/ProjectRing'
 import {
@@ -32,12 +36,14 @@ import {
 } from '../projects/actions'
 import { findTaskMentions } from '../projects/mentions'
 import {
+  boardColumns,
   bySort,
   daysBetween,
   dueState,
   elapsed,
   formatDate,
   formatRange,
+  formatTaskTiming,
   groupOf,
   health,
   healthLabel,
@@ -50,6 +56,8 @@ import {
   taskStatusLabel,
   taskStatuses,
   today,
+  todayGroups,
+  upcomingGroups,
   type Priority,
   type Project,
   type ProjectSummary,
@@ -133,14 +141,18 @@ export function ProjectList({
   tasks,
   ready,
   showCounts,
+  layout,
   scrollRef,
+  onLayout,
   onOpen,
 }: {
   projects: Project[]
   tasks: Task[]
   ready: boolean
   showCounts: boolean
+  layout: 'list' | 'timeline'
   scrollRef: Ref<HTMLDivElement>
+  onLayout: (layout: 'list' | 'timeline') => void
   onOpen: (id: string) => void
 }) {
   const [otherOpen, setOtherOpen] = useState(false)
@@ -150,6 +162,21 @@ export function ProjectList({
   const inbox = openCount(tasks, null)
   return (
     <div className="mobile-project-scroll" ref={scrollRef}>
+      {rows.length > 0 && (
+        <LayoutSwitch
+          label="Projects layout"
+          value={layout}
+          options={[
+            { id: 'list', label: 'List' },
+            { id: 'timeline', label: 'Timeline' },
+          ]}
+          onChange={onLayout}
+        />
+      )}
+      {layout === 'timeline' && rows.length > 0 ? (
+        <ProjectsTimeline rows={[...open, ...other]} current={today()} onOpen={onOpen} />
+      ) : (
+        <>
       <button className="mobile-project-row" onClick={() => onOpen('inbox')}>
         <Inbox aria-hidden="true" />
         <span className="mobile-row-copy">
@@ -183,6 +210,34 @@ export function ProjectList({
             ))}
         </>
       )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function LayoutSwitch<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: { id: T; label: string }[]
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="segmented mobile-layout-switch" role="group" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.id}
+          aria-pressed={value === option.id}
+          onClick={() => onChange(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -196,11 +251,13 @@ const groupOrder: { id: TaskGroup; label: string }[] = [
 function TaskRow({
   task,
   disabled,
+  project,
   onOpen,
   onActions,
 }: {
   task: Task
   disabled: boolean
+  project?: string
   onOpen: (id: string) => void
   onActions: (id: string) => void
 }) {
@@ -210,10 +267,13 @@ function TaskRow({
       <TaskCheck task={task} disabled={disabled} />
       <button className="mobile-task-label" onClick={() => onOpen(task.id)}>
         <span className={`mobile-row-title is-${task.status}`}>{task.title}</span>
-        {(task.dueDate || task.priority > 0) && (
+        {(effectiveDueDate(task) || task.schedule || task.priority > 0 || project) && (
           <span className="mobile-row-meta">
-            {task.dueDate && <span className={`is-${dueState(task)}`}>{formatDate(task.dueDate)}</span>}
+            {(effectiveDueDate(task) || task.schedule) && (
+              <span className={`is-${dueState(task)}`}>{formatTaskTiming(task)}</span>
+            )}
             {task.priority > 0 && <span>{priority?.label}</span>}
+            {project && <span>{project}</span>}
           </span>
         )}
       </button>
@@ -226,34 +286,6 @@ function TaskRow({
         <MoreVertical aria-hidden="true" />
       </button>
     </div>
-  )
-}
-
-/** Return creates the task and stays in the field, ready for the next one. */
-function NewTask({ projectId, disabled }: { projectId: string | null; disabled: boolean }) {
-  const [title, setTitle] = useState('')
-  return (
-    <form
-      className="new-task"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (!title.trim()) return
-        createTask(projectId, title)
-        setTitle('')
-      }}
-    >
-      <Plus aria-hidden="true" />
-      <input
-        className="new-task-input"
-        aria-label="New task"
-        placeholder="New task"
-        enterKeyHint="done"
-        maxLength={500}
-        disabled={disabled}
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-      />
-    </form>
   )
 }
 
@@ -347,11 +379,15 @@ export function ProjectPage({
   projects,
   tasks,
   notebooks,
+  appearance,
   ready,
   disabled,
   collapsed,
+  layout,
   scrollRef,
+  onAppearance,
   onCollapsed,
+  onLayout,
   onOpenTask,
   onSheet,
 }: {
@@ -359,11 +395,15 @@ export function ProjectPage({
   projects: Project[]
   tasks: Task[]
   notebooks: Notebook[]
+  appearance: Appearance
   ready: boolean
   disabled: boolean
   collapsed: TaskGroup[]
+  layout: 'list' | 'board'
   scrollRef: Ref<HTMLDivElement>
+  onAppearance: (appearance: Appearance) => void
   onCollapsed: (collapsed: TaskGroup[]) => void
+  onLayout: (layout: 'list' | 'board') => void
   onOpenTask: (id: string) => void
   onSheet: (sheet: ProjectSheet) => void
 }) {
@@ -398,8 +438,46 @@ export function ProjectPage({
           <h1>Inbox</h1>
         </div>
       )}
-      <NewTask projectId={projectId} disabled={disabled} />
-      {groups.map((group) => {
+      <LayoutSwitch
+        label="Task layout"
+        value={layout}
+        options={[
+          { id: 'list', label: 'List' },
+          { id: 'board', label: 'Board' },
+        ]}
+        onChange={onLayout}
+      />
+      <NewTaskForm
+        projectId={projectId}
+        disabled={disabled}
+        appearance={appearance}
+        onAppearance={onAppearance}
+      />
+      {layout === 'board' && own.length > 0 && (
+        <div className="mobile-board">
+          {boardColumns.map((column) => {
+            const cards = own.filter((t) => groupOf(t) === column.id).sort(bySort)
+            return (
+              <section key={column.id} className="mobile-board-column" aria-label={column.label}>
+                <h2 className="mobile-task-group">
+                  {column.label} · {cards.length}
+                </h2>
+                {cards.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    disabled={disabled}
+                    onOpen={onOpenTask}
+                    onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
+                  />
+                ))}
+                {!cards.length && <p className="mobile-sheet-note">No tasks</p>}
+              </section>
+            )
+          })}
+        </div>
+      )}
+      {layout === 'list' && groups.map((group) => {
         const closed = collapsed.includes(group.id)
         return (
           <section key={group.id} aria-label={group.label}>
@@ -430,6 +508,67 @@ export function ProjectPage({
       })}
       {ready && !own.length && (
         <p className="mobile-sheet-note mobile-project-empty">No tasks yet.</p>
+      )}
+    </div>
+  )
+}
+
+/** Due today and Upcoming: tasks from every project and the Inbox, grouped by when they're due. */
+export function TaskDateList({
+  view,
+  projects,
+  tasks,
+  appearance,
+  disabled,
+  scrollRef,
+  onAppearance,
+  onOpenTask,
+  onSheet,
+}: {
+  view: 'today' | 'upcoming'
+  projects: Project[]
+  tasks: Task[]
+  appearance: Appearance
+  disabled: boolean
+  scrollRef: Ref<HTMLDivElement>
+  onAppearance: (appearance: Appearance) => void
+  onOpenTask: (id: string) => void
+  onSheet: (sheet: ProjectSheet) => void
+}) {
+  const isToday = view === 'today'
+  const groups = isToday ? todayGroups(tasks) : upcomingGroups(tasks)
+  return (
+    <div className="mobile-project-scroll" ref={scrollRef}>
+      {isToday && (
+        <NewTaskForm
+          projectId={null}
+          disabled={disabled}
+          dueToday
+          appearance={appearance}
+          onAppearance={onAppearance}
+        />
+      )}
+      {groups.map((group) => (
+        <section key={group.id} aria-label={group.label}>
+          <h2 className={`mobile-task-group ${group.id === 'overdue' ? 'is-late' : ''}`}>
+            {group.label} · {group.tasks.length}
+          </h2>
+          {group.tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              disabled={disabled}
+              project={projectName(task.projectId, projects)}
+              onOpen={onOpenTask}
+              onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
+            />
+          ))}
+        </section>
+      ))}
+      {!groups.length && (
+        <p className="mobile-sheet-note mobile-project-empty">
+          {isToday ? 'Nothing due today.' : 'No upcoming due dates.'}
+        </p>
       )}
     </div>
   )
@@ -646,10 +785,19 @@ function TaskFields({
         {task.startDate && prop('Start', formatDate(task.startDate), 'task-dates')}
         {prop(
           'Due',
-          task.dueDate ? <span className={`is-${due}`}>{dueLabel(task)}</span> : 'None',
+          effectiveDueDate(task) ? <span className={`is-${due}`}>{dueLabel(task)}</span> : 'None',
           'task-dates',
         )}
       </div>
+      <h3 className="mobile-task-heading">Work schedule</h3>
+      <ScheduleEditor schedule={task.schedule} disabled={disabled} onSave={async (schedule) => {
+        const current = projectStore.getSnapshot().tasks.find((entry) => entry.id === task.id) ?? task
+        await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
+      }} />
+      {task.schedule && <label className="schedule-link"><input type="checkbox" checked={!!task.dueLinked} disabled={disabled}
+        onChange={(event) => updateTask(task, event.target.checked
+          ? { dueLinked: true, dueDate: null, dueTime: null }
+          : { dueLinked: false, dueDate: effectiveDueDate(task) })} />Due day follows schedule</label>}
       <label className="mobile-task-heading" htmlFor="mobile-task-description">
         Description
       </label>
@@ -669,7 +817,7 @@ function TaskFields({
 const statusDot = (task: Task) =>
   task.status === 'doing' ? 'active' : task.status === 'todo' ? 'planned' : task.status
 function dueLabel(task: Task) {
-  const days = daysBetween(today(), task.dueDate!)
+  const days = daysBetween(today(), effectiveDueDate(task)!)
   const when =
     days === 0
       ? 'today'
@@ -679,8 +827,8 @@ function dueLabel(task: Task) {
           ? `in ${days} days`
           : `${-days} ${days === -1 ? 'day' : 'days'} late`
   return task.status === 'done' || task.status === 'cancelled'
-    ? formatDate(task.dueDate!)
-    : `${formatDate(task.dueDate!)} · ${when}`
+    ? formatDate(effectiveDueDate(task)!)
+    : `${formatDate(effectiveDueDate(task)!)} · ${when}`
 }
 
 function Choice({
@@ -1044,7 +1192,7 @@ export function ProjectSheetBody({
           fields={[
             {
               label: 'Due',
-              value: task.dueDate,
+              value: effectiveDueDate(task),
               set: (dueDate) => updateTask(task, { dueDate }),
             },
             {

@@ -92,6 +92,13 @@ export const pdfStore = {
     publish({ documents: [doc, ...snapshot.documents.filter((d) => d.id !== doc.id)], error: '' })
     return doc
   },
+  /** Android: the system picker copies a document in; there is no path to pass to import(). */
+  async pick(): Promise<PdfDocument | null> {
+    const doc = await invoke<PdfDocument | null>('import_picked_pdf')
+    if (doc)
+      publish({ documents: [doc, ...snapshot.documents.filter((d) => d.id !== doc.id)], error: '' })
+    return doc
+  },
   source(doc: PdfDocument): PdfSource {
     return {
       id: doc.id,

@@ -104,7 +104,7 @@ export default function ProjectsOverview() {
       </header>
       <div className="task-scroll">
         {rows.length && layout === 'timeline' ? (
-          <ProjectsTimeline rows={rows} current={current} />
+          <ProjectsTimeline rows={rows} current={current} onOpen={app.openProject} />
         ) : rows.length ? (
           <table className="overview-table">
             <thead>

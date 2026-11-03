@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
-import AppTooltip from '../components/AppTooltip'
 import DateField from '../components/DateField'
+import ScheduleEditor from './ScheduleEditor'
+import { displayZone, effectiveDueDate, schedulePatch, subscribeDisplayZone } from './schedule'
+import { projectStore } from './store'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import AppTooltip from '../components/AppTooltip'
 import { useApp, useBlocked } from '../app/context'
 import { FileText, Trash2, X } from '../icons'
 import { findTaskMentions } from './mentions'
@@ -100,6 +103,7 @@ export default function TaskDetail({ task }: { task: Task }) {
   const projects = app.projects.projects.filter(
     (p) => p.deletedAt === null || p.id === task.projectId,
   )
+  const zone = useSyncExternalStore(subscribeDisplayZone, displayZone)
   const due = dueState(task)
   const date = (field: 'startDate' | 'dueDate', label: string) => (
     <>
@@ -108,7 +112,7 @@ export default function TaskDetail({ task }: { task: Task }) {
         id={`task-${field}`}
         label={label}
         className={`task-date ${field === 'dueDate' ? `is-${due}` : ''}`}
-        value={task[field]}
+        value={field === 'dueDate' ? effectiveDueDate(task, zone) : task[field]}
         disabled={blocked}
         onChange={(next) => updateTask(task, { [field]: next })}
       />
@@ -214,7 +218,8 @@ export default function TaskDetail({ task }: { task: Task }) {
           </select>
           {date('startDate', 'Start')}
           {date('dueDate', 'Due')}
-          <label htmlFor="task-dueTime">Due time</label>
+          {task.dueTime && <>
+          <label htmlFor="task-dueTime">Legacy due time</label>
           <input
             id="task-dueTime"
             type="time"
@@ -223,7 +228,18 @@ export default function TaskDetail({ task }: { task: Task }) {
             disabled={blocked || !task.dueDate}
             onChange={(event) => updateTask(task, { dueTime: event.target.value || null })}
           />
+          </>}
         </div>
+        <h3 className="task-detail-heading">Work schedule</h3>
+        <ScheduleEditor key={task.id} schedule={task.schedule} disabled={blocked} onSave={async (schedule) => {
+          const current = projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
+          await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
+        }} />
+        {task.schedule && <label className="schedule-link"><input type="checkbox" checked={!!task.dueLinked} disabled={blocked}
+          onChange={(event) => updateTask(task, event.target.checked
+            ? { dueLinked: true, dueDate: null, dueTime: null }
+            : { dueLinked: false, dueDate: effectiveDueDate(task, zone) })} />Due day follows schedule</label>}
+        {task.dueLinked && <p className="field-help">Due {effectiveDueDate(task, zone)}. Editing Due above sets a separate deadline.</p>}
         <label className="task-detail-heading" htmlFor="task-description">
           Description
         </label>

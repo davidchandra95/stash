@@ -66,10 +66,13 @@ export default function App() {
     if (blocked) setPalette((value) => (value.open ? { ...value, open: false } : value))
   }, [blocked])
 
-  // Native vibrancy needs a transparent page behind the sidebar. Only the native theme uses it.
+  // Native vibrancy needs a transparent page behind the sidebar. Only the native theme uses it, and not in sepia.
   const nativeChrome = isTauri() && platform.platform === 'macos'
   const vibrancy =
-    nativeChrome && appearance.translucentSidebar && appearance.interfaceTheme === 'native'
+    nativeChrome &&
+    appearance.translucentSidebar &&
+    appearance.interfaceTheme === 'native' &&
+    appearance.colorMode !== 'sepia'
   useEffect(() => {
     document.documentElement.toggleAttribute('data-vibrancy', vibrancy)
   }, [vibrancy])

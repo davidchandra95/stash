@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { BookOpen, Moon, Sun, SunMoon, type IconComponent } from './icons'
 import type {
   AccentColor,
   Appearance,
@@ -11,8 +12,15 @@ import type {
 
 export const colorModes: Record<ColorMode, string> = {
   light: 'Light',
+  sepia: 'Sepia',
   dark: 'Dark',
   system: 'Auto',
+}
+export const colorModeIcons: Record<ColorMode, IconComponent> = {
+  light: Sun,
+  sepia: BookOpen,
+  dark: Moon,
+  system: SunMoon,
 }
 
 /** macOS accent colors. `system` follows the user's macOS setting when it can be read. */
@@ -41,7 +49,7 @@ export const themeAccents: Partial<Record<InterfaceTheme, { light: string; dark:
   workspace: { light: '#494bcb', dark: '#7577e6' },
 }
 
-const colorModeValues: ColorMode[] = ['light', 'dark', 'system']
+const colorModeValues = Object.keys(colorModes) as ColorMode[]
 export const layouts: WindowLayout[] = ['standard', 'cards']
 export const layoutNames: Record<WindowLayout, string> = { standard: 'Standard', cards: 'Cards' }
 const accentValues: AccentColor[] = ['system', ...accentColors]
@@ -179,15 +187,19 @@ export function useDocumentTheme(
   const dark = useResolvedDark(appearance.colorMode)
   const system = useSystemAccentValue()
   const theme = appearance.interfaceTheme ?? 'native'
+  const sepia = appearance.colorMode === 'sepia'
   const { color, ink } = accentValue(appearance.accent, dark, system, theme)
   useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme = dark ? 'dark' : 'light'
     root.dataset.ui = theme
+    // Sepia is a warm light mode: everything keyed to data-theme treats it as light.
+    if (sepia) root.dataset.tint = 'sepia'
+    else delete root.dataset.tint
     root.style.colorScheme = dark ? 'dark' : 'light'
     root.style.setProperty('--accent', color)
     root.style.setProperty('--on-accent', ink ?? '#ffffff')
-  }, [dark, color, ink, theme])
+  }, [dark, sepia, color, ink, theme])
   return dark
 }
 

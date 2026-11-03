@@ -79,7 +79,8 @@ when a token exists.
 - **Interface theme** is `<html data-ui="native|workspace">`, set by `useDocumentTheme` from
   `appearance.interfaceTheme`. See [Themes](#themes).
 - **Color mode** is `<html data-theme="light|dark">`. Portaled menus and dialogs inherit it;
-  never put `data-theme` on individual surfaces.
+  never put `data-theme` on individual surfaces. Sepia keeps `data-theme="light"` and adds
+  `data-tint="sepia"`. See [Themes](#themes).
 
 ## Themes
 
@@ -105,6 +106,10 @@ Settings › Appearance › Theme. Native is the default.
   notes-list notebook label take their notebook color through `--chip-color`. The rules live
   in the area stylesheets (`controls.css`, `sidebar.css`, `editor.css`, `notelist.css`,
   `document.css`); themes change only the tone values.
+- **Sepia** (`theme-sepia.css`) is a color mode next to Light, Dark and Auto, not a theme: warm
+  paper surfaces and brown ink in every theme. Its floating surfaces are opaque, and it turns off
+  vibrancy (the Translucent sidebar setting is disabled). The accent, tones and notebook colors
+  keep their light values.
 - A theme only overrides tokens, plus the few surface rules it can't express with tokens. Area
   stylesheets stay theme-agnostic. Put a new theme in its own `theme-*.css`, imported right
   after `tokens.css` in both style entries.
@@ -154,6 +159,7 @@ Settings › Appearance › Theme. Native is the default.
 - A full-width 42px `.app-bar` (`app/AppBar.tsx`) sits above every pane and holds what is global.
   Left: 70px traffic-light clearance in the native app (`--window-controls`), the sidebar toggle,
   and the notes-list toggle while that list is hidden. Center: Back/Forward and the search field.
+  Right: the Appearance menu (Light, Sepia, Dark, Auto), whose icon shows the current mode.
   The panes and the content card start below it.
 - Each pane also has a 42px `.pane-bar`. App and pane bars are window drag regions
   (`data-tauri-drag-region` on the bar and on empty filler elements).
@@ -239,10 +245,16 @@ Use the shared classes before writing new CSS:
 - Task and project menus are Radix menus on every platform; destructive items use
   `.menu-item.is-danger`.
 - New-task fields share a date and time smart input. Keep the native input and caret, mark
-  accepted phrases with `--accent-soft` and `--accent-text`, and show the due date and time beside a
+  accepted phrases with `--accent-soft` and `--accent-text`, and show the deadline or scheduled time beside a
   calendar button. Clicking the mark cancels recognition without deleting text. The popover
   embeds the shared calendar and uses shared fields, buttons and surface tokens; manual dates and times override recognition.
   See `documents/TASK_SMART_INPUT.md` for parsing, title and preference rules.
+
+- Calendar is a Projects pane with a sticky date header, scrollable all-day area and time grid.
+  Today uses the accent, and the current time uses `--danger`. Task blocks show their title and
+  project name; completed tasks use the usual strike-through. Use the shared task detail panel
+  for exact date/time edits and the calendar draft dialog for new tasks. On Android, use Day and
+  3 days with touch controls, and keep task details in the existing task page.
 
 ## Writing surface
 
@@ -323,6 +335,14 @@ surfaces. Don't add colors there; use the tokens.
   after Notebooks. Task rows are at least 56px with a 22px checkbox that takes taps across the
   48px target, as does the small checkbox in a task mention. Project pills and task property rows
   open bottom sheets. Undo for a delete is a `.notice` above the keyboard.
+  The drawer also opens Due today and Upcoming, which use the same task rows with the project name.
+  The project list switches to a Timeline that scrolls sideways with names pinned, and a project
+  to Board: snap-scrolling status columns of task rows. Moving a task between columns uses the
+  Status sheet rather than a drag, which would fight scrolling. The new-task row is the shared
+  smart input; a recognized date takes its own line.
+- **PDFs** are a drawer section and a page: the shared reader under the app bar. Its notes button
+  opens the companion note as an ordinary note page instead of a paired pane.
+- **Drawings** open on tap in a full-screen dialog with Excalidraw's touch interface.
 - **Settings** are pages with the desktop Settings content and groups, minus desktop-only items
   (translucent sidebar, writing width, formatting toolbar, cursor drawing, shortcuts). Sliders
   stack under their label.

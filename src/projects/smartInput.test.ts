@@ -130,7 +130,6 @@ it.each([
   'Fix test2pm',
   'Repeat every Monday at 9am',
   'Repeat every Monday and Friday at 9am',
-  'Meet 9am to 10am',
   'Meet @2pm-@3pm',
   'Meet between 9am and 10am',
   'Meet Monday through Friday at 9am',
@@ -166,4 +165,13 @@ it('keeps an unsupported reminder offset literal after a separate supported date
   expect(dates.map((match) => match.date)).toEqual(['2026-11-04'])
   expect(times.map((match) => match.time)).toEqual(['15:00'])
   expect(taskTitle(text, [...dates, ...times])).toBe('Review report remind me 30 minutes earlier')
+})
+
+it.each([
+  ['Meet 9am to 10am', '09:00', '10:00'],
+  ['Work from 14:15 until 15:30', '14:15', '15:30'],
+  ['Work @11pm-1am', '23:00', '01:00'],
+])('recognizes a time range in %s', (text, time, endTime) => {
+  expect(recognizeTimes(text)).toEqual([expect.objectContaining({ time, endTime })])
+  expect(taskTitle(text, recognizeTimes(text))).toMatch(/^(Meet|Work)$/)
 })

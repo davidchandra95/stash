@@ -274,7 +274,7 @@ export default function MobileSettings({
       id: 'color-mode',
       category: 'appearance',
       group: '',
-      search: 'Appearance color mode light dark auto system theme',
+      search: 'Appearance color mode light sepia dark auto system theme',
       content: (
         <Row label="Appearance" stacked>
           <span className="mode-options" role="radiogroup" aria-label="Appearance">

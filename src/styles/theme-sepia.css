@@ -1,0 +1,55 @@
+/*
+ * Sepia color mode (<html data-tint="sepia">): warm paper surfaces and brown ink. It is a light
+ * mode, so data-theme stays "light". Loaded after the themes and matching their specificity, so
+ * these values apply in every interface theme. Tones and notebook colors keep their light values.
+ */
+
+:root[data-ui][data-tint='sepia'] {
+  --bg-window: #e9dfc8;
+  --bg-sidebar: #e9dfc8;
+  --bg-sidebar-translucent: #e9dfc8;
+  --bg-content: #f6eedb;
+  --bg-elevated: #fbf5e6;
+  --bg-elevated-solid: #fbf5e6;
+  --bg-input: rgba(91, 62, 26, 0.06);
+  --bg-control: #fbf5e6;
+  --bg-code: rgba(91, 62, 26, 0.07);
+  --bg-scrim: rgba(59, 42, 20, 0.24);
+  --bg-notice: #3b2f20;
+  --on-notice: #fbf5e6;
+
+  --text: #3b2f20;
+  --text-heading: #3b2f20;
+  --text-2: #62523f;
+  --text-3: #705e46;
+  --text-4: #b09f85;
+
+  --scrollbar-idle: rgba(91, 62, 26, 0.16);
+  --scrollbar-hover: rgba(91, 62, 26, 0.32);
+  --scrollbar-active: rgba(91, 62, 26, 0.5);
+
+  --line: rgba(91, 62, 26, 0.16);
+  --line-strong: rgba(91, 62, 26, 0.26);
+  --fill-1: rgba(91, 62, 26, 0.07);
+  --fill-2: rgba(91, 62, 26, 0.11);
+  --fill-3: rgba(91, 62, 26, 0.15);
+  --fill-frame: rgba(91, 62, 26, 0.1);
+
+  --danger: #a8261c;
+  --danger-fill: #c53a2e;
+  --danger-soft: #f6dcc9;
+  --warning: #855000;
+  --success: #2a6e35;
+  --success-mark: #3d9a4e;
+  --mark: rgba(214, 158, 46, 0.36);
+  --mark-current: rgba(214, 126, 30, 0.56);
+
+  --shadow-control: 0 0 0 0.5px rgba(59, 42, 20, 0.2), 0 1px 1.5px rgba(59, 42, 20, 0.08);
+  --shadow-card: 0 0 0 0.5px rgba(59, 42, 20, 0.18), 0 1px 3px rgba(59, 42, 20, 0.08);
+  --shadow-pop:
+    0 0 0 0.5px rgba(59, 42, 20, 0.2), 0 8px 26px rgba(59, 42, 20, 0.16),
+    0 2px 6px rgba(59, 42, 20, 0.07);
+  --shadow-window:
+    0 0 0 0.5px rgba(59, 42, 20, 0.24), 0 22px 60px rgba(59, 42, 20, 0.26),
+    0 6px 16px rgba(59, 42, 20, 0.09);
+}

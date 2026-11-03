@@ -88,7 +88,7 @@ export type View =
   | `tag:${string}`
 
 export type WindowLayout = 'standard' | 'cards'
-export type ColorMode = 'light' | 'dark' | 'system'
+export type ColorMode = 'light' | 'sepia' | 'dark' | 'system'
 /** `native` follows macOS; `workspace` is an opaque, bordered indigo theme. */
 export type InterfaceTheme = 'native' | 'workspace'
 export type AccentColor =

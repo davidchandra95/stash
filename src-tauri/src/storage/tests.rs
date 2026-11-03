@@ -590,7 +590,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        12
+        13
     );
 }
 
@@ -733,6 +733,16 @@ fn v2_appearance_without_legacy_fields_is_saved() {
     });
     store.save_preferences(&prefs).unwrap();
     assert_eq!(store.library().unwrap().appearance.unwrap(), prefs.appearance);
+}
+
+#[test]
+fn sepia_color_mode_is_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut prefs = preferences();
+    prefs.appearance["colorMode"] = json!("sepia");
+    store.save_preferences(&prefs).unwrap();
+    assert_eq!(store.library().unwrap().appearance.unwrap()["colorMode"], "sepia");
 }
 
 #[test]
@@ -1048,7 +1058,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                12
+                13
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))

@@ -1,8 +1,10 @@
+import { displayZone, subscribeDisplayZone } from '../projects/schedule'
 import {
   useCallback,
   useEffect,
   useId,
   useState,
+  useSyncExternalStore,
   type HTMLAttributes,
   type ReactNode,
   type Ref,
@@ -363,6 +365,7 @@ export default trackApp(function Sidebar({
 })
 
 function ProjectsNavigation() {
+  useSyncExternalStore(subscribeDisplayZone, displayZone)
   const app = useApp()
   const blocked = useBlocked()
   const [othersOpen, setOthersOpen] = useState(false)
@@ -446,6 +449,7 @@ function ProjectsNavigation() {
           dueToday,
           overdueCount > 0 ? 'is-late' : '',
         )}
+        {pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
         {pageRow('tasks:upcoming', <CalendarClock aria-hidden="true" />, 'Upcoming', 'purple', 0)}
         {pageRow('inbox', <Inbox aria-hidden="true" />, 'Inbox', 'indigo', inboxOpen)}
         {pageRow(
@@ -517,6 +521,7 @@ const domains: { id: Domain; label: string; icon: ReactNode; shortcut: string }[
 
 /** The app-level switch between Notes and Projects. */
 function DomainSwitcher() {
+  useSyncExternalStore(subscribeDisplayZone, displayZone)
   const app = useApp()
   const blocked = useBlocked()
   const overdue =

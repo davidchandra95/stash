@@ -172,6 +172,7 @@ pub fn run() {
             mobile_background,
             set_mobile_appearance,
             open_external_url,
+            import_picked_pdf,
             installed_fonts,
             set_window_appearance,
             system_accent_color,
@@ -286,6 +287,29 @@ async fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), Str
     {
         let _ = app;
         Err("External mobile links are unavailable on this platform.".into())
+    }
+}
+
+#[tauri::command]
+async fn import_picked_pdf(app: tauri::AppHandle) -> Result<Option<storage::pdf::PdfDocument>, String> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        use tauri_plugin_stash_platform::PlatformExt;
+        let picker = app.clone();
+        let picked = tauri::async_runtime::spawn_blocking(move || picker.stash_platform().pick_pdf())
+            .await
+            .map_err(|e| e.to_string())??;
+        let Some(path) = picked else { return Ok(None) };
+        let service = app.state::<Arc<storage::bridge::Service>>();
+        let imported = storage::bridge::import_pdf(path.clone(), service).await;
+        let _ = std::fs::remove_file(&path);
+        return imported.map(Some);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Err("The system file picker is only used on Android.".into())
     }
 }
 

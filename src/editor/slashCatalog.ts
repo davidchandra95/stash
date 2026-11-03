@@ -134,7 +134,7 @@ export function slashCatalog(inTable = false): SlashEntry[] {
     leaf('code', 'Code Block', 'code-block'),
     leaf('link', 'Link', 'link'),
     leaf('image', 'Image', 'image'),
-    ...(!platform.mobile ? [{ ...leaf('drawing'), keywords: 'excalidraw diagram sketch' }] : []),
+    { ...leaf('drawing'), keywords: 'excalidraw diagram sketch' },
     group(
       'sections',
       'Section actions',

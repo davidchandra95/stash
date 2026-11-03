@@ -1,9 +1,9 @@
+import { effectiveDueDate } from './schedule'
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import * as Context from '@radix-ui/react-context-menu'
 import AppTooltip from '../components/AppTooltip'
 import { trackApp, useApp, useBlocked } from '../app/context'
-import { SidebarToggle } from '../app/WindowControls'
 import { notebookColorValue } from '../notebookColors'
 import {
   Calendar,
@@ -22,6 +22,7 @@ import {
 } from '../icons'
 import ProjectRing from './ProjectRing'
 import TaskDetail from './TaskDetail'
+import TaskCalendar from './TaskCalendar'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
 import TaskDateView, { isDateView } from './TaskDateView'
@@ -30,7 +31,7 @@ import {
   bySort,
   dueState,
   elapsed,
-  formatTaskDue,
+  formatTaskTiming,
   formatRange,
   groupOf,
   health,
@@ -97,12 +98,13 @@ export default trackApp(function ProjectPane() {
   const { projects, tasks } = app.projects
   const overview = app.projectView === 'all'
   const inbox = app.projectView === 'inbox'
+  const calendar = app.projectView === 'tasks:calendar'
   const project =
     inbox || overview
       ? undefined
       : projects.find((p) => p.id === app.projectView && p.deletedAt === null)
   const dateView = isDateView(app.projectView) ? app.projectView : null
-  const missing = !inbox && !overview && !dateView && !project
+  const missing = !inbox && !overview && !dateView && !calendar && !project
 
   useEffect(() => {
     // The project was deleted (here or by undoing its creation): fall back to the Inbox.
@@ -111,7 +113,7 @@ export default trackApp(function ProjectPane() {
 
   const projectId = project?.id ?? null
   const own = tasks.filter((t) => t.deletedAt === null && t.projectId === projectId).sort(bySort)
-  const selected = (dateView ? tasks.filter((t) => t.deletedAt === null) : own).find(
+  const selected = (dateView || calendar ? tasks.filter((t) => t.deletedAt === null) : own).find(
     (t) => t.id === app.selectedTaskId,
   )
 
@@ -137,6 +139,10 @@ export default trackApp(function ProjectPane() {
       {project && <ProjectMenu project={project} />}
     </div>
   )
+  if (calendar) return <section className={`project-pane ${selected ? 'has-detail' : ''}`} aria-label="Calendar" data-pane="project">
+    <div className="project-main">{bar}<TaskCalendar tasks={tasks} projects={projects} disabled={blocked} selectedId={app.selectedTaskId} onSelect={app.setSelectedTaskId} notify={app.setProjectNotice} /></div>
+    {selected && <TaskDetail task={selected} />}
+  </section>
   if (dateView)
     return (
       <section
@@ -487,10 +493,10 @@ function TaskList({
             {task.title}
           </span>
           <span className="task-meta">
-            {task.dueDate && (
+            {(effectiveDueDate(task) || task.schedule) && (
               <span className={`task-due is-${due}`}>
                 <Calendar aria-hidden="true" />
-                {formatTaskDue(task)}
+                {formatTaskTiming(task)}
               </span>
             )}
             {task.priority > 0 && (

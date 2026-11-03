@@ -82,9 +82,9 @@ export default function NoteEditor({
       event.stopImmediatePropagation()
       if (event.type === 'click')
         dom.dispatchEvent(
-          new CustomEvent(platform.mobile ? 'writing-error' : 'pdf-citation', {
+          new CustomEvent('pdf-citation', {
             bubbles: true,
-            detail: platform.mobile ? 'This PDF is unavailable on this device.' : href,
+            detail: href,
           }),
         )
     }

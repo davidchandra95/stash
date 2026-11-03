@@ -1,3 +1,4 @@
+import { effectiveDueDate, subscribeDisplayZone } from '../projects/schedule'
 import { Node, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { closeHistory } from '@tiptap/pm/history'
@@ -135,12 +136,12 @@ export const TaskReference = Node.create({
         check.setAttribute('aria-label', `${task?.status === 'done' ? 'Reopen' : 'Complete'} “${label}”`)
         check.innerHTML = task?.status === 'done' ? checkIcon : ''
         title.textContent = label
-        const due = task && !missing && task.dueDate ? dueState(task) : 'none'
+        const due = task && !missing && effectiveDueDate(task) ? dueState(task) : 'none'
         meta.textContent = missing
           ? task
             ? 'Deleted task'
             : 'Task not found'
-          : task?.dueDate
+          : (task && effectiveDueDate(task))
             ? formatTaskDue(task)
             : ''
         meta.className = `task-ref-meta is-${missing ? 'missing' : due}`
@@ -169,6 +170,7 @@ export const TaskReference = Node.create({
         }
       }
       const unsubscribe = projectStore.subscribe(refresh)
+      const unsubscribeZone = subscribeDisplayZone(refresh)
       refresh()
       return {
         dom,
@@ -184,6 +186,7 @@ export const TaskReference = Node.create({
         },
         destroy: () => {
           unsubscribe()
+          unsubscribeZone()
           tooltip.destroy()
         },
       }

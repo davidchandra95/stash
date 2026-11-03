@@ -49,7 +49,7 @@ export const Drawing = Node.create({
       insertDrawing:
         () =>
         ({ editor, commands, tr, dispatch }) => {
-          if (platform.mobile || !editor.isEditable) return false
+          if (!editor.isEditable) return false
           const id = crypto.randomUUID()
           if (!commands.insertContent({ type: 'drawing', attrs: { id, data: emptyDrawing() } }))
             return false
@@ -107,10 +107,12 @@ export const Drawing = Node.create({
       edit.setAttribute('aria-label', 'Edit drawing')
       actions.append(edit)
       dom.append(actions, button)
-      const canEdit = () => !platform.mobile && editor.isEditable
+      // A tap opens the drawing on touch screens, where selecting first would raise the keyboard.
+      const selects = () => !platform.mobile && editor.isEditable
+      const canEdit = () => editor.isEditable
       const syncControls = () => {
-        actions.hidden = !canEdit()
-        button.setAttribute('aria-label', canEdit() ? 'Select drawing' : 'Open drawing')
+        actions.hidden = !selects()
+        button.setAttribute('aria-label', selects() ? 'Select drawing' : 'Open drawing')
       }
       view.dom.addEventListener('drawing-controls-update', syncControls)
       const update = (next: typeof node) => {
@@ -135,7 +137,7 @@ export const Drawing = Node.create({
         const pos = getPos()
         if (typeof pos !== 'number') return
         editor.commands.setNodeSelection(pos)
-        if (canEdit()) editor.commands.focus()
+        if (selects()) editor.commands.focus()
         else openDrawing(editor, node.attrs.id)
       }
       edit.onclick = () => {

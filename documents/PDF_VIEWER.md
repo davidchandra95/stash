@@ -4,7 +4,7 @@
 
 The desktop PDFs section, directly below Notebooks, imports managed copies and reopens them in permanent workspace tabs. PDF reading hides the Notes pane without resetting it. Notes and their preview/history behavior remain separate from PDF commands. Password-protected files show an unsupported message.
 
-Native storage is implemented through the existing Rust service on desktop. macOS was exercised in an isolated rebuilt app; Windows and Linux native file picking have not been exercised. Browser preview uses session-only `File` objects. The companion-note workflow is documented in [PDF_NOTES.md](PDF_NOTES.md). Android import, note attachments, persistent annotations, OCR, PDF sync, and linked-folder PDFs are deferred.
+Native storage is implemented through the existing Rust service on desktop. macOS was exercised in an isolated rebuilt app; Windows and Linux native file picking have not been exercised. Browser preview uses session-only `File` objects. The companion-note workflow is documented in [PDF_NOTES.md](PDF_NOTES.md). Android imports through the system document picker, which copies the file to the app cache for the shared Rust import and then deletes the copy. It reads with the shared viewer and opens the companion note as a page; pinch zoom and capturing a selection into the note aren't available there yet. PDF.js sizes pages with CSS `round()`, which Android System WebView lacks before Chrome 125, so `src/pdf/assets.ts` adds a fallback at build time. Note attachments, persistent annotations, OCR, PDF sync, and linked-folder PDFs are deferred.
 
 ## Ownership and APIs
 

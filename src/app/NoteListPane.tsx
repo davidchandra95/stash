@@ -12,39 +12,9 @@ import { sortLabels, type NoteSortMode } from '../noteOrder'
 import { LiveNoteRow } from '../storage/libraryReaders'
 import type { NavigationNote } from '../storage/librarySelectors'
 import type { Notebook } from '../model'
-import { ArrowDownWideNarrow, Check, ListFilter, Pin, Search, SquarePen, X } from '../icons'
+import { ArrowDownWideNarrow, ListFilter, Pin, Search, SquarePen, X } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
-
-function RadioItems<T extends string>({
-  labels,
-  value,
-  onChange,
-  label,
-}: {
-  labels: Record<T, string>
-  value: T
-  onChange: (value: T) => void
-  label: string
-}) {
-  return (
-    <Dropdown.RadioGroup
-      value={value}
-      onValueChange={(next) => onChange(next as T)}
-      aria-label={label}
-    >
-      {(Object.keys(labels) as T[]).map((key) => (
-        <Dropdown.RadioItem key={key} value={key} className="menu-item">
-          <span className="menu-check">
-            <Dropdown.ItemIndicator>
-              <Check aria-hidden="true" />
-            </Dropdown.ItemIndicator>
-          </span>
-          <span className="menu-text">{labels[key]}</span>
-        </Dropdown.RadioItem>
-      ))}
-    </Dropdown.RadioGroup>
-  )
-}
+import RadioItems from './RadioItems'
 
 /** Projects that link to the notebook in view. */
 function LinkedProjects() {

@@ -46,6 +46,17 @@ impl<R: Runtime> Platform<R> {
             .run_mobile_plugin("background", ())
             .map_err(|_| "Could not leave the app.".into())
     }
+    /// Waits on the system picker. The copy it returns is ours to delete; None means cancelled.
+    pub fn pick_pdf(&self) -> Result<Option<String>, String> {
+        #[derive(serde::Deserialize)]
+        struct Picked {
+            path: Option<String>,
+        }
+        self.0
+            .run_mobile_plugin::<Picked>("pickPdf", ())
+            .map(|v| v.path)
+            .map_err(|_| "Could not read that file. Try choosing it again.".into())
+    }
     pub fn open_url(&self, url: &str) -> Result<(), String> {
         self.0
             .run_mobile_plugin("openUrl", serde_json::json!({"url":url}))

@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest'
 import { ReadableStream as NodeStream } from 'node:stream/web'
+import { readFileSync } from 'node:fs'
 import { installPdfStreamIterator } from './compatibility'
+import { sizePagesWithoutRound } from './assets'
 it('reads text-stream chunks and releases the reader in WKWebViews without stream iteration', async () => {
   const original = Object.getOwnPropertyDescriptor(NodeStream.prototype, Symbol.asyncIterator)!
   try {
@@ -35,4 +37,12 @@ it('leaves the existing native iterator intact', () => {
   const original = NodeStream.prototype[Symbol.asyncIterator]
   installPdfStreamIterator(NodeStream as unknown as typeof ReadableStream)
   expect(NodeStream.prototype[Symbol.asyncIterator]).toBe(original)
+})
+it('falls back from CSS round() in the pinned PDF.js, and fails the build if that code changes', () => {
+  const code = sizePagesWithoutRound(
+    readFileSync('node_modules/pdfjs-dist/legacy/build/pdf.mjs', 'utf8'),
+  )
+  expect(code).toContain("CSS.supports('width', 'round(down, 1px, 1px)')")
+  expect(code).toContain('`calc(var(--total-scale-factor) * ${pageHeight}px)`')
+  expect(() => sizePagesWithoutRound('const widthStr = `round(down, 1px, 1px)`')).toThrow()
 })

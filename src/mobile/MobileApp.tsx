@@ -1,5 +1,8 @@
+import TaskCalendar from '../projects/TaskCalendar'
 import { useDocumentTheme } from '../appearance'
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useReducer,
@@ -24,6 +27,9 @@ import { platform } from '../platform'
 import { onBackButtonPress } from '@tauri-apps/api/app'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import {
+  FileText,
+  CalendarClock,
+  Calendar,
   ArrowDownWideNarrow,
   ArrowLeft,
   Book,
@@ -61,6 +67,9 @@ import {
   type IconComponent,
 } from '../icons'
 import { useLibrary, library } from '../storage/useLibrary'
+import { parsePdfCitation, resolvePdfCitation } from '../pdf/citations'
+import { pdfStore, usePdfs } from '../pdf/store'
+import { PdfToolbarButton } from '../pdf/PdfTooltip'
 import { matchesView, type Note, type Notebook, type View } from '../model'
 import { fontFamily } from '../fonts'
 import { headingStyleVariables } from '../headingStyles'
@@ -100,10 +109,12 @@ import {
   projectName,
   projectSheetTitle,
   ProjectSheetBody,
+  TaskDateList,
   TaskPage,
   type ProjectSheet,
 } from './MobileProjects'
 
+const PdfReader = lazy(() => import('../pdf/PdfViewer'))
 const viewNames: Record<string, string> = {
   all: 'All notes',
   today: 'Today',
@@ -142,6 +153,12 @@ export default function MobileApp() {
   const { notes, notebooks, appearance } = state
   const projectData = useProjects(state.ready)
   useEffect(() => library.registerFlush(projectStore.flush), [])
+  const pdfs = usePdfs(state.ready)
+  useEffect(() => library.registerFlush(pdfStore.flush), [])
+  const pdfInput = useRef<HTMLInputElement>(null)
+  const [pdfImporting, setPdfImporting] = useState(false)
+  const [projectsLayout, setProjectsLayout] = useState<'list' | 'timeline'>('list')
+  const [taskLayout, setTaskLayout] = useState<'list' | 'board'>('list')
   const [navigation, dispatch] = useReducer(mobileNavigation, undefined, initialNavigation)
   const route = navigation.routes.at(-1)!
   const [overlay, setOverlay] = useState<Overlay | null>(null)
@@ -218,7 +235,7 @@ export default function MobileApp() {
       .getPropertyValue('--bg-content')
       .trim()
     void invoke('set_mobile_appearance', { dark, background }).catch((e) => setError(String(e)))
-  }, [state.ready, dark])
+  }, [state.ready, dark, appearance.colorMode])
   useEffect(() => {
     const viewport = window.visualViewport
     const update = () => {
@@ -252,9 +269,13 @@ export default function MobileApp() {
         ? `list:${route.view}`
         : route.kind === 'settings'
           ? `settings:${route.category ?? ''}`
-          : route.kind === 'projects'
-            ? 'projects'
-            : `${route.kind}:${route.id}`
+          : route.kind === 'calendar'
+            ? 'calendar'
+            : route.kind === 'projects'
+              ? 'projects'
+            : route.kind === 'tasks'
+                ? `tasks:${route.view}`
+                : `${route.kind}:${route.id}`
   const animateRows = useAnimatedItems(
     scroll,
     '[data-motion-key]',
@@ -357,6 +378,58 @@ export default function MobileApp() {
       dispatch({ type: 'projects', project })
       setSearchOpen(false)
     })
+  const openTaskDates = (tasks: 'today' | 'upcoming') =>
+    void perform(() => {
+      dispatch({ type: 'projects', tasks })
+      setSearchOpen(false)
+    })
+  const importPdf = async (file?: File) => {
+    setPdfImporting(true)
+    try {
+      const doc = file ? await pdfStore.import(file) : await pdfStore.pick()
+      if (doc) {
+        setOverlay(null)
+        push({ kind: 'pdf', id: doc.id })
+      }
+    } catch (failure) {
+      setError(String(failure))
+    } finally {
+      setPdfImporting(false)
+    }
+  }
+  const openPdfNotes = async (id: string) => {
+    const doc = pdfs.documents.find((item) => item.id === id)
+    if (!doc) return
+    try {
+      openNote(await library.ensurePdfCompanion(doc))
+    } catch (failure) {
+      setError(String(failure))
+    }
+  }
+  useEffect(() => {
+    const open = (event: Event) => {
+      try {
+        const citation = parsePdfCitation((event as CustomEvent<string>).detail)
+        if (!citation) throw Error('This PDF citation is malformed or uses an unsupported version.')
+        const { document: doc, changed } = resolvePdfCitation(citation, pdfs.documents)
+        if (changed)
+          setError('This PDF differs from the quoted revision. The selected region cannot be shown.')
+        push({
+          kind: 'pdf',
+          id: doc.id,
+          target: {
+            page: citation.page,
+            requestId: crypto.randomUUID(),
+            regions: changed ? undefined : citation.regions,
+          },
+        })
+      } catch (failure) {
+        setError(String(failure))
+      }
+    }
+    document.addEventListener('pdf-citation', open)
+    return () => document.removeEventListener('pdf-citation', open)
+  })
   const copyTaskLink = (id: string) => {
     const text = taskLink(id)
     void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((e) =>
@@ -420,6 +493,11 @@ export default function MobileApp() {
         getEditor(active.id, active.content).view.dom.dispatchEvent(new Event('writing-dismiss'))
       return
     }
+    // The drawing dialog has its own Escape handling for Excalidraw's menus and dialogs.
+    if (document.querySelector('.drawing-dialog')) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      return
+    }
     // Let nested Radix controls dismiss before their owning sheet.
     const nestedMenu = document.querySelector('[role="menu"]')
     if (nestedMenu) {
@@ -473,6 +551,8 @@ export default function MobileApp() {
     route.kind === 'list' && route.view.startsWith('book:')
       ? notebooks.find((b) => b.id === route.view.slice(5))
       : undefined
+  const routePdf =
+    route.kind === 'pdf' ? pdfs.documents.find((doc) => doc.id === route.id) : undefined
   const title =
     route.kind === 'list'
       ? route.view.startsWith('book:')
@@ -484,9 +564,17 @@ export default function MobileApp() {
         ? route.category
           ? categoryNames[route.category]
           : 'Settings'
-        : route.kind === 'projects'
-          ? 'Projects'
-          : ''
+        : route.kind === 'calendar'
+          ? 'Calendar'
+          : route.kind === 'projects'
+            ? 'Projects'
+            : route.kind === 'tasks'
+              ? route.view === 'today'
+                ? 'Due today'
+                : 'Upcoming'
+              : route.kind === 'pdf'
+                ? (routePdf?.name ?? 'PDF')
+                : ''
   const routeTask =
     route.kind === 'task' ? projectData.tasks.find((t) => t.id === route.id) : undefined
   const variables = {
@@ -678,8 +766,22 @@ export default function MobileApp() {
   return (
     <ShortcutContext.Provider value={appearance.shortcuts ?? {}}>
       <div className="mobile-app" ref={root} style={variables}>
+        <input
+          ref={pdfInput}
+          type="file"
+          accept="application/pdf,.pdf"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) void importPdf(file)
+          }}
+        />
         <header className={`mobile-header${route.kind === 'note' ? ' mobile-note-header' : ''}`}>
-          {route.kind !== 'note' && route.kind !== 'project' && navigation.routes.length > 1 ? (
+          {route.kind !== 'note' &&
+          route.kind !== 'project' &&
+          route.kind !== 'tasks' &&
+          navigation.routes.length > 1 ? (
             <button className="icon-btn" aria-label="Back" onClick={back}>
               <ArrowLeft />
             </button>
@@ -1002,6 +1104,64 @@ export default function MobileApp() {
             onCategory={(category) => push({ kind: 'settings', category })}
           />
         )}
+        {route.kind === 'calendar' && (
+          <TaskCalendar
+            tasks={projectData.tasks}
+            projects={projectData.projects}
+            disabled={blocked}
+            selectedId={null}
+            onSelect={(id) => { if (id) openTask(id) }}
+            notify={setProjectNotice}
+            mobile
+          />
+        )}
+        {route.kind === 'tasks' && (
+          <TaskDateList
+            key={routeKey}
+            view={route.view}
+            projects={projectData.projects}
+            tasks={projectData.tasks}
+            appearance={appearance}
+            disabled={blocked}
+            scrollRef={scroll}
+            onAppearance={state.setAppearance}
+            onOpenTask={openTask}
+            onSheet={setOverlay}
+          />
+        )}
+        {route.kind === 'pdf' &&
+          (routePdf ? (
+            <div className="mobile-pdf">
+              <Suspense fallback={<p role="status" className="pane-message">Loading PDF viewer…</p>}>
+                <PdfReader
+                  key={routePdf.id}
+                  source={pdfStore.source(routePdf)}
+                  reading={routePdf.reading}
+                  target={route.target}
+                  onReading={(reading) => pdfStore.reading(routePdf.id, reading)}
+                  registerCapture={pdfStore.capture}
+                  contentsWidth={state.workspace?.contentsWidth}
+                  onContentsWidth={library.setContentsWidth}
+                  disabled={blocked}
+                  notesAction={
+                    <PdfToolbarButton
+                      className="icon-btn"
+                      aria-label="Notes for this PDF"
+                      title="Notes for this PDF"
+                      disabled={blocked}
+                      onClick={() => void openPdfNotes(routePdf.id)}
+                    >
+                      <FileText />
+                    </PdfToolbarButton>
+                  }
+                />
+              </Suspense>
+            </div>
+          ) : (
+            <div className="mobile-empty">
+              <p>This PDF is no longer available.</p>
+            </div>
+          ))}
         {route.kind === 'projects' && (
           <ProjectList
             key={routeKey}
@@ -1009,7 +1169,9 @@ export default function MobileApp() {
             tasks={projectData.tasks}
             ready={projectData.ready}
             showCounts={appearance.sidebarCounts}
+            layout={projectsLayout}
             scrollRef={scroll}
+            onLayout={setProjectsLayout}
             onOpen={(id) => push(projectRoute(id))}
           />
         )}
@@ -1020,10 +1182,14 @@ export default function MobileApp() {
             projects={projectData.projects}
             tasks={projectData.tasks}
             notebooks={notebooks}
+            appearance={appearance}
             ready={projectData.ready}
             disabled={blocked}
             collapsed={route.collapsed}
+            layout={taskLayout}
             scrollRef={scroll}
+            onAppearance={state.setAppearance}
+            onLayout={setTaskLayout}
             onCollapsed={(collapsed) =>
               dispatch({
                 type: 'replace',
@@ -1138,6 +1304,32 @@ export default function MobileApp() {
                   </div>
                   <nav aria-label="Projects">
                     <button
+                      className={route.kind === 'tasks' && route.view === 'today' ? 'selected' : ''}
+                      aria-current={
+                        route.kind === 'tasks' && route.view === 'today' ? 'page' : undefined
+                      }
+                      onClick={() => openTaskDates('today')}
+                    >
+                      <Calendar aria-hidden="true" />
+                      <span>Due today</span>
+                    </button>
+                    <button
+                      className={
+                        route.kind === 'tasks' && route.view === 'upcoming' ? 'selected' : ''
+                      }
+                      aria-current={
+                        route.kind === 'tasks' && route.view === 'upcoming' ? 'page' : undefined
+                      }
+                      onClick={() => openTaskDates('upcoming')}
+                    >
+                      <CalendarClock aria-hidden="true" />
+                      <span>Upcoming</span>
+                    </button>
+                    <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
+                      <CalendarDays aria-hidden="true" />
+                      <span>Calendar</span>
+                    </button>
+                    <button
                       className={route.kind === 'projects' ? 'selected' : ''}
                       aria-current={route.kind === 'projects' ? 'page' : undefined}
                       onClick={() => openProjects()}
@@ -1162,6 +1354,36 @@ export default function MobileApp() {
                       .filter((p) => p.deletedAt === null && isOpenProject(p))
                       .sort(bySort)
                       .map(projectRow)}
+                  </nav>
+                  <div className="mobile-section-label">
+                    <span>PDFs</span>
+                    <button
+                      className="icon-btn"
+                      aria-label="Open PDF"
+                      disabled={blocked || pdfImporting || !pdfs.ready}
+                      onClick={() =>
+                        isTauri() ? void importPdf() : pdfInput.current?.click()
+                      }
+                    >
+                      <Plus aria-hidden="true" />
+                    </button>
+                  </div>
+                  <nav aria-label="PDFs">
+                    {pdfs.documents.map((doc) => (
+                      <button
+                        key={doc.id}
+                        className={route.kind === 'pdf' && route.id === doc.id ? 'selected' : ''}
+                        aria-current={route.kind === 'pdf' && route.id === doc.id ? 'page' : undefined}
+                        disabled={doc.unavailable}
+                        onClick={() => {
+                          setOverlay(null)
+                          push({ kind: 'pdf', id: doc.id })
+                        }}
+                      >
+                        <FileText aria-hidden="true" />
+                        <span>{doc.name}</span>
+                      </button>
+                    ))}
                   </nav>
                   <div className="mobile-section-label">Tags</div>
                   <nav aria-label="Tags">

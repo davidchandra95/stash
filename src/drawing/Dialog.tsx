@@ -112,7 +112,7 @@ export default function DrawingDialog({
   }
   const data = open ? readDrawing(findDrawing(editor, open.id)?.node.attrs.data) : null
   const preview = drawingPreview(data)
-  const viewOnly = platform.mobile || !open?.editing || !open?.initial
+  const viewOnly = !open?.editing || !open?.initial
   return (
     <Dialog.Root
       open={!!open}
