@@ -169,6 +169,10 @@
   --frame-gap: 8px;
   background: var(--bg-window);
 }
+:root[data-ui='workspace'] .window > .app-bar {
+  border-bottom: 0;
+  background: transparent;
+}
 :root[data-ui='workspace'] .window > .sidebar {
   border-right: 0;
   background: transparent;
@@ -176,7 +180,7 @@
 /* Standard layout: the notes list and editor share one card. */
 :root[data-ui='workspace'] .window:not(.layout-cards) > .note-list,
 :root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane {
-  margin: var(--frame-gap) 0;
+  margin: 0 0 var(--frame-gap);
   border: 1px solid var(--line);
   background: var(--bg-content);
 }

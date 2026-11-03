@@ -1,6 +1,7 @@
 import { useTabDrag } from './useTabDrag'
+import { useReorderMotion } from './useReorderMotion'
 import AppTooltip from './AppTooltip'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import NoteContextMenu from './NoteContextMenu'
 import { constrainTabIndex } from '../workspace'
 import { BookOpen, FileText, Pin, PinOff, X } from '../icons'
@@ -31,15 +32,37 @@ export default function NoteTabs({
   onReorderTab: (id: string, targetIndex: number) => void
 }) {
   const tabsRef = useRef<HTMLDivElement>(null)
+  const revealTab = useRef<string | null>(null)
+  // Scroll to the final slot before reorder transforms are applied. Scrolling an animated
+  // rectangle can otherwise leave the focused tab outside a crowded strip when it settles.
+  useLayoutEffect(() => {
+    if (drag.session.current?.active) return
+    const strip = tabsRef.current
+    const requested = revealTab.current
+    revealTab.current = null
+    const target = requested
+      ? [...(strip?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [])].find(
+          (tab) => tab.dataset.tabId === requested,
+        )
+      : strip?.querySelector('.tab.is-active')
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTabId, JSON.stringify(tabs.map((tab) => [tab.id, tab.pinned]))])
+  const reorderMotion = useReorderMotion(tabsRef, '[data-tab-id]')
   const [announcement, setAnnouncement] = useState('')
   const reorder = (id: string, index: number) => {
     index = constrainTabIndex(tabs, id, index)
     if (tabs.findIndex((tab) => tab.id === id) === index) return
+    reorderMotion.capture()
     onReorderTab(id, index)
     setAnnouncement(`Tab moved to position ${index + 1} of ${tabs.length}`)
   }
-  const drag = useTabDrag(tabsRef, JSON.stringify(tabs), disabled, reorder, (id, index) =>
-    constrainTabIndex(tabs, id, index),
+  const drag = useTabDrag(
+    tabsRef,
+    JSON.stringify(tabs),
+    disabled,
+    reorder,
+    (id, index) => constrainTabIndex(tabs, id, index),
+    reorderMotion,
   )
   const shortcutLabel = useShortcutLabel()
   const close = (id: string) => {
@@ -52,12 +75,6 @@ export default function NoteTabs({
     )
   }
   const hasTabs = tabs.length > 0
-  useEffect(() => {
-    if (drag.session.current?.active) return
-    tabsRef.current
-      ?.querySelector('.tab.is-active')
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTabId, JSON.stringify(tabs.map((tab) => [tab.id, tab.pinned]))])
   useEffect(() => {
     const strip = tabsRef.current
     if (!strip) return
@@ -142,12 +159,14 @@ export default function NoteTabs({
               event.preventDefault()
               const id = button.closest<HTMLElement>('[data-tab-id]')!.dataset.tabId!
               const index = tabs.findIndex((tab) => tab.id === id)
-              const target = index + (event.key === 'ArrowLeft' ? -1 : 1)
-              if (target >= 0 && target < tabs.length) {
+              const target = constrainTabIndex(
+                tabs,
+                id,
+                index + (event.key === 'ArrowLeft' ? -1 : 1),
+              )
+              if (target !== index) {
+                revealTab.current = id
                 reorder(id, target)
-                requestAnimationFrame(() =>
-                  button.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-                )
               }
               return
             }
@@ -177,7 +196,10 @@ export default function NoteTabs({
                   {
                     label: tab.pinned ? 'Unpin tab' : 'Pin tab',
                     icon: tab.pinned ? PinOff : Pin,
-                    run: () => onPinTab(tab.id, !tab.pinned),
+                    run: () => {
+                      reorderMotion.capture()
+                      onPinTab(tab.id, !tab.pinned)
+                    },
                   },
                   { label: 'Close', icon: X, run: () => close(tab.id) },
                 ]}
@@ -201,7 +223,6 @@ export default function NoteTabs({
                   key={tab.id}
                 >
                   <AppTooltip
-                    shortcut="Ctrl+Shift+Left/Right to move"
                     label={tab.preview ? `${title} - Preview (double-click to keep open)` : title}
                     disabled={disabled}
                     suppressed={!!drag.visual}
@@ -244,8 +265,10 @@ export default function NoteTabs({
                       disabled={disabled}
                       aria-label={`${tab.pinned ? 'Unpin' : 'Close'} ${title}`}
                       onClick={() => {
-                        if (tab.pinned) onPinTab(tab.id, false)
-                        else close(tab.id)
+                        if (tab.pinned) {
+                          reorderMotion.capture()
+                          onPinTab(tab.id, false)
+                        } else close(tab.id)
                       }}
                     >
                       {tab.pinned ? <Pin aria-hidden="true" /> : <X aria-hidden="true" />}

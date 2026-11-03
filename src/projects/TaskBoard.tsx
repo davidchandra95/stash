@@ -6,7 +6,7 @@ import { deleteTask, toggleTask, updateTask } from './actions'
 import {
   boardColumns,
   dueState,
-  formatDate,
+  formatTaskDue,
   groupOf,
   sortBetween,
   type Task,
@@ -151,7 +151,7 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                           {task.dueDate && (
                             <span className={`task-due is-${due}`}>
                               <Calendar aria-hidden="true" />
-                              {formatDate(task.dueDate)}
+                              {formatTaskDue(task)}
                             </span>
                           )}
                           {task.priority > 0 && <PriorityBars priority={task.priority} />}

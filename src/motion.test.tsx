@@ -270,3 +270,100 @@ it('removes a suspended Radix exit immediately when motion is disabled', async (
   expect(document.querySelector('.settings')).toBeNull()
   expect(document.querySelector('.dialog-overlay')).toBeNull()
 })
+
+it.each([
+  {
+    name: 'nearby visible rows',
+    before: ['a', 'b', 'c'],
+    after: ['c', 'a', 'b'],
+    id: 'c',
+    height: 200,
+    count: 3,
+  },
+  {
+    name: 'offscreen source',
+    before: ['a', 'b', 'c', 'd'],
+    after: ['d', 'a', 'b', 'c'],
+    id: 'd',
+    height: 150,
+    count: 0,
+  },
+  {
+    name: 'offscreen destination',
+    before: ['a', 'b', 'c', 'd'],
+    after: ['b', 'c', 'd', 'a'],
+    id: 'a',
+    height: 150,
+    count: 0,
+  },
+  {
+    name: 'long visible move',
+    before: ['a', 'b', 'c', 'd', 'e', 'f'],
+    after: ['f', 'a', 'b', 'c', 'd', 'e'],
+    id: 'f',
+    height: 400,
+    count: 0,
+  },
+  {
+    name: 'removal from Pinned notes',
+    before: ['a', 'b'],
+    after: ['b'],
+    id: 'a',
+    height: 200,
+    count: 0,
+  },
+  {
+    name: 'unchanged target position',
+    before: ['a', 'b', 'c'],
+    after: ['a', 'c', 'b'],
+    id: 'a',
+    height: 200,
+    count: 0,
+  },
+])('limits pin motion to $name', async ({ before, after, id, height, count }) => {
+  let request!: (id: string) => void
+  function List({ ids }: { ids: string[] }) {
+    const ref = useRef<HTMLDivElement>(null)
+    request = useAnimatedItems(ref, '[data-motion-key]', 'all', motion.row, false, true)
+    return (
+      <div ref={ref} data-list>
+        {ids.map((key) => (
+          <button key={key} data-motion-key={key}>
+            {key}
+          </button>
+        ))}
+      </div>
+    )
+  }
+  const rect = (top: number, height: number) => new DOMRect(0, top, 300, height)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(height)
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    if (this.hasAttribute('data-list')) return rect(100, height)
+    const index = [...this.parentElement!.children].indexOf(this)
+    return rect(100 + index * 50, 50)
+  })
+  const render = (ids: string[], enabled = true) =>
+    act(() =>
+      root.render(
+        <Policy enabled={enabled}>
+          <List ids={ids} />
+        </Policy>,
+      ),
+    )
+  await render(before)
+  request(id)
+  await render(after)
+  expect(animations).toHaveLength(count)
+  expect(host.querySelector('[aria-hidden="true"]')).toBeNull()
+  await render(after)
+  // An unrelated save or menu render must let pin feedback complete.
+  for (const animation of animations) expect(animation.cancel).not.toHaveBeenCalled()
+  // Settings and the live system preference also apply to explicit pin motion.
+  await render(before, false)
+  request(id)
+  await render(after, false)
+  expect(animations).toHaveLength(count)
+})

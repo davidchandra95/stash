@@ -49,7 +49,7 @@ test('body search publishes before a slow final read and keeps selection stable'
     library.setNotes(notes)
   }, modulePath)
   await page.getByRole('button', { name: 'Search', exact: true }).click()
-  await page.getByRole('combobox', { name: 'Find note titles', exact: true }).fill('needlemarker')
+  await page.getByRole('combobox', { name: 'Search notes, projects and tasks', exact: true }).fill('needlemarker')
   await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await expect(page.locator('.content-search-match')).toHaveCount(2)

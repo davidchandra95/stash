@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Note } from './model'
+import type { Project, Task } from './projects/model'
 import {
   quickOpenNotes,
   quickOpenResults,
+  quickResults,
   quickTitleParts,
   searchContent,
   searchDocument,
@@ -245,4 +247,50 @@ it('invalidates only displayed reference labels and keeps precise atom positions
       .matches[0],
   ).toMatchObject({ from: 8, to: 9, offset: 0, atom: true })
   expect(searchSegments(doc, new Map()).find((segment) => segment.atom)?.text).toBe('Fallback')
+})
+
+describe('quickResults', () => {
+  const note = (id: string, title: string) => ({ id, title, trashed: false, updated: 1 }) as Note
+  const project = (id: string, name: string, extra: Partial<Project> = {}) =>
+    ({ id, name, description: '', deletedAt: null, completedAt: null, ...extra }) as Project
+  const task = (id: string, title: string, extra: Partial<Task> = {}) =>
+    ({ id, title, description: '', deletedAt: null, completedAt: null, ...extra }) as Task
+  const ids = (query: string, projects: Project[], tasks: Task[], notes: Note[] = []) =>
+    quickResults(notes, projects, tasks, query, []).map((result) =>
+      result.kind === 'note'
+        ? result.note.id
+        : result.kind === 'project'
+          ? result.project.id
+          : result.task.id,
+    )
+
+  it('ranks notes, projects and tasks together by match quality', () => {
+    expect(
+      ids('launch', [project('p', 'Launch')], [task('t', 'Plan launch')], [note('n', 'launch notes')]),
+    ).toEqual(['p', 'n', 't'])
+  })
+  it('finds descriptions last, without highlighting', () => {
+    const results = quickResults(
+      [],
+      [],
+      [task('body', 'Other', { description: 'about budget' }), task('title', 'Budget')],
+      'budget',
+      [],
+    )
+    expect(results.map((r) => r.kind === 'task' && r.task.id)).toEqual(['title', 'body'])
+    expect(results[1].ranges).toEqual([])
+  })
+  it('puts finished work after open work and excludes deleted work', () => {
+    expect(
+      ids(
+        'x',
+        [project('gone', 'x', { deletedAt: 1 })],
+        [task('done', 'x', { completedAt: 1 }), task('open', 'x'), task('deleted', 'x', { deletedAt: 1 })],
+      ),
+    ).toEqual(['open', 'done'])
+  })
+  it('shows only recent notes with no query', () => {
+    const results = quickResults([note('n', 'Note')], [project('p', 'P')], [task('t', 'T')], '', ['n'])
+    expect(results.map((r) => r.kind)).toEqual(['note'])
+  })
 })

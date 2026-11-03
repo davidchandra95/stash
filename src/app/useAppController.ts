@@ -3,7 +3,13 @@ import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentatio
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
 import { colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
 import { platform } from '../platform'
-import { defaultPdfNotes, type PdfNotesPreferences } from '../workspace'
+import {
+  available,
+  currentLocation,
+  defaultPdfNotes,
+  type PdfNotesPreferences,
+  type WorkspaceTab,
+} from '../workspace'
 import { appendCapture } from '../pdf/capture'
 import {
   citationContent,
@@ -73,6 +79,8 @@ import {
   type NoteSortMode,
 } from '../noteOrder'
 import { useWorkspace } from '../useWorkspace'
+import { useTimeline } from '../useTimeline'
+import type { Place } from '../timeline'
 import { restoreSidebarView } from '../workspace'
 import { usePaneResize } from '../usePaneResize'
 import { useContentsResize } from '../useContentsResize'
@@ -345,9 +353,12 @@ export function useAppController() {
   }, [workspace.activation])
   // Reopen the project page that was open at quit, once projects have loaded.
   const projectRestored = useRef(false)
+  const [projectsSettled, setProjectsSettled] = useState(false)
   useEffect(() => {
+    if (projects.error) setProjectsSettled(true)
     if (projectRestored.current || !library.ready || !projects.ready) return
     projectRestored.current = true
+    setProjectsSettled(true)
     const saved = library.workspace?.projectView
     if (saved && projectPageExists(saved, projects.projects)) setProjectView(saved)
   }, [library.ready, projects.ready])
@@ -367,6 +378,28 @@ export function useAppController() {
     const last = lastProjectView.current
     openProject(projectPageExists(last, projectStore.getSnapshot().projects) ? last : 'tasks:today')
   }
+  const history = useTimeline({
+    ready: library.ready && pdfs.ready && projectsSettled,
+    disabled: library.quitting || library.syncing || library.converting,
+    place: currentPlace(projectView, selectedTaskId, workspace, view, query),
+    canVisit: (place) =>
+      place.kind === 'project'
+        ? projectPageExists(place.view, projects.projects)
+        : place.kind === 'tab' && available(place.location, notes, pdfs.documents),
+    visit: (place) => {
+      if (place.kind === 'project') {
+        const task = projects.tasks.find((t) => t.id === place.taskId && t.deletedAt === null)
+        setProjectView(place.view)
+        setSelectedTaskId(task?.id ?? null)
+        setFocus(false)
+        return { ...place, taskId: task?.id ?? null }
+      }
+      if (place.kind !== 'tab') return null
+      setProjectView(null)
+      const tabId = workspace.restore(place.tabId, place.location)
+      return tabId ? { ...place, tabId } : null
+    },
+  })
   const paneResize = usePaneResize({
     appRef,
     savedWidths: library.workspace?.paneWidths,
@@ -762,7 +795,9 @@ export function useAppController() {
         },
       }
     })
-  const { update, create: createNote } = useNoteActions(animateRows)
+  const { update, create: createNote } = useNoteActions((id, patch) =>
+    animateRows(patch && 'pinned' in patch ? id : undefined),
+  )
   const navigate = (next: View) => {
     setProjectView(null)
     setView(next)
@@ -1148,8 +1183,8 @@ export function useAppController() {
       title: active
         ? () => document.querySelector<HTMLElement>('[aria-label="Note title"]')?.focus()
         : undefined,
-      back: workspace.canBack ? () => workspace.move(-1) : undefined,
-      forward: workspace.canForward ? () => workspace.move(1) : undefined,
+      back: history.canBack ? () => history.move(-1) : undefined,
+      forward: history.canForward ? () => history.move(1) : undefined,
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),
       'show-notes': () => switchDomain('notes'),
@@ -1270,6 +1305,7 @@ export function useAppController() {
     contentsResize,
     pdfs,
     projects,
+    history,
     projectView,
     setProjectView,
     openProject,
@@ -1373,5 +1409,23 @@ export type AppController = ReturnType<typeof useAppController>
 export type Domain = 'notes' | 'projects'
 
 const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming']
+/** Where the app is right now, as a stop on the Back/Forward timeline. */
+function currentPlace(
+  projectView: string | null,
+  taskId: string | null,
+  workspace: { tabs: WorkspaceTab[]; activeTabId: string | null },
+  view: View,
+  query: string,
+): Place {
+  if (projectView) return { kind: 'project', view: projectView, taskId }
+  const tab = workspace.tabs.find((t) => t.id === workspace.activeTabId)
+  if (!tab) return { kind: 'empty' }
+  const location = currentLocation(tab)
+  return {
+    kind: 'tab',
+    tabId: tab.id,
+    location: location.kind === 'pdf' ? location : { ...location, view, query },
+  }
+}
 const projectPageExists = (id: string, projects: Project[]) =>
   fixedProjectPages.includes(id) || projects.some((p) => p.id === id && p.deletedAt === null)

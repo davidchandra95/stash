@@ -16,9 +16,6 @@
   padding-left: var(--space-5);
   border-bottom: 1px solid var(--line);
 }
-.list-bar:has(.window-controls-space) {
-  padding-left: var(--space-4);
-}
 .list-title {
   display: flex;
   flex: 1;
@@ -58,6 +55,13 @@
   top: 0;
   left: 0;
   width: 100%;
+}
+.virtual-note-slot.is-pin-moving {
+  z-index: 1;
+}
+.is-pin-moving .note-row:not(.is-selected),
+.is-pin-moving .mobile-note-row {
+  background: var(--bg-content);
 }
 
 /* ───────── Rows ───────── */

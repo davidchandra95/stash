@@ -1,5 +1,6 @@
 import type { Node } from '@tiptap/pm/model'
 import type { Note, Notebook } from './model'
+import type { Project, Task } from './projects/model'
 import { documentSchema } from './editor/documentSchema'
 import {
   documentText,
@@ -104,6 +105,62 @@ export function quickOpenResults(
         a.note.id.localeCompare(b.note.id),
     )
     .map(({ note, ranges }) => ({ note, ranges }))
+}
+
+export type QuickResult =
+  | { kind: 'note'; note: Note; ranges: TitleRange[] }
+  | { kind: 'project'; project: Project; ranges: TitleRange[] }
+  | { kind: 'task'; task: Task; ranges: TitleRange[] }
+
+/** A title match, or the weakest rank when only the description contains the term. */
+function workMatch(title: string, description: string, term: string) {
+  const match = titleMatch(title, term)
+  if (match) return match
+  const position = description.toLocaleLowerCase().indexOf(term.toLocaleLowerCase())
+  return position < 0 ? null : { rank: [4, position], ranges: [] }
+}
+
+/** Notes, projects and tasks in one ranked list. With no query, only recent notes. */
+export function quickResults(
+  notes: Note[],
+  projects: Project[],
+  tasks: Task[],
+  query: string,
+  recentIds: string[],
+): QuickResult[] {
+  const noteResults = quickOpenResults(notes, query, recentIds)
+  const term = query.trim()
+  if (!term) return noteResults.map((result) => ({ kind: 'note', ...result }))
+  type Ranked = { result: QuickResult; rank: number[]; done: boolean }
+  const ranked: Ranked[] = noteResults.map(({ note, ranges }) => ({
+    result: { kind: 'note', note, ranges },
+    rank: titleMatch(note.title || 'Untitled note', term)!.rank,
+    done: false,
+  }))
+  for (const project of projects) {
+    const match = project.deletedAt === null && workMatch(project.name, project.description, term)
+    if (match)
+      ranked.push({
+        result: { kind: 'project', project, ranges: match.ranges },
+        rank: match.rank,
+        done: project.completedAt !== null,
+      })
+  }
+  for (const task of tasks) {
+    const match = task.deletedAt === null && workMatch(task.title, task.description, term)
+    if (match)
+      ranked.push({
+        result: { kind: 'task', task, ranges: match.ranges },
+        rank: match.rank,
+        done: task.completedAt !== null,
+      })
+  }
+  return ranked
+    .sort(
+      (a, b) =>
+        a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || Number(a.done) - Number(b.done),
+    )
+    .map(({ result }) => result)
 }
 
 export type CommandMatch<T extends { label: string }> = { command: T; ranges: TitleRange[] }

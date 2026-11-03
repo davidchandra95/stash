@@ -90,6 +90,8 @@ export const defaultAppearance: Appearance = {
   defaultNotebookId: '',
   newNoteTitle: 'field',
   spellcheck: true,
+  smartTaskDates: true,
+  keepTaskDateWords: false,
   autoSyncMinutes: 0,
   ...defaultCursorSettings,
 }

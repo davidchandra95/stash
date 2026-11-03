@@ -17,7 +17,9 @@ const live = () => {
 const latest = (task: Task) => projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
 
 export function updateTask(task: Task, patch: Partial<Task>) {
-  save({ tasks: [{ ...latest(task), ...patch }] })
+  const next = { ...latest(task), ...patch }
+  if (!next.dueDate) next.dueTime = null
+  save({ tasks: [next] })
 }
 export function setTaskStatus(task: Task, status: TaskStatus) {
   updateTask(task, { status })
@@ -30,7 +32,7 @@ export function toggleTask(task: Task) {
 export function createTask(
   projectId: string | null,
   title: string,
-  fields: Partial<Pick<Task, 'dueDate'>> = {},
+  fields: Partial<Pick<Task, 'dueDate' | 'dueTime'>> = {},
 ): Task {
   const siblings = live().tasks.filter((t) => t.projectId === projectId && t.status === 'todo')
   const first = siblings.sort(bySort)[0]
@@ -44,6 +46,7 @@ export function createTask(
     priority: 0,
     startDate: null,
     dueDate: null,
+    dueTime: null,
     completedAt: null,
     sort: sortBetween(undefined, first?.sort),
     deletedAt: null,

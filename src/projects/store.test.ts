@@ -51,6 +51,20 @@ it('keeps quick successive edits', async () => {
   })
 })
 
+it('saves due times, keeps them on unrelated edits, and clears them with the due date', async () => {
+  const { projectStore, createTask, updateTask } = await load()
+  const task = createTask(null, 'Timed task', { dueDate: '2026-11-03', dueTime: '14:00' })
+  await projectStore.flush()
+  const find = () => projectStore.getSnapshot().tasks.find((item) => item.id === task.id)!
+  expect(find()).toMatchObject({ dueDate: '2026-11-03', dueTime: '14:00' })
+  updateTask(find(), { title: 'Renamed task' })
+  await projectStore.flush()
+  expect(find()).toMatchObject({ title: 'Renamed task', dueTime: '14:00' })
+  updateTask(find(), { dueDate: null })
+  await projectStore.flush()
+  expect(find()).toMatchObject({ dueDate: null, dueTime: null })
+})
+
 it('deletes a task with undo', async () => {
   const { projectStore, deleteTask } = await load()
   const task = live(projectStore.getSnapshot().tasks)[0]

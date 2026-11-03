@@ -45,6 +45,7 @@ CREATE TABLE tasks (
   priority INTEGER NOT NULL DEFAULT 0,  -- 0 none, 1 low, 2 medium, 3 high
   start_date TEXT,
   due_date TEXT,
+  due_time TEXT,                       -- optional local HH:mm; requires due_date
   completed_at INTEGER,
   sort REAL NOT NULL,                   -- order within project or Inbox
   deleted_at INTEGER,
@@ -55,6 +56,7 @@ CREATE TABLE tasks (
 Rules:
 
 - Dates without a time are stored as calendar dates, not timestamps, so they don't shift across time zones.
+- Optional due times are stored separately as local `HH:mm` values. Schema 12 adds `tasks.due_time`; existing tasks keep their dates and get no time. Time recognition such as `@2pm` is described in [task smart input](TASK_SMART_INPUT.md). Due times do not create reminders or notifications.
 - Ticking a task sets `status = done` and `completed_at`. Unticking returns it to `todo`. `doing` and `cancelled` are set from the task menu or detail panel.
 - Deleting a task or project sets `deleted_at`. Deleted records stay recoverable for undo and sync, and mentions of them show as deleted.
 - Deleting a project asks whether to move its tasks to the Inbox or delete them too, like notebook deletion.

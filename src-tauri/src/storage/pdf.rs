@@ -477,7 +477,7 @@ mod tests {
         store
             .conn
             .execute_batch(
-                "DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; PRAGMA user_version=7;",
+                "DROP TABLE tasks; DROP TABLE projects; DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; PRAGMA user_version=7;",
             )
             .unwrap();
         drop(store);
@@ -487,7 +487,7 @@ mod tests {
                 .conn
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            11
+            12
         );
         assert!(store.list_pdfs().unwrap().is_empty());
         let backup = fs::read_dir(library.path().join("backups"))
@@ -592,7 +592,7 @@ mod companion_tests {
         let (dir, store, pdf) = setup();
         store
             .conn
-            .execute_batch("DROP TABLE pdf_companions; PRAGMA user_version=8;")
+            .execute_batch("DROP TABLE tasks; DROP TABLE projects; DROP TABLE pdf_companions; PRAGMA user_version=8;")
             .unwrap();
         drop(store);
         let mut store = Store::open(&dir.path().join("library")).unwrap();

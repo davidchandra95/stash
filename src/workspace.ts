@@ -99,7 +99,7 @@ export type SavedTab = { id: string; pinned?: boolean; preview?: boolean } & (
 )
 const targetKey = (target: { kind?: string; noteId?: string; documentId?: string }) =>
   target.kind === 'pdf' ? `pdf:${target.documentId}` : `note:${target.noteId}`
-const available = (location: Location, notes: WorkspaceNote[], documents: { id: string }[]) =>
+export const available = (location: Location, notes: WorkspaceNote[], documents: { id: string }[]) =>
   location.kind === 'pdf'
     ? documents.some((d) => d.id === location.documentId)
     : notes.some((n) => n.id === location.noteId && (!n.trashed || location.view === 'trash'))
@@ -320,28 +320,42 @@ export function closeTab(state: Workspace, id: string): Workspace {
       state.activeTabId !== id ? state.activeTabId : ((tabs[index] ?? tabs[index - 1])?.id ?? null),
   }
 }
-export function historyIndex(
-  tab: WorkspaceTab | undefined,
-  direction: number,
-  notes: WorkspaceNote[],
-  documents: { id: string }[] = [],
-): number | undefined {
-  if (!tab) return undefined
-  for (let i = tab.index + direction; i >= 0 && i < tab.entries.length; i += direction) {
-    const entry = tab.entries[i]
-    if (available(entry, notes, documents)) return i
+/** Shows `location` again: in the tab already on it, its old tab if usable, or a new tab. */
+export function restoreLocation(state: Workspace, tabId: string, location: Location): Workspace {
+  // Entries hold the scroll captured on leaving, which is newer than the timeline's copy.
+  const revisit = (t: WorkspaceTab, index: number): WorkspaceTab => ({
+    ...t,
+    index,
+    entries: t.entries.map((entry, i) =>
+      i === index && entry.kind !== 'pdf' && location.kind !== 'pdf'
+        ? { ...location, scroll: entry.scroll }
+        : entry,
+    ),
+  })
+  const showing = state.tabs.find((t) => targetKey(currentLocation(t)) === targetKey(location))
+  if (showing)
+    return {
+      ...state,
+      activeTabId: showing.id,
+      tabs: state.tabs.map((t) => (t.id === showing.id ? revisit(t, t.index) : t)),
+    }
+  const tab = state.tabs.find((t) => t.id === tabId)
+  if (!tab || tab.pinned || location.kind === 'pdf' || currentLocation(tab).kind === 'pdf') {
+    const id = crypto.randomUUID()
+    return { tabs: [...state.tabs, { id, entries: [location], index: 0 }], activeTabId: id }
   }
-}
-export function moveHistory(
-  state: Workspace,
-  direction: number,
-  notes: WorkspaceNote[],
-  documents: { id: string }[] = [],
-): Workspace {
-  const index = historyIndex(activeTab(state), direction, notes, documents)
-  return index === undefined
-    ? state
-    : { ...state, tabs: state.tabs.map((t) => (t.id === state.activeTabId ? { ...t, index } : t)) }
+  const earlier = tab.entries.map(targetKey).lastIndexOf(targetKey(location))
+  return {
+    ...state,
+    activeTabId: tab.id,
+    tabs: state.tabs.map((t) =>
+      t.id !== tab.id
+        ? t
+        : earlier >= 0
+          ? revisit(t, earlier)
+          : { ...t, entries: [...t.entries.slice(0, t.index + 1), location], index: t.index + 1 },
+    ),
+  }
 }
 export function pruneWorkspace(
   state: Workspace,

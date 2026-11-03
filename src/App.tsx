@@ -9,6 +9,7 @@ import type { Note } from './model'
 import { AppContext, AppStore, AppVersionContext } from './app/context'
 import { useAppController } from './app/useAppController'
 import { useLayoutMotion } from './layoutMotion'
+import AppBar from './app/AppBar'
 import Sidebar from './app/Sidebar'
 import NoteListPane from './app/NoteListPane'
 import EditorPane from './app/EditorPane'
@@ -117,8 +118,9 @@ export default function App() {
             onPointerDownCapture={paneFocus.track}
             onFocusCapture={paneFocus.track}
           >
+            <AppBar onSearch={openSearch} />
             <MotionPresence open={sidebarVisible} duration={motion.sidebar} initial={false}>
-              <Sidebar onSearch={openSearch} />
+              <Sidebar />
             </MotionPresence>
             <NoteListPane />
             {sidebarVisible && (
@@ -136,6 +138,8 @@ export default function App() {
               initialScope={palette.scope}
               notes={paletteNotes}
               notebooks={app.notebooks}
+              projects={app.projects.projects}
+              tasks={app.projects.tasks}
               disabled={blocked}
               recentNoteIds={library.workspace?.recentNoteIds ?? []}
               commands={app.paletteCommands}
@@ -146,6 +150,8 @@ export default function App() {
                 else workspace.preview(id)
                 app.setFocus(false)
               }}
+              onSelectProject={app.openProject}
+              onSelectTask={app.openTask}
               onSelectMatch={(request, newTab) => {
                 if (!app.notes.some((note) => note.id === request.noteId && !note.trashed)) return
                 if (newTab) workspace.open(request.noteId, true)

@@ -1,13 +1,15 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, type KeyboardEvent } from 'react'
 import { useApp, useBlocked } from '../app/context'
-import { Calendar, CalendarClock, Plus } from '../icons'
+import { Calendar, CalendarClock } from '../icons'
 import AppTooltip from '../components/AppTooltip'
 import ProjectRing from './ProjectRing'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
-import { createTask, deleteTask, toggleTask } from './actions'
+import { deleteTask, toggleTask } from './actions'
+import NewTask from './NewTask'
 import {
   dueState,
   formatDate,
+  formatTaskDue,
   priorities,
   today,
   todayGroups,
@@ -23,7 +25,6 @@ export const isDateView = (view: string | null): view is DateView =>
 export default function TaskDateView({ view }: { view: DateView }) {
   const app = useApp()
   const blocked = useBlocked()
-  const [draft, setDraft] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
   const current = today()
   const isToday = view === 'tasks:today'
@@ -81,32 +82,7 @@ export default function TaskDateView({ view }: { view: DateView }) {
         </p>
       </header>
       <div className="task-scroll">
-        {isToday && (
-          <form
-            className="new-task"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!draft.trim()) return
-              createTask(null, draft, { dueDate: current })
-              setDraft('')
-            }}
-          >
-            <Plus aria-hidden="true" />
-            <input
-              className="new-task-input"
-              aria-label="New task due today"
-              placeholder="New task due today"
-              value={draft}
-              maxLength={500}
-              disabled={blocked}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') setDraft('')
-              }}
-            />
-            {draft && <kbd aria-hidden="true">↵</kbd>}
-          </form>
-        )}
+        {isToday && <NewTask projectId={null} disabled={blocked} dueToday />}
         <div className="task-list" ref={listRef} role="listbox" aria-label="Tasks">
           {groups.map((group) => (
             <div role="group" aria-label={group.label} key={group.id} className="task-group">
@@ -135,10 +111,10 @@ export default function TaskDateView({ view }: { view: DateView }) {
                       <TaskCheckbox task={task} disabled={blocked} />
                       <span className="task-title">{task.title}</span>
                       <span className="task-meta">
-                        {(group.id === 'overdue' || !isToday) && task.dueDate && (
+                        {(group.id === 'overdue' || !isToday || task.dueTime) && task.dueDate && (
                           <span className={`task-due is-${due}`}>
                             <Calendar aria-hidden="true" />
-                            {formatDate(task.dueDate, current)}
+                            {isToday && group.id !== 'overdue' ? task.dueTime : formatTaskDue(task, current)}
                           </span>
                         )}
                         {task.priority > 0 && (

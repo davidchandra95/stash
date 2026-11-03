@@ -56,7 +56,7 @@ it('opens links across filters, restores source selection and scroll, and explai
   const button = (label: string) =>
     host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
   async function openPalette(bodies = false) {
-    await act(async () => host.querySelector<HTMLButtonElement>('button.side-search')!.click())
+    await act(async () => host.querySelector<HTMLButtonElement>('button.app-search')!.click())
     if (bodies)
       await act(async () => {
         document
@@ -122,7 +122,7 @@ it('opens links across filters, restores source selection and scroll, and explai
         old.map((n) => (n.id === 'target' ? { ...n, title: 'Renamed' } : n)),
       ),
     )
-    await act(async () => button('Back to previous note').click())
+    await act(async () => button('Go back').click())
     expect(title()).toBe('Source')
     expect(host.querySelector('.note-reference')?.textContent).toBe('Renamed')
     expect(editor.state.selection.toJSON()).toEqual(selection)

@@ -31,6 +31,7 @@ pub struct Task {
     pub priority: i64,
     pub start_date: Option<String>,
     pub due_date: Option<String>,
+    pub due_time: Option<String>,
     pub completed_at: Option<i64>,
     pub sort: f64,
     pub deleted_at: Option<i64>,
@@ -72,6 +73,7 @@ pub struct SaveTask {
     pub priority: i64,
     pub start_date: Option<String>,
     pub due_date: Option<String>,
+    pub due_time: Option<String>,
     pub sort: f64,
     pub deleted: bool,
     pub expected_revision: i64,
@@ -86,7 +88,7 @@ pub struct ProjectChanges {
 }
 
 const PROJECT_COLUMNS: &str = "id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision";
-const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision";
+const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time";
 
 fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -116,6 +118,7 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         priority: r.get(5)?,
         start_date: r.get(6)?,
         due_date: r.get(7)?,
+        due_time: r.get(14)?,
         completed_at: r.get(8)?,
         sort: r.get(9)?,
         deleted_at: r.get(10)?,
@@ -216,6 +219,18 @@ fn validate_task(t: &SaveTask) -> Result<()> {
     }
     if !valid_date(&t.start_date) || !valid_date(&t.due_date) {
         return Err("Task dates must be valid calendar dates.".into());
+    }
+    if let Some(time) = &t.due_time {
+        let bytes = time.as_bytes();
+        if t.due_date.is_none()
+            || bytes.len() != 5
+            || bytes[2] != b':'
+            || ![0, 1, 3, 4].iter().all(|i| bytes[*i].is_ascii_digit())
+            || &time[..2] > "23"
+            || &time[3..] > "59"
+        {
+            return Err("A task due time needs a due date and a valid HH:mm time.".into());
+        }
     }
     if t.project_id.as_deref().is_some_and(|id| !valid_record_id(id)) {
         return Err("Invalid project ID.".into());
@@ -373,10 +388,10 @@ impl Store {
                 .deleted
                 .then(|| current.as_ref().and_then(|c| c.4).unwrap_or(at));
             tx.execute(
-                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
-                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,
+                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,
                  completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,
                  updated=excluded.updated,revision=excluded.revision",
                 params![
@@ -393,7 +408,8 @@ impl Store {
                     deleted_at,
                     created,
                     at,
-                    revision + 1
+                    revision + 1,
+                    t.due_time
                 ],
             )
             .map_err(db_err)?;

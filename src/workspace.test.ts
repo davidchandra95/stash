@@ -4,9 +4,8 @@ import {
   captureLocation,
   closeTab,
   currentLocation,
-  historyIndex,
   keepTabOpen,
-  moveHistory,
+  restoreLocation,
   openNote,
   previewNote,
   pruneWorkspace,
@@ -25,20 +24,18 @@ it('falls back to All notes for missing, invalid, or unavailable saved sidebar v
     restoreSidebarView('tag:project', [], [{ ...notes[0], tags: ['project'], trashed: true }]),
   ).toBe('all')
 })
-it('reuses a tab, branches history, restores contexts, and keeps separate tab histories', () => {
+it('reuses a tab, branches entries, keeps captured contexts, and keeps separate tab entries', () => {
   let state = restoreWorkspace(null, notes)
   const first = state.activeTabId!
   state = captureLocation(state, { view: 'book:work', query: 'apple', scroll: 123 })
   state = openNote(state, location('b'))
-  state = moveHistory(state, -1, notes)
-  expect(currentLocation(activeTab(state)!)).toEqual({
+  expect(activeTab(state)!.entries[0]).toEqual({
     noteId: 'a',
     view: 'book:work',
     query: 'apple',
     scroll: 123,
   })
   state = openNote(state, location('c'))
-  expect(historyIndex(activeTab(state), 1, notes)).toBeUndefined()
   state = openNote(state, location('d'), true)
   expect(state.tabs).toHaveLength(2)
   expect(activeTab(state)?.entries).toHaveLength(1)
@@ -73,13 +70,11 @@ it('restores order and active tab and drops unavailable references', () => {
     activeTabId: 't3',
   })
 })
-it('skips trashed history, removes normal trashed tabs, and allows Trash tabs', () => {
+it('removes normal trashed tabs and allows Trash tabs', () => {
   let state = restoreWorkspace(null, notes)
   state = openNote(state, location('b'))
   state = openNote(state, location('c'))
   const changed = notes.map((n) => ({ ...n, trashed: n.id === 'b' }))
-  state = moveHistory(state, -1, changed)
-  expect(currentLocation(activeTab(state)!).noteId).toBe('a')
   state = openNote(state, location('b'), true)
   state = pruneWorkspace(state, changed)
   expect(state.tabs).toHaveLength(1)
@@ -100,9 +95,6 @@ it('uses one preview slot while preserving permanent tabs and preview history', 
   expect(
     state.tabs.find((tab) => tab.id === previewId)?.entries.map((entry) => entry.noteId),
   ).toEqual(['b', 'c'])
-  state = moveHistory(state, -1, notes)
-  expect(currentLocation(activeTab(state)!).noteId).toBe('b')
-  expect(activeTab(state)?.preview).toBe(true)
   state = previewNote(state, location('a'))
   expect(state.activeTabId).toBe(permanentId)
   expect(state.tabs.find((tab) => tab.id === previewId)?.preview).toBe(true)
@@ -125,4 +117,24 @@ it('promotes a preview on edit or explicit open and restores saved status', () =
     restoreWorkspace({ tabs: [{ id: 'old', noteId: 'a' }], activeTabId: 'old' }, notes).tabs[0]
       .preview,
   ).toBeUndefined()
+})
+it('restores a location in the tab showing it, its old tab, or a new tab', () => {
+  let state = restoreWorkspace(null, notes)
+  const first = state.activeTabId!
+  state = openNote(state, location('b'), true)
+  const second = state.activeTabId!
+  // Already open elsewhere: select that tab and bring back its scope.
+  state = restoreLocation(state, second, { ...location('a'), view: 'trash', query: 'x' })
+  expect(state.activeTabId).toBe(first)
+  expect(currentLocation(activeTab(state)!)).toMatchObject({ noteId: 'a', view: 'trash', query: 'x' })
+  // Not open, old tab usable: show it there.
+  state = restoreLocation(state, second, location('c'))
+  expect(state.activeTabId).toBe(second)
+  expect(state.tabs).toHaveLength(2)
+  expect(currentLocation(activeTab(state)!).noteId).toBe('c')
+  // Old tab closed: reopen in a new one.
+  state = restoreLocation(closeTab(state, second), second, location('d'))
+  expect(state.tabs).toHaveLength(2)
+  expect(state.activeTabId).not.toBe(second)
+  expect(currentLocation(activeTab(state)!).noteId).toBe('d')
 })

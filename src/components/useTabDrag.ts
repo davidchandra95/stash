@@ -27,6 +27,7 @@ export function useTabDrag(
   disabled: boolean,
   onMove: (id: string, index: number) => void,
   constrain: (id: string, index: number) => number = (_, index) => index,
+  motion?: { capture: () => void; cancel: () => void },
 ) {
   const session = useRef<Session | null>(null)
   const suppressClick = useRef(false)
@@ -35,12 +36,15 @@ export function useTabDrag(
   callback.current = onMove
   const constrainRef = useRef(constrain)
   constrainRef.current = constrain
+  const motionRef = useRef(motion)
+  motionRef.current = motion
   useEffect(() => {
     let frame = 0
     let lastTime = 0
     const finish = (commit = false) => {
       const drag = session.current
       if (!drag) return
+      if (drag.active) motionRef.current?.capture()
       session.current = null
       cancelAnimationFrame(frame)
       if (drag.button.hasPointerCapture?.(drag.pointerId))
@@ -55,8 +59,10 @@ export function useTabDrag(
       if (!drag || !strip || !drag.active) return
       const source = drag.items[drag.index]
       const delta = drag.x - drag.startX + strip.scrollLeft - drag.startScroll
-      const totalWidth = drag.items.reduce((sum, item) => sum + item.width, 0)
-      const lastLeft = totalWidth - source.width
+      const first = drag.items[0]
+      const last = drag.items[drag.items.length - 1]
+      const gap = drag.items[1].left - first.left - first.width
+      const lastLeft = last.left + last.width - source.width
       const minIndex = constrainRef.current(drag.id, 0)
       const maxIndex = constrainRef.current(drag.id, drag.items.length - 1)
       const minLeft = drag.items[minIndex].left
@@ -66,7 +72,7 @@ export function useTabDrag(
       const center = left + source.width / 2
       const others = drag.items.filter((item) => item.id !== drag.id)
       drag.target =
-        left <= 0
+        left <= first.left
           ? 0
           : left >= lastLeft
             ? others.length
@@ -74,11 +80,11 @@ export function useTabDrag(
       drag.target = constrainRef.current(drag.id, drag.target)
       const order = [...others]
       order.splice(drag.target, 0, source)
-      let nextLeft = 0
+      let nextLeft = first.left
       const offsets: Record<string, number> = {}
       for (const item of order) {
         offsets[item.id] = item.id === drag.id ? left - source.left : nextLeft - item.left
-        nextLeft += item.width
+        nextLeft += item.width + gap
       }
       setVisual({ id: drag.id, offsets })
     }
@@ -172,6 +178,7 @@ export function useTabDrag(
       suppressClick.current = false
       const strip = stripRef.current
       if (disabled || event.button !== 0 || event.isPrimary === false || !strip) return
+      motionRef.current?.cancel()
       const bounds = strip.getBoundingClientRect()
       const items = Array.from(strip.querySelectorAll<HTMLElement>('[data-tab-id]')).map((el) => {
         const rect = el.getBoundingClientRect()

@@ -40,6 +40,10 @@ The original schema version 1 stores:
 
 The first migration creates the schema transactionally. Unknown, newer or corrupt libraries fail visibly and are not replaced with an empty database. Schema version 2 adds saved workspace tabs. Schema version 3 replaces the single notebook column with `note_notebooks` memberships and adds an independent `quick_access` flag. Schema version 4 adds notebook parents and linked-folder metadata. Schema version 5 adds a persisted built-in notebook icon, defaulting existing rows to `notebook`. Before upgrading an existing version 1, 2, 3, or 4 library, SQLite creates a consistent `VACUUM INTO` backup under the library’s `backups/` directory and syncs it to disk. Backup failure stops opening; migration failure rolls back all schema changes. Existing notebook assignments and linked-folder metadata are preserved. Older app versions reject version 5 libraries; downgrading requires restoring the complete pre-upgrade backup with the app closed, losing changes made since that backup. Full backup/restore and note history remain phase 5.
 
+## Task due times (schema 12)
+
+Task schema version 12 adds nullable `tasks.due_time` in local `HH:mm` form, paired with the existing `due_date` calendar date. Opening an older native library first creates the existing migration backup, then adds the column in a transaction. Existing tasks keep their dates and have no due time. Older app versions reject this newer schema. Restore the complete pre-upgrade backup with the app closed if a downgrade is needed; later changes will be lost. Due times do not enable task sync or notifications.
+
 ## Autosave contract
 
 Editing updates the controller synchronously. Disk writes run after a 350 ms pause, or within two seconds during continuous typing. Explicit note switches, app focus loss and normal quit flush pending jobs sooner. The UI reports **Saving**, **Saved on this Mac**, or **Couldn't save**; Saved is shown only after all pending database writes have been acknowledged.

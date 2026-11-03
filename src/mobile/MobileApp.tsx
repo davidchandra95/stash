@@ -61,7 +61,7 @@ import { useLibrary, library } from '../storage/useLibrary'
 import { matchesView, type Note, type Notebook, type View } from '../model'
 import { fontFamily } from '../fonts'
 import { headingStyleVariables } from '../headingStyles'
-import { useMotionPreference } from '../motion'
+import { motion, useAnimatedItems, useMotionPreference } from '../motion'
 import { ShortcutContext } from '../useShortcuts'
 import { useNoteActions } from '../useNoteActions'
 import { notebookPath } from '../notebooks'
@@ -116,7 +116,6 @@ type Overlay =
 export default function MobileApp() {
   const state = useLibrary()
   const { notes, notebooks, appearance } = state
-  const actions = useNoteActions()
   const [navigation, dispatch] = useReducer(mobileNavigation, undefined, initialNavigation)
   const route = navigation.routes.at(-1)!
   const [overlay, setOverlay] = useState<Overlay | null>(null)
@@ -223,6 +222,17 @@ export default function MobileApp() {
       : route.kind === 'list'
         ? `list:${route.view}`
         : `settings:${route.category ?? ''}`
+  const animateRows = useAnimatedItems(
+    scroll,
+    '[data-motion-key]',
+    `${routeKey}:${route.kind === 'list' ? route.query : ''}:${noteListMode}`,
+    motion.row,
+    false,
+    true,
+  )
+  const actions = useNoteActions((id, patch) => {
+    if (patch && 'pinned' in patch) animateRows(id)
+  })
   useLayoutEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 'scroll' in route ? route.scroll : 0
     setFindOpen(false)
@@ -707,7 +717,12 @@ export default function MobileApp() {
                       route.view === 'all' ? noteNotebookContext(n, notebooks) : undefined
                     const preview = noteListMode === 'preview' ? notePreview(n.text) : undefined
                     return (
-                      <div className="mobile-note-row" key={n.id} data-note-id={n.id}>
+                      <div
+                        className="mobile-note-row"
+                        key={n.id}
+                        data-note-id={n.id}
+                        data-motion-key={n.id}
+                      >
                         <AppTooltip label={context?.description}>
                           <button
                             className="mobile-note-label"

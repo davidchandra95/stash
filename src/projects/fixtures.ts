@@ -33,6 +33,7 @@ export function previewProjectData(now = new Date()): ProjectData {
     priority: 0,
     startDate: null,
     dueDate: null,
+    dueTime: null,
     completedAt: fields.status === 'done' ? at : null,
     sort,
     deletedAt: null,

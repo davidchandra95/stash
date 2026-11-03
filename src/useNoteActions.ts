@@ -9,10 +9,10 @@ import {
 } from './noteTitles'
 
 // Both shells use the same mutations and save queue; navigation belongs to the shell.
-export function useNoteActions(beforeUpdate?: () => void) {
+export function useNoteActions(beforeUpdate?: (id?: string, patch?: Partial<Note>) => void) {
   const update = (id: string, patch: Partial<Note>) => {
     if (['pinned', 'trashed', 'quickAccess', 'notebookIds'].some((key) => key in patch))
-      beforeUpdate?.()
+      beforeUpdate?.(id, patch)
     if ('title' in patch) stopFollowingFirstLine(id)
     else if (patch.content && followsFirstLine(id))
       patch = { ...patch, title: titleFromFirstLine(patch.content) }

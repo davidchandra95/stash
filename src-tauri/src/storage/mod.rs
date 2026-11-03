@@ -281,13 +281,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 11 {
+        if version > 12 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 11 {
+        if version > 0 && version < 12 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -389,6 +389,12 @@ impl Store {
         if version < 11 {
             let tx = store.conn.transaction().map_err(db_err)?;
             tx.execute_batch(include_str!("projects_schema.sql"))
+                .map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 12 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_due_time_schema.sql"))
                 .map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
@@ -1098,6 +1104,8 @@ fn validate_appearance(value: &Value) -> Result<()> {
             .is_some_and(|n| (40..=100).contains(&n));
     let valid = valid
         && value.get("animationsEnabled").is_none_or(Value::is_boolean)
+        && value.get("smartTaskDates").is_none_or(Value::is_boolean)
+        && value.get("keepTaskDateWords").is_none_or(Value::is_boolean)
         && value
             .get("showFormattingToolbar")
             .is_none_or(Value::is_boolean)

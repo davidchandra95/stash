@@ -8,14 +8,14 @@
 }
 .window > .project-pane {
   grid-column: 2 / -1;
-  grid-row: 1;
+  grid-row: 2;
 }
 :root[data-vibrancy] .window > .project-pane {
   background: var(--bg-content);
 }
 .window.layout-cards > .project-pane {
   overflow: hidden;
-  margin: 6px;
+  margin: 0 6px 6px;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
 }
@@ -279,6 +279,87 @@
 }
 .new-task-input::placeholder {
   color: var(--text-4);
+}
+.smart-task-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.smart-task-field .new-task-input {
+  display: block;
+  width: 100%;
+  padding: 0;
+  color: transparent;
+  caret-color: var(--text);
+}
+.smart-task-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.smart-task-mirror {
+  width: max-content;
+  white-space: pre;
+  color: var(--text);
+  font: inherit;
+}
+.smart-task-match {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font: inherit;
+  line-height: inherit;
+  pointer-events: auto;
+}
+.smart-task-match:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.smart-task-date {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
+.smart-task-date-trigger {
+  color: var(--text-2);
+  gap: var(--space-2);
+}
+.smart-task-date-trigger .ui-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.smart-task-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 272px;
+  max-width: calc(100vw - var(--space-6));
+  padding: var(--space-5);
+}
+.smart-task-shortcuts {
+  display: flex;
+  gap: var(--space-2);
+}
+.smart-task-time {
+  flex: 1;
+  min-width: 0;
+}
+.smart-task-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.smart-task-option input {
+  accent-color: var(--accent);
+}
+.smart-task-options .field-help {
+  margin: 0;
 }
 .task-group-header {
   display: flex;

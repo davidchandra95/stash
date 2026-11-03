@@ -7,13 +7,12 @@ import { closeHistory } from '@tiptap/pm/history'
 import {
   calendarDate,
   dateOnlyFormatIndexes,
-  moveCalendarDate,
-  moveCalendarMonth,
   type DatePickerRequest,
 } from '../editor/datePicker'
 import { dateFormats } from '../editor/slashOptions'
-import { ArrowLeft, ChevronRight } from '../icons'
+import { ArrowLeft } from '../icons'
 import type { Appearance } from '../model'
+import Calendar from './Calendar'
 
 interface Target {
   range: DatePickerRequest['range']
@@ -24,7 +23,6 @@ const today = () => {
   const now = new Date()
   return calendarDate(now.getFullYear(), now.getMonth(), now.getDate())
 }
-const sameDay = (a: Date, b: Date) => a.getTime() === b.getTime()
 
 export default function DatePicker({
   editor,
@@ -187,11 +185,6 @@ export default function DatePicker({
       .run()
     editor.view.focus()
   }
-  const first = calendarDate(day.getFullYear(), day.getMonth(), 1)
-  const days = calendarDate(day.getFullYear(), day.getMonth() + 1, 0).getDate()
-  const week = Array.from({ length: 7 }, (_, i) =>
-    calendarDate(2023, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' }),
-  )
   return (
     <Popover.Root
       open={open && !readOnly}
@@ -227,88 +220,15 @@ export default function DatePicker({
         >
           {step === 'calendar' ? (
             <>
-              <div className="date-picker-header">
-                <button
-                  type="button"
-                  aria-label="Previous month"
-                  onClick={() => move(moveCalendarMonth(day, -1))}
-                >
-                  <ArrowLeft />
-                </button>
-                <span aria-live="polite">
-                  {day.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Next month"
-                  onClick={() => move(moveCalendarMonth(day, 1))}
-                >
-                  <ChevronRight />
-                </button>
-              </div>
-              <div className="date-calendar" role="grid" aria-label="Calendar">
-                <div className="date-calendar-row" role="row">
-                  {week.map((label, i) => (
-                    <span role="columnheader" key={i}>
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                {Array.from({ length: Math.ceil((first.getDay() + days) / 7) }, (_, row) => (
-                  <div className="date-calendar-row" role="row" key={row}>
-                    {Array.from({ length: 7 }, (_, col) => {
-                      const number = row * 7 + col - first.getDay() + 1
-                      if (number < 1 || number > days) return <span role="gridcell" key={col} />
-                      const date = calendarDate(day.getFullYear(), day.getMonth(), number)
-                      return (
-                        <span role="gridcell" aria-selected={sameDay(date, selected)} key={col}>
-                          <button
-                            type="button"
-                            data-calendar-day
-                            tabIndex={sameDay(date, day) ? 0 : -1}
-                            aria-label={date.toLocaleDateString(undefined, {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                            aria-current={sameDay(date, today()) ? 'date' : undefined}
-                            onFocus={() => {
-                              focusDay.current = true
-                            }}
-                            onClick={() => select(date)}
-                            onKeyDown={(event) => {
-                              const offset = {
-                                ArrowLeft: -1,
-                                ArrowRight: 1,
-                                ArrowUp: -7,
-                                ArrowDown: 7,
-                              }[event.key]
-                              if (offset !== undefined) {
-                                event.preventDefault()
-                                move(moveCalendarDate(date, offset))
-                              } else if (event.key === 'Home' || event.key === 'End') {
-                                event.preventDefault()
-                                move(
-                                  moveCalendarDate(
-                                    date,
-                                    (event.key === 'Home' ? 0 : 6) - date.getDay(),
-                                  ),
-                                )
-                              } else if (event.key === 'PageUp' || event.key === 'PageDown') {
-                                event.preventDefault()
-                                move(moveCalendarMonth(date, event.key === 'PageUp' ? -1 : 1))
-                              }
-                            }}
-                          >
-                            {number}
-                          </button>
-                        </span>
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
+              <Calendar
+                day={day}
+                selected={selected}
+                onMove={move}
+                onSelect={select}
+                onDayFocus={() => {
+                  focusDay.current = true
+                }}
+              />
               <button className="date-today" type="button" onClick={() => select(today())}>
                 Today
               </button>

@@ -7,15 +7,14 @@ import {
   captureLocation,
   closeTab,
   currentLocation,
-  historyIndex,
   keepTabOpen,
   reorderTab,
   setTabPinned,
-  moveHistory,
   openNote,
   openPdf,
   previewNote,
   pruneWorkspace,
+  restoreLocation,
   restoreWorkspace,
   workspacePreferences,
   type Location,
@@ -127,9 +126,13 @@ export function useWorkspace({
   const close = (id: string) => {
     if (!disabled) commit(closeTab(capture(), id))
   }
-  const move = (direction: number) => {
-    if (!disabled) setActivation((n) => n + 1)
-    if (!disabled) commit(moveHistory(capture(), direction, notes, documents), true)
+  /** Goes back to a timeline stop and returns the tab showing it. */
+  const restore = (tabId: string, location: Location) => {
+    if (disabled) return null
+    setActivation((n) => n + 1)
+    const next = restoreLocation(capture(), tabId, location)
+    commit(next, true)
+    return next.activeTabId
   }
   const tab = activeTab(state)
   const noteId = tab ? currentLocation(tab).noteId : undefined
@@ -186,8 +189,6 @@ export function useWorkspace({
     keepNoteOpen,
     select,
     close,
-    move,
-    canBack: historyIndex(tab, -1, notes, documents) !== undefined,
-    canForward: historyIndex(tab, 1, notes, documents) !== undefined,
+    restore,
   }
 }

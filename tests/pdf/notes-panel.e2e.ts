@@ -95,22 +95,21 @@ for (const viewport of [
       // Hiding the list keeps its width for when it returns.
       expect(restoredListWidth).toBe(visibleListWidth)
       await page.screenshot({ path: test.info().outputPath(`${name}-collapsed.png`) })
-      // With the sidebar shown, the editor bar leads with the notes-list toggle.
-      const editorBar = page.locator('.editor-bar')
-      const showList = editorBar.getByRole('button', { name: 'Show notes list', exact: true })
+      // The app bar offers the notes-list toggle before Back and Forward.
+      const appBar = page.locator('.app-bar')
+      const showList = appBar.getByRole('button', { name: 'Show notes list', exact: true })
       await expect(showList).toHaveAttribute('aria-expanded', 'false')
-      const back = await editorBar
-        .getByRole('button', { name: 'Back to previous note', exact: true })
+      const back = await appBar
+        .getByRole('button', { name: 'Go back', exact: true })
         .boundingBox()
       expect((await showList.boundingBox())!.x).toBeLessThan(back!.x)
-      await expect(editorBar.locator('.window-controls-space')).toHaveCount(0)
       await page.getByRole('button', { name: 'Hide sidebar', exact: true }).click()
       await expect.poll(async () => (await tracks()).slice(0, 2)).toEqual([0, 0])
       await panesSettled(page)
-      // The editor is now leftmost: it reserves the traffic-light space before both toggles.
+      // The app bar always reserves the traffic-light space before both toggles.
       await page.locator('.window').evaluate((element) => element.classList.add('native-chrome'))
-      const controls = await editorBar.locator('.window-controls-space').boundingBox()
-      const showSidebar = await editorBar
+      const controls = await appBar.locator('.window-controls-space').boundingBox()
+      const showSidebar = await appBar
         .getByRole('button', { name: 'Show sidebar', exact: true })
         .boundingBox()
       expect(controls!.width).toBe(70)

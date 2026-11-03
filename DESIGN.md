@@ -151,18 +151,20 @@ Settings › Appearance › Theme. Native is the default.
 
 - Three columns: sidebar (default 232px), notes list (300px), editor. Widths are saved; pane
   resizers are invisible until focused.
-- No global title bar. Each pane has a 42px `.pane-bar` that is also a window drag region
+- A full-width 42px `.app-bar` (`app/AppBar.tsx`) sits above every pane and holds what is global.
+  Left: 70px traffic-light clearance in the native app (`--window-controls`), the sidebar toggle,
+  and the notes-list toggle while that list is hidden. Center: Back/Forward and the search field.
+  The panes and the content card start below it.
+- Each pane also has a 42px `.pane-bar`. App and pane bars are window drag regions
   (`data-tauri-drag-region` on the bar and on empty filler elements).
-- The leftmost visible pane hosts the window controls: 70px traffic-light clearance in the native
-  app (`--window-controls`), the sidebar toggle, and, in the editor when the notes list is
-  hidden, the notes-list toggle.
-- Sidebar bar: traffic lights and the sidebar toggle. Notes bar: view title, count, "Sort and
-  view options" menu, New note. Editor bar: Back/Forward, tabs, note controls (Focus mode, Table
-  of contents, Find in note, Note actions).
+- Notes bar: view title, count, "Sort and view options" menu, New note. Editor bar: tabs, note
+  controls (Focus mode, Table of contents, Find in note, Note actions).
+- Back/Forward follow one timeline across notes, PDFs, project pages and tasks (`timeline.ts`).
+  Stops that no longer exist are skipped, and a stop whose tab was closed reopens in a new tab.
 - Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
-- The app has two areas, Notes and Projects. The domain switcher at the top of the sidebar
-  (above Search) picks one, as do Show Notes (⌘1) and Show Projects (⌘2). The sidebar below it
-  belongs to the active area; Search stays first in both. Switching to Projects reopens the
+- The app has two areas, Notes and Projects. The domain switcher tabs at the top of the sidebar
+  picks one, as do Show Notes (⌘1) and Show Projects (⌘2). The sidebar below it
+  belongs to the active area. Switching to Projects reopens the
   project page last open there (Due today by default).
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
@@ -185,6 +187,10 @@ Use the shared classes before writing new CSS:
 - Menus: Radix content `.menu`, items `.menu-item` containing `.menu-icon`, `.menu-text`,
   optional `.menu-shortcut`; `.menu-separator`, `.menu-label`. `MenuActionContent` renders icon
   and text.
+- Dates: `DateField` (`components/DateField.tsx`), a `.field` button that opens the shared
+  `Calendar` in a `.date-picker` popover with Today and Clear. Don't use `<input type="date">`;
+  its popup is drawn by the system and ignores the theme. The calendar always shows six weeks,
+  with outside days in `--text-4`, today in `--accent-soft` and the selection in `--accent`.
 - Popovers `.popover`; dialogs `.dialog` with `.dialog-header`, `.dialog-title`,
   `.dialog-description`, `.dialog-body`, `.dialog-footer` (buttons right-aligned, primary last).
 - Notices: `.notice` inside `.notices` at the bottom of the window, for errors with Retry,
@@ -198,14 +204,15 @@ Use the shared classes before writing new CSS:
 
 ## Domain switcher
 
-- It is app-level navigation, so it must not look like a sidebar row: a 40px `--bg-content`
-  button with `--shadow-control` and `--radius-lg`, a 28px solid icon tile, the area name in
-  one line (15px, 700) and a ChevronsUpDown. A gap separates it from Search.
-- Area tiles use a gradient of the area's `data-tone` (Notes indigo, Projects orange) with a
-  white icon (`--bg-content` in dark mode). Row icons keep their 15% tinted tiles.
-- It opens a Radix `.menu` listing each area with its tile, a check on the current one and its
-  shortcut. A red count badge shows overdue tasks on Projects, and on the button while Notes is
-  shown.
+- It is app-level navigation, so it must not look like a sidebar row: a `--fill-2` tray
+  (`--radius-xl`, 3px padding) holding one equal-width tab per area, each a Lucide outline icon
+  and the area name (13px, 500). The current tab gets `--bg-control` with `--shadow-control`;
+  the others are `--text-2`.
+- Tabs are `aria-pressed` buttons; their tooltip shows the area's shortcut. A red count badge
+  shows overdue tasks on the Projects tab.
+- One selection background slides between the tabs with a `--normal` (180ms) transform
+  transition and `--ease`. The active area and page change immediately. Reduced motion and
+  the Animations setting disable the slide; the background starts in place on launch.
 - Add an area only when a real domain ships; the switcher is not a launcher.
 
 ## Projects and tasks
@@ -231,6 +238,11 @@ Use the shared classes before writing new CSS:
   an empty state, when no task matches.
 - Task and project menus are Radix menus on every platform; destructive items use
   `.menu-item.is-danger`.
+- New-task fields share a date and time smart input. Keep the native input and caret, mark
+  accepted phrases with `--accent-soft` and `--accent-text`, and show the due date and time beside a
+  calendar button. Clicking the mark cancels recognition without deleting text. The popover
+  embeds the shared calendar and uses shared fields, buttons and surface tokens; manual dates and times override recognition.
+  See `documents/TASK_SMART_INPUT.md` for parsing, title and preference rules.
 
 ## Writing surface
 
@@ -243,6 +255,10 @@ Use the shared classes before writing new CSS:
   shows only while the editor has focus and a selection, or while one of its pickers is open.
   "Always show formatting toolbar" docks it at the bottom center. It is at most 460px wide;
   lower-priority tools move to its overflow menu.
+- The floating formatting toolbar appears with a short 120ms fade and 2px movement toward
+  its resting position. The docked toolbar stays steady, and selection movement, tool changes,
+  and resizing never animate its position or size. Reduced motion and Animations off remove
+  the effect.
 - The editor's caret and selection are drawn by layers (`.writing-cursor-layer`,
   `.selection-highlight`); native selection paint stays transparent in editable notes.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
@@ -252,12 +268,20 @@ Use the shared classes before writing new CSS:
 
 - Note list clicks open a replaceable preview tab (italic title); editing or double-clicking keeps
   it. Tabs can be pinned and reordered (drag after 6px, or Ctrl+Shift+Left/Right).
+- Tab neighbors make room with a 120ms transform slide (`motion.reorder`). Drops, cancelled
+  drags, keyboard moves and pin changes settle into their slots with the same short timing,
+  without bounce or scaling. Dragged tabs follow the pointer directly; tab gaps and pinned
+  group boundaries stay intact. Reduced motion and Animations off disable these slides.
 - The sidebar view, pane widths, list mode, sorting, tabs and contents width are workspace
   preferences restored on launch.
 - Autosave is silent; failures, conflicts and preview-only storage are always visible.
-- Command palette: Cmd/Ctrl+P titles, Tab toggles note text, `>` for commands,
-  Cmd/Ctrl+Enter opens in a new tab. Trash is excluded.
+- Command palette: Cmd/Ctrl+P finds notes, projects and tasks (titles first, then task and project
+  descriptions), Tab toggles note text, `>` for commands, Cmd/Ctrl+Enter opens a note in a new
+  tab. Trash and deleted work are excluded.
 - Reduced motion and the Animations setting disable transitions (`:root[data-motion='off']`).
+- Pin and unpin use a brief list reorder only when the note's old and new rows are fully
+  visible and at most 240px apart. Offscreen moves and removal from Pinned notes are immediate;
+  pinning keeps the existing list order rules and separate Pinned notes view.
 - Showing or hiding the sidebar, notes list or focus mode never animates grid columns. The grid
   snaps to its final columns and panes slide with transforms (`src/layoutMotion.ts`), so the
   editor lays out its text once, not on every frame.

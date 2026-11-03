@@ -3,7 +3,8 @@ import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { isTauri } from '@tauri-apps/api/core'
 import type { Note, Notebook } from '../model'
-import { FileText, Search, type IconComponent } from '../icons'
+import type { Project, Task } from '../projects/model'
+import { FileText, Folder, Search, SquareCheck, type IconComponent } from '../icons'
 import { useMotionEnabled } from '../motion'
 import { ShortcutContext } from '../useShortcuts'
 import { bindingFor, matchesBinding } from '../shortcuts'
@@ -19,8 +20,9 @@ import {
 import {
   commandResults,
   notebookContext,
-  quickOpenResults,
+  quickResults,
   quickTitleParts,
+  type QuickResult,
   type MatchNavigation,
   type ReadSearchNote,
   type TitleRange,
@@ -62,11 +64,15 @@ export default function CommandPalette({
   initialQuery = '',
   notes,
   notebooks,
+  projects,
+  tasks,
   disabled,
   recentNoteIds,
   commands,
   readNote,
   onSelect,
+  onSelectProject,
+  onSelectTask,
   onSelectMatch,
 }: {
   open: boolean
@@ -75,11 +81,15 @@ export default function CommandPalette({
   initialQuery?: string
   notes: Note[]
   notebooks: Notebook[]
+  projects: Project[]
+  tasks: Task[]
   disabled: boolean
   recentNoteIds: string[]
   commands: PaletteCommand[]
   readNote: ReadSearchNote
   onSelect: (id: string, newTab?: boolean) => void
+  onSelectProject: (id: string) => void
+  onSelectTask: (id: string) => void
   onSelectMatch: (request: MatchNavigation, newTab?: boolean) => void
 }) {
   const [text, setText] = useState(''),
@@ -100,8 +110,9 @@ export default function CommandPalette({
   const query = commandMode ? text.slice(COMMAND_PREFIX.length) : text
 
   const titleMatches = useMemo(
-    () => (open && mode === 'titles' ? quickOpenResults(notes, query, recentNoteIds) : []),
-    [open, mode, notes, query, recentNoteIds],
+    () =>
+      open && mode === 'titles' ? quickResults(notes, projects, tasks, query, recentNoteIds) : [],
+    [open, mode, notes, projects, tasks, query, recentNoteIds],
   )
   const commandMatches = useMemo(
     () => (open && mode === 'commands' ? commandResults(commands, query) : []),
@@ -151,10 +162,35 @@ export default function CommandPalette({
     skipFocusReturn.current = !restoreFocus
     onOpenChange(false)
   }
-  const chooseNote = (note: Note, newTab = false) => {
+  const chooseResult = (result: QuickResult, newTab = false) => {
     if (disabled) return
     close(false)
-    onSelect(note.id, newTab || undefined)
+    if (result.kind === 'note') onSelect(result.note.id, newTab || undefined)
+    else if (result.kind === 'project') onSelectProject(result.project.id)
+    else onSelectTask(result.task.id)
+  }
+  const describeResult = (result: QuickResult) => {
+    if (result.kind === 'note')
+      return {
+        id: result.note.id,
+        title: result.note.title || 'Untitled note',
+        context: notebookContext(result.note, notebooks),
+        Icon: FileText,
+      }
+    if (result.kind === 'project')
+      return {
+        id: result.project.id,
+        title: result.project.name,
+        context: 'Project',
+        Icon: Folder,
+      }
+    const { task } = result
+    return {
+      id: task.id,
+      title: task.title,
+      context: projects.find((project) => project.id === task.projectId)?.name ?? 'Inbox',
+      Icon: SquareCheck,
+    }
   }
   const chooseCommand = (command: PaletteCommand) => {
     if (disabled || command.disabled) return
@@ -191,13 +227,13 @@ export default function CommandPalette({
       ? 'Run a command…'
       : mode === 'bodies'
         ? 'Search note bodies…'
-        : 'Find note titles… or type > for commands'
+        : 'Search notes, projects and tasks… or type > for commands'
   const label =
     mode === 'commands'
       ? 'Run a command'
       : mode === 'bodies'
         ? 'Search note bodies'
-        : 'Find note titles'
+        : 'Search notes, projects and tasks'
   const activeDescendant =
     mode === 'bodies'
       ? selectedRow
@@ -242,7 +278,8 @@ export default function CommandPalette({
           >
             <Dialog.Title className="sr-only">Search and commands</Dialog.Title>
             <Dialog.Description className="sr-only" id={`${listId}-description`}>
-              Type to find note titles. Press Tab for note text, or type &gt; to run a command.
+              Type to find notes, projects and tasks. Press Tab for note text, or type &gt; to run
+              a command.
               Excludes Trash.
             </Dialog.Description>
             <div className="palette-input">
@@ -280,7 +317,7 @@ export default function CommandPalette({
                     const newTab = event.metaKey || event.ctrlKey
                     if (mode === 'titles') {
                       const result = titleMatches[selectedIndex]
-                      if (result) chooseNote(result.note, newTab)
+                      if (result) chooseResult(result, newTab)
                     } else if (mode === 'commands') {
                       const result = commandMatches[selectedIndex]
                       if (result) chooseCommand(result.command)
@@ -319,13 +356,12 @@ export default function CommandPalette({
                       Recent
                     </p>
                   )}
-                  <div id={listId} role="listbox" aria-label="Matching note titles">
-                    {titleMatches.map(({ note, ranges }, i) => {
-                      const title = note.title || 'Untitled note',
-                        context = notebookContext(note, notebooks)
+                  <div id={listId} role="listbox" aria-label="Matching results">
+                    {titleMatches.map((result, i) => {
+                      const { id, title, context, Icon } = describeResult(result)
                       return (
                         <div
-                          key={note.id}
+                          key={id}
                           id={`${listId}-${i}`}
                           role="option"
                           aria-selected={i === selectedIndex}
@@ -333,12 +369,12 @@ export default function CommandPalette({
                           className="palette-row"
                           onMouseDown={(event) => event.preventDefault()}
                           onMouseMove={() => i !== selectedIndex && setIndex(i)}
-                          onClick={(event) => chooseNote(note, event.metaKey || event.ctrlKey)}
+                          onClick={(event) => chooseResult(result, event.metaKey || event.ctrlKey)}
                         >
-                          <FileText aria-hidden="true" />
+                          <Icon aria-hidden="true" />
                           <AppTooltip label={title}>
                             <span className="palette-label">
-                              <Highlighted text={title} ranges={ranges} />
+                              <Highlighted text={title} ranges={result.ranges} />
                             </span>
                           </AppTooltip>
                           <AppTooltip label={context}>
@@ -351,7 +387,7 @@ export default function CommandPalette({
                   {!titleMatches.length && (
                     <p className="palette-empty" role="status">
                       {query.trim()
-                        ? 'No matching titles. Press Tab to search note text.'
+                        ? 'No matching notes, projects or tasks. Press Tab to search note text.'
                         : 'No recent notes. Type to find a title.'}
                     </p>
                   )}

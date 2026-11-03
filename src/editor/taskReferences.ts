@@ -6,7 +6,7 @@ import { attachDomTooltip } from '../components/AppTooltip'
 import { noteLinkContext, validNoteId } from './noteReferences'
 import { projectStore } from '../projects/store'
 import { toggleTask } from '../projects/actions'
-import { dueState, formatDate, type Task } from '../projects/model'
+import { dueState, formatTaskDue, type Task } from '../projects/model'
 
 /**
  * A mention of a task. The note stores only the task ID (plus a title for when the task isn't
@@ -136,7 +136,7 @@ export const TaskReference = Node.create({
             ? 'Deleted task'
             : 'Task not found'
           : task?.dueDate
-            ? formatDate(task.dueDate)
+            ? formatTaskDue(task)
             : ''
         meta.className = `task-ref-meta is-${missing ? 'missing' : due}`
         meta.hidden = !meta.textContent

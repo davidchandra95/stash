@@ -26,6 +26,7 @@ fn task(id: &str, project_id: Option<&str>) -> SaveTask {
         priority: 2,
         start_date: None,
         due_date: Some("2026-11-04".into()),
+        due_time: None,
         sort: 1.0,
         deleted: false,
         expected_revision: 0,
@@ -51,6 +52,60 @@ fn creates_and_reloads_projects_and_tasks() {
     let data = store.project_data().unwrap();
     assert_eq!(data.projects, saved.projects);
     assert_eq!(data.tasks, saved.tasks);
+}
+
+#[test]
+fn due_times_survive_reopening_and_are_validated() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    for (index, time) in ["00:00", "12:00", "14:30", "23:59"].iter().enumerate() {
+        let mut input = task(&format!("time-{index}"), None);
+        input.due_time = Some((*time).into());
+        let saved = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
+        assert_eq!(saved.tasks[0].due_time.as_deref(), Some(*time));
+    }
+    for time in ["24:00", "14:60", "2pm", "2:00", "14:00:00", "", "é:00"] {
+        let mut input = task("invalid", None);
+        input.due_time = Some(time.into());
+        assert!(store.save_project_changes(&changes(vec![], vec![input])).unwrap_err().contains("due time"));
+    }
+    let mut no_date = task("no-date", None);
+    no_date.due_date = None;
+    no_date.due_time = Some("14:00".into());
+    assert!(store.save_project_changes(&changes(vec![], vec![no_date])).unwrap_err().contains("due time"));
+    assert!(store.conn.execute("UPDATE tasks SET due_time='24:00'", []).is_err());
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let data = store.project_data().unwrap();
+    assert_eq!(data.tasks.len(), 4);
+    assert!(data.tasks.iter().all(|task| task.due_time.is_some()));
+}
+
+#[test]
+fn version_eleven_migration_preserves_tasks_and_backs_up_before_adding_due_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let before = store.save_project_changes(&changes(vec![project("p")], vec![task("t", Some("p"))])).unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
+    drop(store);
+    let mut store = Store::open(dir.path()).unwrap();
+    let after = store.project_data().unwrap();
+    assert_eq!(after.projects, before.projects);
+    assert_eq!(after.tasks, before.tasks);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 12);
+    let backups: Vec<_> = fs::read_dir(dir.path().join("backups")).unwrap().map(|entry| entry.unwrap().path()).collect();
+    assert_eq!(backups.len(), 1);
+    let backup = Connection::open(&backups[0]).unwrap();
+    assert_eq!(backup.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 11);
+    assert_eq!(backup.query_row("SELECT title FROM tasks WHERE id='t'", [], |r| r.get::<_, String>(0)).unwrap(), before.tasks[0].title);
+    let mut input = task("t", Some("p"));
+    input.expected_revision = 1;
+    input.due_time = Some("14:00".into());
+    store.save_project_changes(&changes(vec![], vec![input])).unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    assert_eq!(store.project_data().unwrap().tasks[0].due_time.as_deref(), Some("14:00"));
+    assert_eq!(fs::read_dir(dir.path().join("backups")).unwrap().count(), 1);
 }
 
 #[test]
@@ -185,7 +240,7 @@ fn version_ten_libraries_gain_project_tables_after_a_backup() {
 
     let mut store = Store::open(dir.path()).unwrap();
     let version: i64 = store.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 11);
+    assert_eq!(version, 12);
     assert_eq!(store.note("a", false).unwrap().title, "Kept");
     store
         .save_project_changes(&changes(vec![project("p")], vec![]))

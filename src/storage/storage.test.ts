@@ -747,7 +747,10 @@ it('does not create an empty duplicate on load failure and can retry', async () 
 
 it('defaults missing appearance preferences and retains saved values on reopening', async () => {
   const t = transport()
-  const { animationsEnabled: _, listItemSpacing: __, ...legacy } = defaultAppearance
+  const {
+    animationsEnabled: _, listItemSpacing: __,
+    smartTaskDates: ___, keepTaskDateWords: ____, ...legacy
+  } = defaultAppearance
   t.open.mockResolvedValue({
     notes: [],
     notebooks: [],
@@ -759,10 +762,14 @@ it('defaults missing appearance preferences and retains saved values on reopenin
   await store.open()
   expect(store.getSnapshot().appearance.animationsEnabled).toBe(true)
   expect(store.getSnapshot().appearance.listItemSpacing).toBe(0)
+  expect(store.getSnapshot().appearance.smartTaskDates).toBe(true)
+  expect(store.getSnapshot().appearance.keepTaskDateWords).toBe(false)
   expect(store.getSnapshot().appearance.headingStyles).toEqual(defaultAppearance.headingStyles)
   store.setAppearance({
     ...store.getSnapshot().appearance,
     animationsEnabled: false,
+    smartTaskDates: false,
+    keepTaskDateWords: true,
     headingStyles: {
       ...store.getSnapshot().appearance.headingStyles,
       h2: { font: 'palatino', weight: 700, italic: true, color: '#216f9c' },
@@ -780,6 +787,8 @@ it('defaults missing appearance preferences and retains saved values on reopenin
   const reopened = new LibraryStore(t)
   await reopened.open()
   expect(reopened.getSnapshot().appearance.animationsEnabled).toBe(false)
+  expect(reopened.getSnapshot().appearance.smartTaskDates).toBe(false)
+  expect(reopened.getSnapshot().appearance.keepTaskDateWords).toBe(true)
   expect(reopened.getSnapshot().appearance.headingStyles.h2).toEqual({
     font: 'palatino',
     weight: 700,

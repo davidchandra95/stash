@@ -8,7 +8,6 @@ import {
   type Ref,
 } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
-import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import AppTooltip from '../components/AppTooltip'
 import NotebookTree from '../components/NotebookTree'
 import { NotebookIconGlyph } from '../notebookIcons'
@@ -30,9 +29,7 @@ import { tagTone } from '../tags'
 import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
-  Check,
   ChevronRight,
-  ChevronsUpDown,
   CircleAlert,
   CircleCheck,
   Cloud,
@@ -115,10 +112,8 @@ function useViewCount(notebooks: { id: string }[]) {
 }
 
 export default trackApp(function Sidebar({
-  onSearch,
   ...presence
 }: {
-  onSearch: () => void
   /** MotionPresence passes its ref, inert and state here; the aside must receive them. */
   ref?: Ref<HTMLElement>
 } & HTMLAttributes<HTMLElement>) {
@@ -164,17 +159,8 @@ export default trackApp(function Sidebar({
 
   return (
     <aside {...presence} className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
-      <div className="pane-bar sidebar-bar" data-tauri-drag-region>
-        <span className="window-controls-space" data-tauri-drag-region />
-        <SidebarToggle />
-      </div>
       <DomainSwitcher />
       <div className="sidebar-scroll">
-        <button className="side-row side-search" onClick={onSearch} disabled={blocked}>
-          <Search aria-hidden="true" />
-          <span className="side-label">Search</span>
-          <kbd aria-hidden="true">{app.shortcutFor('quick-open')}</kbd>
-        </button>
         {app.domain === 'projects' ? (
           <ProjectsNavigation />
         ) : (
@@ -514,83 +500,47 @@ function ProjectsNavigation() {
   )
 }
 
-const domains: { id: Domain; label: string; tone: string; icon: ReactNode; shortcut: string }[] = [
+const domains: { id: Domain; label: string; icon: ReactNode; shortcut: string }[] = [
   {
     id: 'notes',
     label: 'Notes',
-    tone: 'indigo',
     icon: <NotebookPen aria-hidden="true" />,
     shortcut: 'show-notes',
   },
   {
     id: 'projects',
     label: 'Projects',
-    tone: 'orange',
     icon: <SquareCheckBig aria-hidden="true" />,
     shortcut: 'show-projects',
   },
 ]
 
-/** The app-level switch between Notes and Projects, above Search. */
+/** The app-level switch between Notes and Projects. */
 function DomainSwitcher() {
   const app = useApp()
   const blocked = useBlocked()
-  const current = domains.find((d) => d.id === app.domain)!
   const overdue =
     todayGroups(app.projects.tasks, today()).find((g) => g.id === 'overdue')?.tasks.length ?? 0
   return (
-    <div className="domain-switcher">
-      <Dropdown.Root>
-        <Dropdown.Trigger asChild>
+    <div className="domain-switcher" data-domain={app.domain} role="group" aria-label="Area">
+      {domains.map((d) => (
+        <AppTooltip key={d.id} label={d.label} shortcut={app.shortcutFor(d.shortcut)}>
           <button
-            className="domain-current"
-            disabled={blocked}
-            aria-label={`${current.label}, switch area`}
+            className="domain-tab"
+            aria-pressed={d.id === app.domain}
+            disabled={blocked || (d.id === 'projects' && !app.projects.ready)}
+            onClick={() => app.switchDomain(d.id)}
           >
-            <span className="domain-tile" data-tone={current.tone}>
-              {current.icon}
-            </span>
-            <span className="domain-name">{current.label}</span>
-            {app.domain !== 'projects' && overdue > 0 && (
+            {d.icon}
+            <span className="domain-name">{d.label}</span>
+            {d.id === 'projects' && overdue > 0 && (
               <span className="domain-badge" role="img" aria-label={`${overdue} overdue tasks`}>
                 {overdue}
               </span>
             )}
-            <ChevronsUpDown aria-hidden="true" className="ui-icon domain-chevron" />
           </button>
-        </Dropdown.Trigger>
-        <Dropdown.Portal>
-          <Dropdown.Content
-            className="menu domain-menu"
-            align="start"
-            sideOffset={4}
-            collisionPadding={8}
-          >
-            {domains.map((d) => (
-              <Dropdown.Item
-                key={d.id}
-                className="menu-item"
-                disabled={d.id === 'projects' && !app.projects.ready}
-                onSelect={() => app.switchDomain(d.id)}
-              >
-                <span className="menu-check">
-                  {d.id === app.domain && <Check aria-hidden="true" />}
-                </span>
-                <span className="domain-tile" data-tone={d.tone}>
-                  {d.icon}
-                </span>
-                <span className="menu-text">{d.label}</span>
-                {d.id === 'projects' && overdue > 0 && (
-                  <span className="domain-badge" role="img" aria-label={`${overdue} overdue tasks`}>
-                    {overdue}
-                  </span>
-                )}
-                <span className="menu-shortcut">{app.shortcutFor(d.shortcut)}</span>
-              </Dropdown.Item>
-            ))}
-          </Dropdown.Content>
-        </Dropdown.Portal>
-      </Dropdown.Root>
+        </AppTooltip>
+      ))}
     </div>
   )
 }

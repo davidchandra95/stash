@@ -20,6 +20,13 @@ type Saved = Parameters<typeof normalizeAppearance>[0]
 const saved = (value: Record<string, unknown>) => value as Saved
 
 describe('normalizeAppearance', () => {
+  it('loads smart task input preferences and replaces invalid values with defaults', () => {
+    expect(normalizeAppearance({ smartTaskDates: false, keepTaskDateWords: true }, defaultAppearance))
+      .toMatchObject({ smartTaskDates: false, keepTaskDateWords: true })
+    expect(normalizeAppearance(saved({ smartTaskDates: 'false', keepTaskDateWords: 1 }), defaultAppearance))
+      .toMatchObject({ smartTaskDates: true, keepTaskDateWords: false })
+  })
+
   it('uses defaults when nothing was saved', () => {
     expect(normalizeAppearance(null, defaultAppearance)).toEqual(defaultAppearance)
     expect(normalizeAppearance(undefined, defaultAppearance)).toEqual(defaultAppearance)

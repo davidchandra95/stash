@@ -130,7 +130,7 @@
   color: var(--text-3);
 }
 .tabs.is-reordering .tab {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-reorder, var(--fast)) var(--ease);
 }
 .tabs.is-reordering .tab.is-dragged {
   z-index: 1;

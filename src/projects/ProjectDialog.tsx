@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import DateField from '../components/DateField'
 import { defaultNotebookColor, notebookColors } from '../notebookColors'
 import type { Notebook } from '../model'
 import { createProject, updateProject, type ProjectFields } from './actions'
@@ -114,20 +115,16 @@ export default function ProjectDialog({
               </select>
               <span className="project-form-label">Dates</span>
               <div className="project-dates">
-                <input
-                  type="date"
-                  className="field"
-                  aria-label="Start date"
-                  value={fields.startDate ?? ''}
-                  onChange={(event) => set({ startDate: event.target.value || null })}
+                <DateField
+                  label="Start date"
+                  value={fields.startDate}
+                  onChange={(startDate) => set({ startDate })}
                 />
                 <span aria-hidden="true">–</span>
-                <input
-                  type="date"
-                  className="field"
-                  aria-label="End date"
-                  value={fields.endDate ?? ''}
-                  onChange={(event) => set({ endDate: event.target.value || null })}
+                <DateField
+                  label="End date"
+                  value={fields.endDate}
+                  onChange={(endDate) => set({ endDate })}
                 />
               </div>
               <label htmlFor="project-notebook">Notebook</label>

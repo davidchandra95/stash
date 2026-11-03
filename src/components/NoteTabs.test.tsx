@@ -379,3 +379,40 @@ it('unpins with the trailing control without closing or selecting, and blocks mo
   await act(() => pin.click())
   expect(onPinTab).not.toHaveBeenCalled()
 })
+
+it('preserves tab padding and gaps while making room for tabs of different widths', async () => {
+  const { host, onReorderTab } = await mount({
+    tabs: [
+      { id: 'first', noteId: 'a', pinned: true },
+      { id: 'second', noteId: 'b', pinned: true },
+      { id: 'third', noteId: 'c', pinned: true },
+    ],
+  })
+  const strip = host.querySelector<HTMLElement>('[role="tablist"]')!
+  const tabs = [...strip.querySelectorAll<HTMLElement>('[data-tab-id]')]
+  const rect = (left: number, width: number) =>
+    ({ left, right: left + width, top: 0, bottom: 32, width, height: 32 }) as DOMRect
+  strip.getBoundingClientRect = () => rect(0, 400)
+  Object.defineProperties(strip, { scrollWidth: { value: 400 }, clientWidth: { value: 400 } })
+  const geometry: [number, number][] = [[2, 66], [70, 150], [222, 120]]
+  tabs.forEach((tab, i) => {
+    tab.getBoundingClientRect = () => rect(...geometry[i])
+  })
+  const pointer = (type: string, x: number, target: EventTarget = window) =>
+    act(() => {
+      const event = new MouseEvent(type, { clientX: x, clientY: 16, bubbles: true, button: 0 })
+      Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true } })
+      target.dispatchEvent(event)
+    })
+  await pointer('pointerdown', 30, tabs[0].querySelector('[role="tab"]')!)
+  await pointer('pointermove', 40)
+  expect(tabs[1].style.transform).toBe('translateX(0px)')
+  expect(tabs[2].style.transform).toBe('translateX(0px)')
+  await pointer('pointermove', 400)
+  expect(tabs[0].style.transform).toBe('translateX(274px)')
+  expect(tabs[1].style.transform).toBe('translateX(-68px)')
+  expect(tabs[2].style.transform).toBe('translateX(-68px)')
+  expect(onReorderTab).not.toHaveBeenCalled()
+  await pointer('pointerup', 400)
+  expect(onReorderTab).toHaveBeenCalledWith('first', 2)
+})

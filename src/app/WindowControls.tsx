@@ -43,23 +43,3 @@ export function NoteListToggle() {
     </AppTooltip>
   )
 }
-
-/**
- * The first visible pane hosts the window controls: native traffic-light space plus the
- * toggles for any panes that are hidden to its left. The editor always offers a way back
- * to a hidden notes list.
- */
-export function LeadingControls({ pane }: { pane: 'list' | 'editor' }) {
-  const app = useApp()
-  const sidebarVisible = app.sidebar && !app.focus
-  const listToggle = pane === 'editor' && !app.noteListVisible && !app.workspace.documentId
-  if (sidebarVisible) return listToggle ? <NoteListToggle /> : null
-  if (pane === 'editor' && app.noteListVisible) return null
-  return (
-    <>
-      <span className="window-controls-space" data-tauri-drag-region />
-      <SidebarToggle />
-      {listToggle && <NoteListToggle />}
-    </>
-  )
-}

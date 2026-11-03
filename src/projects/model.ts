@@ -29,6 +29,8 @@ export interface Task {
   priority: Priority
   startDate: string | null
   dueDate: string | null
+  /** Local wall-clock time as HH:mm; requires a dueDate. No notification is implied. */
+  dueTime: string | null
   completedAt: number | null
   sort: number
   deletedAt: number | null
@@ -91,6 +93,11 @@ const yearFormat = new Intl.DateTimeFormat('en-US', {
 export function formatDate(date: string, current = today()) {
   const value = new Date(dayNumber(date) * 86_400_000)
   return (date.slice(0, 4) === current.slice(0, 4) ? dateFormat : yearFormat).format(value)
+}
+export function formatTaskDue(task: Pick<Task, 'dueDate' | 'dueTime'>, current = today()) {
+  return task.dueDate
+    ? `${formatDate(task.dueDate, current)}${task.dueTime ? `, ${task.dueTime}` : ''}`
+    : ''
 }
 export function formatRange(start: string | null, end: string | null, current = today()) {
   if (start && end) return `${formatDate(start, current)} – ${formatDate(end, current)}`

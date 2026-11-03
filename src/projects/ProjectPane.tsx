@@ -18,7 +18,6 @@ import {
   Link2,
   Notebook,
   Pencil,
-  Plus,
   Trash2,
 } from '../icons'
 import ProjectRing from './ProjectRing'
@@ -26,11 +25,12 @@ import TaskDetail from './TaskDetail'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
 import TaskDateView, { isDateView } from './TaskDateView'
+import NewTask from './NewTask'
 import {
   bySort,
   dueState,
   elapsed,
-  formatDate,
+  formatTaskDue,
   formatRange,
   groupOf,
   health,
@@ -45,7 +45,6 @@ import {
   type TaskGroup,
 } from './model'
 import {
-  createTask,
   deleteTask,
   moveTask,
   reorderTask,
@@ -118,12 +117,6 @@ export default trackApp(function ProjectPane() {
 
   const bar = (
     <div className="pane-bar" data-tauri-drag-region>
-      {!app.sidebar && (
-        <>
-          <span className="window-controls-space" data-tauri-drag-region />
-          <SidebarToggle />
-        </>
-      )}
       <span className="pane-spacer" data-tauri-drag-region />
       {(project || inbox) && (
         <div className="segmented" role="group" aria-label="Task layout">
@@ -178,7 +171,7 @@ export default trackApp(function ProjectPane() {
         {project ? <ProjectHeader project={project} tasks={own} /> : <InboxHeader />}
         {app.projectLayout === 'board' ? (
           <div className="task-scroll board-scroll">
-            <NewTask projectId={projectId} disabled={blocked} />
+            <NewTask key={projectId ?? 'inbox'} projectId={projectId} disabled={blocked} />
             <TaskBoard key={projectId ?? 'inbox'} tasks={own} disabled={blocked} />
           </div>
         ) : (
@@ -351,36 +344,6 @@ function ProjectMenu({ project }: { project: Project }) {
   )
 }
 
-function NewTask({ projectId, disabled }: { projectId: string | null; disabled: boolean }) {
-  const [draft, setDraft] = useState('')
-  return (
-    <form
-      className="new-task"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (!draft.trim()) return
-        createTask(projectId, draft)
-        setDraft('')
-      }}
-    >
-      <Plus aria-hidden="true" />
-      <input
-        className="new-task-input"
-        aria-label="New task"
-        placeholder="New task"
-        value={draft}
-        maxLength={500}
-        disabled={disabled}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') setDraft('')
-        }}
-      />
-      {draft && <kbd aria-hidden="true">↵</kbd>}
-    </form>
-  )
-}
-
 type Drag = { id: string; group: TaskGroup; startY: number; index: number; active: boolean }
 
 function TaskList({
@@ -527,7 +490,7 @@ function TaskList({
             {task.dueDate && (
               <span className={`task-due is-${due}`}>
                 <Calendar aria-hidden="true" />
-                {formatDate(task.dueDate)}
+                {formatTaskDue(task)}
               </span>
             )}
             {task.priority > 0 && (

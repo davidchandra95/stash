@@ -25,7 +25,7 @@ export const shortcutCommands: ShortcutCommand[] = [
     [
       'quick-open',
       'Command palette',
-      'Find note titles, or type > to run a command.',
+      'Find notes, projects and tasks, or type > to run a command.',
       'Mod+p',
     ],
     [
@@ -43,8 +43,8 @@ export const shortcutCommands: ShortcutCommand[] = [
     ['contents', 'Toggle table of contents', 'Show or hide the active note outline.', 'Mod+Alt+o'],
     ['editor', 'Focus note editor', 'Move keyboard focus to the note body.', 'Mod+Alt+e'],
     ['title', 'Focus note title', 'Move keyboard focus to the note title.', 'Mod+Alt+t'],
-    ['back', 'Go back', 'Return to the previous note in this tab.', 'Mod+['],
-    ['forward', 'Go forward', 'Open the next note in this tab history.', 'Mod+]'],
+    ['back', 'Go back', 'Return to the previous note, project or task.', 'Mod+['],
+    ['forward', 'Go forward', 'Go forward to the next note, project or task.', 'Mod+]'],
     ['show-notes', 'Show Notes', 'Switch the sidebar and panes to notes.', 'Mod+1'],
     [
       'show-projects',

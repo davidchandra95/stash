@@ -98,6 +98,12 @@ export function normalizeAppearance(
         : defaults.defaultNotebookId,
     newNoteTitle: rest.newNoteTitle === 'firstLine' ? 'firstLine' : defaults.newNoteTitle,
     spellcheck: typeof rest.spellcheck === 'boolean' ? rest.spellcheck : defaults.spellcheck,
+    smartTaskDates:
+      typeof rest.smartTaskDates === 'boolean' ? rest.smartTaskDates : defaults.smartTaskDates,
+    keepTaskDateWords:
+      typeof rest.keepTaskDateWords === 'boolean'
+        ? rest.keepTaskDateWords
+        : defaults.keepTaskDateWords,
     autoSyncMinutes: autoSyncIntervals.includes(rest.autoSyncMinutes as number)
       ? (rest.autoSyncMinutes as number)
       : defaults.autoSyncMinutes,

@@ -48,17 +48,18 @@
   opacity: 0;
   pointer-events: none;
 }
-.desktop-writing-toolbar[data-placement='above'][data-collapsed] {
-  translate: 0 4px;
-}
-.desktop-writing-toolbar[data-placement='below'][data-collapsed] {
-  translate: 0 -4px;
-}
-[data-motion='on'] .desktop-writing-toolbar:not(.writing-toolbar-measure) {
+/* Only the selection bubble moves; the docked bar stays steady. */
+[data-motion='on'] .desktop-writing-toolbar:is([data-placement='above'], [data-placement='below']) {
   transition:
     opacity var(--fast) var(--ease),
     translate var(--fast) var(--ease),
     visibility var(--fast);
+}
+[data-motion='on'] .desktop-writing-toolbar[data-placement='above'][data-collapsed] {
+  translate: 0 var(--space-1);
+}
+[data-motion='on'] .desktop-writing-toolbar[data-placement='below'][data-collapsed] {
+  translate: 0 calc(-1 * var(--space-1));
 }
 .writing-toolbar-measure {
   position: absolute;
@@ -456,6 +457,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.date-picker.is-inline {
+  width: auto;
+  max-height: none;
+  padding: 0;
+}
 .date-picker-header {
   display: flex;
   align-items: center;
@@ -463,6 +469,10 @@
   gap: var(--space-2);
   padding: 0 0 var(--space-2) var(--space-3);
   font-weight: 600;
+}
+.date-picker-nav {
+  display: flex;
+  gap: var(--space-1);
 }
 .date-picker-header button {
   display: grid;
@@ -486,21 +496,38 @@
   color: var(--text-3);
   font-size: var(--text-xs);
 }
-.date-calendar button {
-  width: 100%;
+.date-picker .date-calendar button {
+  display: block;
+  width: 28px;
   min-height: 28px;
+  margin: 1px auto;
   padding: 0;
   border-radius: 50%;
   font-variant-numeric: tabular-nums;
 }
-.date-calendar [aria-current='date'] button {
-  color: var(--accent);
+.date-picker .date-calendar button[data-outside] {
+  color: var(--text-4);
+}
+.date-picker .date-calendar button[aria-current='date'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-weight: 600;
 }
-.date-calendar [aria-selected='true'] button,
-.date-calendar [aria-selected='true'] button:hover {
+.date-picker .date-calendar [aria-selected='true'] button,
+.date-picker .date-calendar [aria-selected='true'] button:hover {
   background: var(--accent);
   color: var(--on-accent);
+}
+.date-field-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.date-field-footer .date-today,
+.date-field-footer .date-clear {
+  width: auto;
+  color: var(--text-2);
 }
 .date-today,
 .date-back,

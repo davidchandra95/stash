@@ -16,6 +16,7 @@ const task = (id: string, title: string, fields: Partial<Task> = {}): Task => ({
   priority: 0,
   startDate: null,
   dueDate: null,
+  dueTime: null,
   completedAt: null,
   sort: 1,
   deletedAt: null,

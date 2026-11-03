@@ -83,9 +83,7 @@ const noteList = () => host.querySelector<HTMLElement>('#note-list')!
 const notesListHidden = () => noteList().hasAttribute('inert')
 const appWindow = () => host.querySelector('.window')!
 async function openPalette(bodies = false) {
-  const search = [...host.querySelectorAll<HTMLButtonElement>('.sidebar button')].find(
-    (element) => element.querySelector('.side-label')?.textContent === 'Search',
-  )!
+  const search = host.querySelector<HTMLButtonElement>('button.app-search')!
   await act(async () => search.click())
   if (bodies)
     await act(async () => {
@@ -139,16 +137,16 @@ async function openSearchResult(method: string, noteTitle: string, ctrlKey = fal
     )
   } else {
     await openPalette()
-    await type('Find note titles', noteTitle)
+    await type('Search notes, projects and tasks', noteTitle)
     if (method === 'title click')
       await act(async () =>
         document
-          .querySelector<HTMLElement>('[aria-label="Matching note titles"] [role="option"]')!
+          .querySelector<HTMLElement>('[aria-label="Matching results"] [role="option"]')!
           .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })),
       )
     else
       await act(async () =>
-        document.querySelector<HTMLInputElement>('[aria-label="Find note titles"]')!.dispatchEvent(
+        document.querySelector<HTMLInputElement>('[aria-label="Search notes, projects and tasks"]')!.dispatchEvent(
           new KeyboardEvent('keydown', {
             key: 'Enter',
             bubbles: true,
@@ -616,9 +614,9 @@ it('does not reopen Notes when switching tabs or navigating history and resets v
   await act(() => row('Gamma').click())
   await hideNotesList()
   expect(notesListHidden()).toBe(true)
-  await act(() => button('Back to previous note').click())
+  await act(() => button('Go back').click())
   expect(notesListHidden()).toBe(true)
-  await act(() => button('Forward to next note').click())
+  await act(() => button('Go forward').click())
   expect(notesListHidden()).toBe(true)
   await act(() => host.querySelector<HTMLButtonElement>('[role="tab"]')!.click())
   expect(notesListHidden()).toBe(true)
@@ -911,14 +909,13 @@ it('handles rapid navigation before React mounts an intermediate document', asyn
     row('Gamma').click()
   })
   expect(title()).toBe('Gamma')
-  await act(async () => button('Back to previous note').click())
-  expect(title()).toBe('Beta')
-  expect(host.querySelector('.note-scroll')?.scrollTop).toBe(0)
-  await act(async () => button('Forward to next note').click())
-  expect(title()).toBe('Gamma')
-  await act(async () => (host.querySelector('[role="tab"]') as HTMLButtonElement).click())
+  // Both clicks landed in one commit, so the timeline only saw Gamma.
+  await act(async () => button('Go back').click())
   expect(title()).toBe('Alpha')
   expect(host.querySelector('.note-scroll')?.scrollTop).toBe(123)
+  await act(async () => button('Go forward').click())
+  expect(title()).toBe('Gamma')
+  expect(host.querySelector('.note-scroll')?.scrollTop).toBe(0)
 })
 
 it('highlights consecutive visible sections without inheriting highlights for offscreen parents', async () => {
@@ -1098,4 +1095,37 @@ it('pins the formatting toolbar from Settings › Editor and saves the choice', 
   expect(toolbar?.getAttribute('data-placement')).toBe('docked')
   await act(async () => toggle().click())
   expect(library.getSnapshot().appearance.showFormattingToolbar).toBe(false)
+})
+it('moves back and forward across notes and projects', async () => {
+  await mount()
+  await act(async () => row('Beta').click())
+  expect(title()).toBe('Beta')
+  const projects = () =>
+    [...host.querySelectorAll<HTMLButtonElement>('.domain-tab')].find((tab) =>
+      tab.textContent?.includes('Projects'),
+    )!
+  await act(async () => projects().click())
+  expect(host.querySelector('.project-pane')).not.toBeNull()
+  await act(async () => button('Go back').click())
+  expect(host.querySelector('.project-pane')).toBeNull()
+  expect(title()).toBe('Beta')
+  await act(async () => button('Go forward').click())
+  expect(host.querySelector('.project-pane')).not.toBeNull()
+  await act(async () => button('Go back').click())
+  await act(async () => button('Go back').click())
+  expect(title()).toBe('Alpha')
+})
+it('reopens a closed tab when going back to it', async () => {
+  await mount()
+  await act(() =>
+    row('Beta').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })),
+  )
+  expect(title()).toBe('Beta')
+  const tabs = () => host.querySelectorAll('[role="tab"]').length
+  expect(tabs()).toBe(2)
+  await act(async () => button('Close Beta').click())
+  expect(tabs()).toBe(1)
+  await act(async () => button('Go back').click())
+  expect(title()).toBe('Beta')
+  expect(tabs()).toBe(2)
 })

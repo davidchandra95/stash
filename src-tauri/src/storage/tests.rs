@@ -126,7 +126,7 @@ fn old_tags_are_cleared_without_modifying_the_document() {
         .unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
+        .execute_batch("DROP TABLE tasks; DROP TABLE projects; DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
         .unwrap();
     drop(store);
 
@@ -590,7 +590,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        11
+        12
     );
 }
 
@@ -765,6 +765,14 @@ fn invalid_appearance_settings_do_not_replace_saved_preferences() {
         (
             "animationsEnabled",
             vec![json!("true"), json!(1), Value::Null],
+        ),
+        (
+            "smartTaskDates",
+            vec![json!("true"), json!(1), Value::Null],
+        ),
+        (
+            "keepTaskDateWords",
+            vec![json!("false"), json!(0), Value::Null],
         ),
         (
             "showFormattingToolbar",
@@ -1040,7 +1048,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                11
+                12
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))
@@ -1220,7 +1228,7 @@ fn confirmed_tags_survive_metadata_saves_and_old_indexes_are_rebuilt_without_tex
     assert_eq!(store.note(&input.id, true).unwrap().tags, vec!["ideas"]);
     let before = store.note(&input.id, true).unwrap();
     store.conn.execute("INSERT INTO note_tags VALUES('confirmed','abcdef')", []).unwrap();
-    store.conn.execute_batch("PRAGMA user_version=9;").unwrap();
+    store.conn.execute_batch("DROP TABLE tasks; DROP TABLE projects; PRAGMA user_version=9;").unwrap();
     drop(store);
     for _ in 0..2 {
         let store = Store::open(dir.path()).unwrap();

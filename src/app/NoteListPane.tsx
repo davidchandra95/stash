@@ -14,7 +14,6 @@ import type { NavigationNote } from '../storage/librarySelectors'
 import type { Notebook } from '../model'
 import { ArrowDownWideNarrow, Check, ListFilter, Pin, Search, SquarePen, X } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
-import { LeadingControls } from './WindowControls'
 
 function RadioItems<T extends string>({
   labels,
@@ -254,7 +253,6 @@ export default trackApp(function NoteListPane() {
       inert={!app.noteListVisible}
     >
       <header className="pane-bar list-bar" data-tauri-drag-region>
-        <LeadingControls pane="list" />
         <h1 className="list-title" data-tauri-drag-region>
           {app.headingNotebook && (
             <NotebookIconGlyph

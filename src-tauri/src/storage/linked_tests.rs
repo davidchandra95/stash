@@ -377,7 +377,7 @@ fn old_linked_tags_are_cleared_without_rewriting_files() {
         .unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
+        .execute_batch("DROP TABLE tasks; DROP TABLE projects; DROP TABLE pdf_companions; DROP TABLE pdf_reading; DROP TABLE pdf_documents; DROP TABLE tag_body_migrations; PRAGMA user_version=6;")
         .unwrap();
     fs::remove_file(folder.path().join("a.md")).unwrap();
     drop(store);

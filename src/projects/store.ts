@@ -58,6 +58,7 @@ function saveRequest(changes: Changes) {
       priority: t.priority,
       startDate: t.startDate,
       dueDate: t.dueDate,
+      dueTime: t.dueTime,
       sort: t.sort,
       deleted: t.deletedAt !== null,
       expectedRevision: confirmed.tasks.get(t.id) ?? 0,

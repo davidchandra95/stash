@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import AppTooltip from '../components/AppTooltip'
+import DateField from '../components/DateField'
 import { useApp, useBlocked } from '../app/context'
 import { FileText, Trash2, X } from '../icons'
 import { findTaskMentions } from './mentions'
@@ -103,13 +104,13 @@ export default function TaskDetail({ task }: { task: Task }) {
   const date = (field: 'startDate' | 'dueDate', label: string) => (
     <>
       <label htmlFor={`task-${field}`}>{label}</label>
-      <input
+      <DateField
         id={`task-${field}`}
-        type="date"
-        className={`field task-date ${field === 'dueDate' ? `is-${due}` : ''}`}
-        value={task[field] ?? ''}
+        label={label}
+        className={`task-date ${field === 'dueDate' ? `is-${due}` : ''}`}
+        value={task[field]}
         disabled={blocked}
-        onChange={(event) => updateTask(task, { [field]: event.target.value || null })}
+        onChange={(next) => updateTask(task, { [field]: next })}
       />
     </>
   )
@@ -213,6 +214,15 @@ export default function TaskDetail({ task }: { task: Task }) {
           </select>
           {date('startDate', 'Start')}
           {date('dueDate', 'Due')}
+          <label htmlFor="task-dueTime">Due time</label>
+          <input
+            id="task-dueTime"
+            type="time"
+            className="field task-date"
+            value={task.dueTime ?? ''}
+            disabled={blocked || !task.dueDate}
+            onChange={(event) => updateTask(task, { dueTime: event.target.value || null })}
+          />
         </div>
         <label className="task-detail-heading" htmlFor="task-description">
           Description

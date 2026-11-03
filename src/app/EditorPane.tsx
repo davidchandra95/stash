@@ -13,8 +13,6 @@ import { usesNativeContextMenu } from '../nativeContextMenu'
 import { LiveNoteTools as NoteTools } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
 import {
-  ChevronLeft,
-  ChevronRight,
   Ellipsis,
   ListTree,
   Maximize2,
@@ -23,7 +21,6 @@ import {
   TextSearch,
 } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
-import { LeadingControls } from './WindowControls'
 import NoteDocument from './NoteDocument'
 
 const PdfReader = lazy(() => import('../pdf/PdfViewer'))
@@ -182,46 +179,6 @@ export function NoteControls() {
   )
 }
 
-function HistoryButtons() {
-  const app = useApp()
-  const blocked = useBlocked()
-  const { workspace } = app
-  return (
-    <div className="history-buttons">
-      <AppTooltip
-        instant
-        label="Back"
-        shortcut={app.shortcutFor('back')}
-        disabled={blocked || !workspace.canBack}
-      >
-        <button
-          className="icon-btn"
-          aria-label="Back to previous note"
-          disabled={blocked || !workspace.canBack}
-          onClick={() => workspace.move(-1)}
-        >
-          <ChevronLeft aria-hidden="true" />
-        </button>
-      </AppTooltip>
-      <AppTooltip
-        instant
-        label="Forward"
-        shortcut={app.shortcutFor('forward')}
-        disabled={blocked || !workspace.canForward}
-      >
-        <button
-          className="icon-btn"
-          aria-label="Forward to next note"
-          disabled={blocked || !workspace.canForward}
-          onClick={() => workspace.move(1)}
-        >
-          <ChevronRight aria-hidden="true" />
-        </button>
-      </AppTooltip>
-    </div>
-  )
-}
-
 function PdfReaders() {
   const app = useApp()
   const blocked = useBlocked()
@@ -306,8 +263,6 @@ export default trackApp(function EditorPane() {
   return (
     <main className="editor-pane" data-pane="editor">
       <div className="pane-bar editor-bar" data-tauri-drag-region>
-        <LeadingControls pane="editor" />
-        <HistoryButtons />
         <div className="tab-area" data-tauri-drag-region>
           <NoteTabs
             documents={app.pdfs.documents}

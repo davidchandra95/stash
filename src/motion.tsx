@@ -20,6 +20,7 @@ export const motion = {
   contents: 200,
   control: 100,
   row: 180,
+  reorder: 120,
   find: 140,
   collapse: 180,
   chip: 120,
@@ -178,16 +179,28 @@ export function MotionPresence({
 
 type Snapshot = {
   rect: { left: number; top: number; width: number; height: number }
+  visible: boolean
   clone: HTMLElement
 }
 function itemSnapshots(parent: HTMLElement, selector: string) {
   const bounds = parent.getBoundingClientRect()
+  const top = Math.max(0, bounds.top + parent.clientTop)
+  const left = Math.max(0, bounds.left + parent.clientLeft)
+  const bottom = Math.min(window.innerHeight, bounds.top + parent.clientTop + parent.clientHeight)
+  const right = Math.min(window.innerWidth, bounds.left + parent.clientLeft + parent.clientWidth)
   return new Map(
     [...parent.querySelectorAll<HTMLElement>(selector)].map((element) => {
       const rect = element.getBoundingClientRect()
       return [
         element.dataset.motionKey!,
         {
+          visible:
+            rect.height > 0 &&
+            rect.width > 0 &&
+            rect.top >= top &&
+            rect.bottom <= bottom &&
+            rect.left >= left &&
+            rect.right <= right,
           rect: {
             left: rect.left - bounds.left + parent.scrollLeft,
             top: rect.top - bounds.top + parent.scrollTop,
@@ -212,17 +225,25 @@ export function useAnimatedItems(
   const previous = useRef(new Map<string, Snapshot>())
   const previousScope = useRef<string | null>(null)
   const requested = useRef(false)
+  const visibleReorder = useRef<string | undefined>(undefined)
   const animations = useRef<Animation[]>([])
+  const pinOrder = useRef<string | null>(null)
+  const pinSlots = useRef(new Set<HTMLElement>())
   const ghosts = useRef<HTMLElement[]>([])
   const active = useMotionEnabled()
   const cleanup = () => {
+    pinOrder.current = null
+    pinSlots.current.forEach((slot) => slot.classList.remove('is-pin-moving'))
+    pinSlots.current.clear()
     animations.current.forEach((animation) => animation.cancel())
     ghosts.current.forEach((ghost) => ghost.remove())
     animations.current = []
     ghosts.current = []
   }
-  const request = () => {
+  // A pin reorder must stay within the visible list, without entrance or exit copies.
+  const request = (visibleReorderId?: string) => {
     requested.current = true
+    visibleReorder.current = visibleReorderId
     if (ref.current) previous.current = itemSnapshots(ref.current, selector)
   }
   useLayoutEffect(() => {
@@ -234,11 +255,15 @@ export function useAnimatedItems(
     const sameScope = scope === previousScope.current
     if (!sameScope || !active) cleanup()
     const explicit = requested.current
+    const reorderId = visibleReorder.current
     requested.current = false
+    visibleReorder.current = undefined
     // Mounting a new scroll window is presentation, not note creation/removal.
     // Virtual lists only capture and animate explicit domain actions.
     if (virtualized && !explicit) {
-      cleanup()
+      // Saving and dismissing a mobile action sheet can render again before the move
+      // finishes. Keep that move running while its list order is unchanged.
+      if (pinOrder.current !== keys.join('\0')) cleanup()
       previous.current.clear()
       previousScope.current = scope
       return
@@ -253,10 +278,28 @@ export function useAnimatedItems(
       (automatic || explicit || (added && previous.current.size > 0))
     cleanup()
     const next = parent ? itemSnapshots(parent, selector) : new Map<string, Snapshot>()
-    if (parent && shouldAnimate) {
+    const beforeReorder = reorderId ? previous.current.get(reorderId) : undefined
+    const afterReorder = reorderId ? next.get(reorderId) : undefined
+    // Keep pin feedback local, even in a tall window. Overscan and retained menu rows
+    // are mounted too, but must never travel into or out of the viewport.
+    const canReorder =
+      !reorderId ||
+      (beforeReorder?.visible &&
+        afterReorder?.visible &&
+        beforeReorder.rect.top !== afterReorder.rect.top &&
+        Math.abs(beforeReorder.rect.top - afterReorder.rect.top) <= 240)
+    if (parent && shouldAnimate && canReorder) {
+      if (reorderId) pinOrder.current = keys.join('\0')
       parent.querySelectorAll<HTMLElement>(selector).forEach((element) => {
         const before = previous.current.get(element.dataset.motionKey!)
         const after = next.get(element.dataset.motionKey!)!
+        if (
+          reorderId &&
+          (!before?.visible ||
+            !after.visible ||
+            (before.rect.top === after.rect.top && before.rect.left === after.rect.left))
+        )
+          return
         const frames: Keyframe[] = before
           ? [
               {
@@ -265,10 +308,23 @@ export function useAnimatedItems(
               { transform: 'translate(0, 0)' },
             ]
           : [{ opacity: 0 }, { opacity: 1 }]
-        const animation = animate(element, frames, duration)
+        const pinSlot =
+          reorderId === element.dataset.motionKey
+            ? element.closest<HTMLElement>('.virtual-note-slot')
+            : null
+        pinSlot?.classList.add('is-pin-moving')
+        if (pinSlot) pinSlots.current.add(pinSlot)
+        const sequence = animations.current
+        const animation = animate(element, frames, duration, () => {
+          if (pinSlot && animations.current === sequence) {
+            pinSlot.classList.remove('is-pin-moving')
+            pinSlots.current.delete(pinSlot)
+          }
+        })
         if (animation) animations.current.push(animation)
       })
       previous.current.forEach(({ rect, clone }, key) => {
+        if (reorderId) return
         if (next.has(key)) return
         clone.removeAttribute('id')
         clone.removeAttribute('data-motion-key')

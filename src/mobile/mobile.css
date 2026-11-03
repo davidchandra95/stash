@@ -1233,8 +1233,10 @@ select {
   width: 18px;
   height: 18px;
 }
-.date-calendar button {
+.date-picker .date-calendar button {
+  width: 40px;
   min-height: 40px;
+  padding: 0;
 }
 
 /* ───────── Settings pages ───────── */

@@ -122,6 +122,9 @@ export interface Appearance extends CursorSettings {
   /** `firstLine` starts new notes in the body and titles them from their first line. */
   newNoteTitle: NewNoteTitle
   spellcheck: boolean
+  /** Date and time smart recognition in task creation fields. Device preference. */
+  smartTaskDates: boolean
+  keepTaskDateWords: boolean
   /** Minutes between automatic syncs; 0 turns automatic sync off. */
   autoSyncMinutes: number
 }
