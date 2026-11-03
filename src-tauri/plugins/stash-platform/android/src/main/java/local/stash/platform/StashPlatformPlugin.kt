@@ -70,9 +70,11 @@ class StashPlatformPlugin(private val activity: Activity): Plugin(activity) {
             val controller = WindowInsetsControllerCompat(activity.window, activity.window.decorView)
             controller.isAppearanceLightStatusBars = !args.dark
             controller.isAppearanceLightNavigationBars = !args.dark
-            // CSS supplies rgb(r, g, b) or a hexadecimal palette color.
+            // CSS supplies rgb(r, g, b) or a hexadecimal palette color. The production CSS build
+            // shortens #ffffff to #fff, which parseColor rejects.
             val numbers = Regex("[0-9]+").findAll(args.background).map { it.value.toInt() }.toList()
-            val color = if (args.background.startsWith("rgb") && numbers.size >= 3) Color.rgb(numbers[0], numbers[1], numbers[2]) else Color.parseColor(args.background)
+            val hex = if (Regex("#[0-9a-fA-F]{3}").matches(args.background)) args.background.replace(Regex("[0-9a-fA-F]")) { it.value.repeat(2) } else args.background
+            val color = if (args.background.startsWith("rgb") && numbers.size >= 3) Color.rgb(numbers[0], numbers[1], numbers[2]) else Color.parseColor(hex)
             activity.window.decorView.setBackgroundColor(color)
             webView?.setBackgroundColor(color)
             invoke.resolve()
