@@ -265,7 +265,7 @@ it('restores an offscreen virtual list and its focusable note after Android Back
   }))
   await act(async () => library.setNotes(notes))
   const pane = document.querySelector<HTMLElement>('.mobile-list')!
-  const offset = 500 * 57
+  const offset = 500 * 48
   await act(async () => {
     pane.scrollTop = offset
     pane.dispatchEvent(new Event('scroll'))
@@ -294,6 +294,42 @@ it('takes color mode from the document root and mirrors the desktop sidebar in t
   expect(drawer.querySelector('[aria-current="page"]')?.textContent).toBe('All notes')
   expect(drawer.querySelector('.mobile-book-label .count')?.textContent).toBe('')
   await act(async () => library.setAppearance(appearance))
+})
+
+it('opens note actions from a long-press, and keeps a button for keyboard and screen readers', async () => {
+  const row = document.querySelector<HTMLElement>('.mobile-note-row')!
+  const longPress = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  await act(async () => row.querySelector('.mobile-note-label')!.dispatchEvent(longPress))
+  expect(longPress.defaultPrevented).toBe(true)
+  expect(document.querySelector('.mobile-sheet h2')?.textContent).toBe('Direct note')
+  expect(
+    [...document.querySelectorAll('.mobile-sheet-tiles button')].map((b) => [
+      b.getAttribute('aria-label') ?? b.textContent,
+      b.textContent,
+    ]),
+  ).toEqual([
+    ['Pin to top', 'Pin'],
+    ['Add to Quick Access', 'Quick Access'],
+    ['Duplicate', 'Duplicate'],
+    ['Copy link to note', 'Copy link'],
+  ])
+  expect(document.querySelector('.mobile-sheet-value')?.textContent).toBe('Parent')
+  await androidBack()
+  expect(document.querySelector('.mobile-sheet')).toBeNull()
+  await click('Actions for Direct note')
+  await click('Pin to top')
+  expect(library.getSnapshot().notes.find((n) => n.id === 'Direct note')?.pinned).toBe(true)
+})
+
+it('shows the notebook beside the title, and only an icon when uncategorized', async () => {
+  const note = (id: string) =>
+    document.querySelector<HTMLElement>(`[data-note-id="${id}"] .mobile-note-line`)!
+  expect(note('Direct note').querySelector('.note-list-notebook')?.textContent).toBe('Parent')
+  await act(async () =>
+    library.setNotes([{ ...makeNote('Loose note', 'parent'), notebookIds: [] }]),
+  )
+  expect(note('Loose note').querySelector('.note-list-notebook')).toBeNull()
+  expect(note('Loose note').querySelector('.mobile-note-book svg')).toBeTruthy()
 })
 
 it('closes the table of contents from its own header', async () => {

@@ -15,7 +15,7 @@ test('body search publishes before a slow final read and keeps selection stable'
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes and projects', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -48,7 +48,7 @@ test('body search publishes before a slow final read and keeps selection stable'
     }
     library.setNotes(notes)
   }, modulePath)
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await page.getByRole('button', { name: 'Search notes and projects', exact: true }).click()
   await page.getByRole('combobox', { name: 'Search notes, projects and tasks', exact: true }).fill('needlemarker')
   await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
@@ -77,7 +77,7 @@ test('10,000 synthetic notes keep dense search results windowed and navigation a
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes and projects', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -101,7 +101,7 @@ test('10,000 synthetic notes keep dense search results windowed and navigation a
     })
     library.setNotes(notes)
   }, modulePath)
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await page.getByRole('button', { name: 'Search notes and projects', exact: true }).click()
   await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await field.fill('body')
@@ -150,7 +150,7 @@ test('10,000 synthetic notes keep dense search results windowed and navigation a
 
 async function openMultilineResult(page: Page) {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search notes and projects', exact: true })).toBeVisible()
   const modulePath = await libraryPath(page)
   await page.evaluate(async (modulePath) => {
     const { library } = await import(/* @vite-ignore */ modulePath)
@@ -174,7 +174,7 @@ async function openMultilineResult(page: Page) {
       },
     ])
   }, modulePath)
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await page.getByRole('button', { name: 'Search notes and projects', exact: true }).click()
   await page.keyboard.press('Tab')
   const field = page.locator('input[aria-label="Search note bodies"]')
   await field.fill('needlemarker')
@@ -221,7 +221,7 @@ test('multiline body results keep their geometry across color modes and layouts'
     await page.screenshot({ path: testInfo.outputPath(`dark-${viewport.width}.png`) })
   }
   await field.press('Escape')
-  await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Search notes and projects', exact: true })).toBeFocused()
 })
 
 test('multiline body results show the note line breaks', async ({ page }) => {

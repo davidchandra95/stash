@@ -84,7 +84,7 @@ for (const mobile of [false, true]) {
     const pin = async (index: number, unpin = false) => {
       const title = `Pin test ${String(index).padStart(2, '0')}`
       if (mobile) {
-        await page.getByRole('button', { name: `Actions for ${title}`, exact: true }).click()
+        await page.getByRole('button', { name: title, exact: true }).click({ button: 'right' })
         await page
           .getByRole('button', { name: unpin ? 'Unpin' : 'Pin to top', exact: true })
           .click()

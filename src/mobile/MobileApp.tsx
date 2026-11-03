@@ -26,6 +26,7 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import {
   ArrowDownWideNarrow,
   ArrowLeft,
+  Book,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -811,16 +812,8 @@ export default function MobileApp() {
                   scrollRef={scroll}
                   initialOffset={route.scroll}
                   retainedIds={[overlay?.kind === 'note-actions' ? overlay.id : undefined]}
-                  // Row heights from mobile.css; All notes adds the notebook context line.
-                  estimatedSize={
-                    route.view === 'all'
-                      ? noteListMode === 'preview'
-                        ? 78
-                        : 57
-                      : noteListMode === 'preview'
-                        ? 59
-                        : 56
-                  }
+                  // Row heights from mobile.css; the notebook context shares the title line.
+                  estimatedSize={noteListMode === 'preview' ? 55 : 48}
                   geometryKey={`${noteListMode}:${route.view}`}
                   renderRow={(n) => {
                     const context =
@@ -832,6 +825,11 @@ export default function MobileApp() {
                         key={n.id}
                         data-note-id={n.id}
                         data-motion-key={n.id}
+                        // Long-press on Android; also the context-menu key and right click.
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setOverlay({ kind: 'note-actions', id: n.id })
+                        }}
                       >
                         <AppTooltip label={context?.description}>
                           <button
@@ -844,17 +842,36 @@ export default function MobileApp() {
                             onClick={() => openNote(n.id)}
                           >
                             <span className="mobile-note-copy">
-                              <span className="mobile-note-title">
-                                {n.pinned && <Pin aria-hidden="true" />}
-                                <span>{n.title || 'Untitled note'}</span>
+                              <span className="mobile-note-line">
+                                <span className="mobile-note-title">
+                                  {n.pinned && <Pin aria-hidden="true" />}
+                                  <span>{n.title || 'Untitled note'}</span>
+                                </span>
+                                {context && (
+                                  <span className="mobile-note-book">
+                                    {context.icon ? (
+                                      <>
+                                        <NotebookIconGlyph
+                                          icon={context.icon}
+                                          color={context.color}
+                                          size={14}
+                                          aria-hidden={true}
+                                        />
+                                        <NoteListNotebook context={context} />
+                                      </>
+                                    ) : (
+                                      <Book aria-hidden="true" />
+                                    )}
+                                  </span>
+                                )}
                               </span>
                               {preview && <span className="note-list-preview">{preview}</span>}
-                              {context && <NoteListNotebook context={context} />}
                             </span>
                           </button>
                         </AppTooltip>
+                        {/* Long-press has no screen reader or Tab route; this appears on focus. */}
                         <button
-                          className="icon-btn"
+                          className="icon-btn mobile-note-actions"
                           aria-label={`Actions for ${n.title || 'Untitled note'}`}
                           onClick={() => setOverlay({ kind: 'note-actions', id: n.id })}
                         >
@@ -1316,61 +1333,73 @@ export default function MobileApp() {
                     </button>
                   ) : (
                     <>
+                      <div className="mobile-sheet-tiles">
+                        <button
+                          aria-label={overlayNote.pinned ? 'Unpin' : 'Pin to top'}
+                          onClick={() => noteMutation(overlayNote, { pinned: !overlayNote.pinned })}
+                        >
+                          {overlayNote.pinned ? (
+                            <PinOff aria-hidden="true" />
+                          ) : (
+                            <Pin aria-hidden="true" />
+                          )}
+                          {overlayNote.pinned ? 'Unpin' : 'Pin'}
+                        </button>
+                        <button
+                          aria-label={
+                            overlayNote.quickAccess
+                              ? 'Remove from Quick Access'
+                              : 'Add to Quick Access'
+                          }
+                          onClick={() =>
+                            noteMutation(overlayNote, { quickAccess: !overlayNote.quickAccess })
+                          }
+                        >
+                          {overlayNote.quickAccess ? (
+                            <StarOff aria-hidden="true" />
+                          ) : (
+                            <Star aria-hidden="true" />
+                          )}
+                          Quick Access
+                        </button>
+                        <button
+                          onClick={() =>
+                            void perform(async () => {
+                              const id = await actions.duplicate(overlayNote.id)
+                              if (id) {
+                                capture()
+                                dispatch({ type: 'push', route: { kind: 'note', id, scroll: 0 } })
+                              }
+                            })
+                          }
+                        >
+                          <Copy aria-hidden="true" />
+                          Duplicate
+                        </button>
+                        <button
+                          aria-label="Copy link to note"
+                          onClick={() =>
+                            void perform(async () => {
+                              const text = `upnote2://note/${overlayNote.id}`
+                              if (isTauri()) await writeText(text)
+                              else await navigator.clipboard.writeText(text)
+                            })
+                          }
+                        >
+                          <Link aria-hidden="true" />
+                          Copy link
+                        </button>
+                      </div>
                       <button
-                        onClick={() => noteMutation(overlayNote, { pinned: !overlayNote.pinned })}
-                      >
-                        {overlayNote.pinned ? (
-                          <PinOff aria-hidden="true" />
-                        ) : (
-                          <Pin aria-hidden="true" />
-                        )}
-                        {overlayNote.pinned ? 'Unpin' : 'Pin to top'}
-                      </button>
-                      <button
-                        onClick={() =>
-                          noteMutation(overlayNote, { quickAccess: !overlayNote.quickAccess })
-                        }
-                      >
-                        {overlayNote.quickAccess ? (
-                          <StarOff aria-hidden="true" />
-                        ) : (
-                          <Star aria-hidden="true" />
-                        )}
-                        {overlayNote.quickAccess
-                          ? 'Remove from Quick Access'
-                          : 'Add to Quick Access'}
-                      </button>
-                      <button
+                        aria-label="Notebooks"
+                        aria-description={noteNotebookContext(overlayNote, notebooks).description}
                         onClick={() => setOverlay({ kind: 'organization', id: overlayNote.id })}
                       >
                         <BookOpen aria-hidden="true" />
                         Notebooks
-                      </button>
-                      <button
-                        onClick={() =>
-                          void perform(async () => {
-                            const id = await actions.duplicate(overlayNote.id)
-                            if (id) {
-                              capture()
-                              dispatch({ type: 'push', route: { kind: 'note', id, scroll: 0 } })
-                            }
-                          })
-                        }
-                      >
-                        <Copy aria-hidden="true" />
-                        Duplicate
-                      </button>
-                      <button
-                        onClick={() =>
-                          void perform(async () => {
-                            const text = `upnote2://note/${overlayNote.id}`
-                            if (isTauri()) await writeText(text)
-                            else await navigator.clipboard.writeText(text)
-                          })
-                        }
-                      >
-                        <Link aria-hidden="true" />
-                        Copy link to note
+                        <span className="mobile-sheet-value">
+                          <NoteListNotebook context={noteNotebookContext(overlayNote, notebooks)} />
+                        </span>
                       </button>
                       {active?.id === overlayNote.id && (
                         <>

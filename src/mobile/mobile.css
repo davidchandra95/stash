@@ -18,7 +18,7 @@ html[data-platform='mobile'] {
   --text-xl: 20px;
   --leading: 22px;
 
-  --bar: 56px;
+  --bar: 48px;
   --row: 48px;
   --control: 44px;
   --control-sm: 36px;
@@ -441,8 +441,11 @@ select {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 56px;
-  padding-inline: var(--space-6) var(--space-2);
+  min-height: var(--target);
+  padding-inline: var(--space-6);
+  /* Long-press opens the actions sheet, so it must not start a text selection. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 .mobile-note-row::after {
   content: '';
@@ -461,8 +464,8 @@ select {
   flex: 1;
   align-items: center;
   min-width: 0;
-  min-height: 56px;
-  padding: var(--space-4) 0;
+  min-height: var(--target);
+  padding: var(--space-3) 0;
   text-align: start;
 }
 .mobile-note-label:focus-visible {
@@ -474,12 +477,19 @@ select {
   gap: 1px;
   min-width: 0;
 }
+.mobile-note-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
 .mobile-note-title {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
-  font-weight: 600;
+  font-weight: 500;
 }
 .mobile-note-title > span {
   min-width: 0;
@@ -500,11 +510,40 @@ select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mobile-note-copy > .note-list-notebook {
+.mobile-note-book {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 45%;
+  min-width: 0;
+}
+.mobile-note-book > .ui-icon,
+.mobile-note-book > .lucide {
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.mobile-note-book > .note-list-notebook,
+.mobile-sheet-value > .note-list-notebook {
   /* --text-2 keeps 4.5:1 on the content surface; --text-3 doesn't at this size. */
   color: var(--text-2);
   font-size: 13px;
   line-height: 18px;
+  white-space: nowrap;
+}
+/* Visually hidden until focused: the route to row actions for Tab and screen readers. */
+.mobile-note-actions:not(:focus-visible) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.mobile-note-actions:focus-visible {
+  position: absolute;
+  right: 0;
+  background: var(--bg-content);
 }
 .mobile-note-row > .icon-btn,
 .mobile-book-row > .icon-btn {
@@ -646,6 +685,11 @@ select {
   line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mobile-sheet > header h2 {
+  font-size: var(--text-md);
+  line-height: var(--leading);
 }
 
 /* The drawer is the desktop sidebar: same surface, icons and selection. */
@@ -807,6 +851,38 @@ select {
   width: 20px;
   height: 20px;
   color: var(--text-2);
+}
+.mobile-sheet-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-4);
+}
+.mobile-sheet-tiles > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 64px;
+  border-radius: 10px;
+  background: var(--fill-1);
+  font-size: var(--text-xs);
+  line-height: 16px;
+}
+.mobile-sheet-tiles > button > .ui-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-2);
+}
+.mobile-sheet-tiles > button:active {
+  background: var(--fill-2);
+}
+.mobile-sheet-value {
+  display: flex;
+  min-width: 0;
+  margin-inline-start: auto;
 }
 .mobile-sheet-actions > button:active,
 .mobile-list-modes label:active,

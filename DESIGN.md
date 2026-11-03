@@ -295,7 +295,7 @@ then `src/mobile/mobile.css`, which raises the geometry and type tokens and lays
 surfaces. Don't add colors there; use the tokens.
 
 - **Touch tokens** (on `html[data-platform='mobile']`): `--text-md` 16, `--text-sm` 14,
-  `--text-lg` 18; `--bar` 56, `--row` 48, `--control` 44, `--control-sm` 36, `--icon` 22,
+  `--text-lg` 18; `--bar` 48, `--row` 48, `--control` 44, `--control-sm` 36, `--icon` 22,
   `--target` 48, `--radius-sheet` 16.
 - **Targets:** anything that acts on tap is at least 48px (`--target`); rows and fields are at
   least 44px. Controls that draw smaller (push buttons, switches, swatches) extend their tap
@@ -303,14 +303,19 @@ surfaces. Don't add colors there; use the tokens.
 - **Feedback:** touch screens keep `:hover` after a tap, so mobile neutralizes hover fills under
   `(hover: none)` and shows pressed states (`:active`) instead: `--fill-1` on rows, `--fill-2`
   in sheets and on buttons.
-- **App bar:** 56px, 48px round icon buttons. In a note the bar is only the drawer and Note
+- **App bar:** 48px, with 48px round icon buttons. In a note the bar is only the drawer and Note
   actions buttons, on `--fill-1`.
 - **Drawer** is the desktop sidebar: `--bg-sidebar`, the same view icons (`--text-2`, accent when
   selected), notebook colors kept, selection `--fill-3`, counts follow "Show note counts".
+- **Notes list:** 48px rows (55px with a preview line). In All notes the notebook icon and name
+  sit on the title line; a note with no notebook shows only a muted icon. Rows have no visible
+  actions button: long-press opens note actions, and a button that stays hidden until focused
+  gives keyboards and screen readers the same route.
 - **Bottom sheets** (note, notebook and list actions) are floating surfaces: `--bg-elevated`,
   blur, `--shadow-pop`, 16px top radius, 48px rows with 20px `--text-2` icons. They sit above
   the keyboard and center at 560px wide on wide screens. Dialogs stay centered in the space
-  above the keyboard.
+  above the keyboard. Note actions lead with a row of four 64px icon tiles (Pin, Quick Access,
+  Duplicate, Copy link).
 - **Note:** the formatting bar floats above the keyboard on `--bg-elevated-solid` (no blur, so
   the writing-tools sheet inside it isn't clipped) and scrolls sideways. The table of contents
   is an overlay panel. Mobile keeps the native caret and selection.

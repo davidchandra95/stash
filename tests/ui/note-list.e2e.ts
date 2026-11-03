@@ -155,11 +155,9 @@ for (const mobile of [false, true]) {
       page.getByRole('button', { name: 'Meeting notes 01', exact: true }).locator(previewLine),
     ).toHaveText('No text preview')
     await filter.fill('')
-    await expect(
-      page
-        .getByRole('button', { name: 'Untitled note', exact: true })
-        .locator('.note-list-notebook'),
-    ).toHaveText('Uncategorized')
+    const untitled = page.getByRole('button', { name: 'Untitled note', exact: true })
+    if (mobile) await expect(untitled.locator('.mobile-note-book svg')).toBeVisible()
+    else await expect(untitled.locator('.note-list-notebook')).toHaveText('Uncategorized')
     await rows.evaluate((el) => {
       el.scrollTop = 0
     })
@@ -207,9 +205,7 @@ for (const mobile of [false, true]) {
     await expect(line).toHaveCSS('white-space', 'nowrap')
     expect(await line.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
     if (mobile) {
-      const action = page.getByRole('button', { name: 'Actions for Meeting notes 00', exact: true })
-      const box = await action.boundingBox()
-      expect(box!.width).toBeGreaterThanOrEqual(48)
+      const box = await first.boundingBox()
       expect(box!.height).toBeGreaterThanOrEqual(48)
       await page.getByRole('button', { name: 'Page actions', exact: true }).click()
       await page.getByRole('radio', { name: 'Compact', exact: true }).click()

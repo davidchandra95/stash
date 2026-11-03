@@ -19,12 +19,14 @@ it('describes all unique memberships with paths while keeping the visible summar
   ).toEqual({
     name: 'Plans',
     color: '#888888',
+    icon: 'book',
     extra: 1,
     description: 'Notebooks: Work / Plans, Personal',
   })
   expect(noteNotebookContext({ notebookIds: ['missing'] }, books)).toEqual({
     name: 'Uncategorized',
     color: undefined,
+    icon: undefined,
     extra: 0,
     description: 'Uncategorized',
   })
