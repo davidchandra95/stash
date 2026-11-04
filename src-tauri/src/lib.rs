@@ -1,4 +1,5 @@
 mod credentials;
+mod dictation;
 #[cfg(target_os = "macos")]
 mod macos_quit;
 mod native_menu;
@@ -129,6 +130,7 @@ pub fn run() {
         .plugin(tauri_plugin_stash_platform::init())
         .setup(|app| {
             app.manage(StartupWindowReady::default());
+            app.manage(dictation::Service::default());
             // Mobile keeps its normal startup visibility.
             #[cfg(mobile)]
             if let Some(window) = app.get_webview_window("main") {
@@ -165,6 +167,12 @@ pub fn run() {
         })
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
+            dictation::dictation_status,
+            dictation::dictation_download,
+            dictation::dictation_delete_model,
+            dictation::dictation_start,
+            dictation::dictation_stop,
+            dictation::dictation_cancel,
             platform_info,
             native_menu::show_outline_menu,
             native_menu::cancel_outline_menu,
@@ -217,6 +225,7 @@ pub fn run() {
         .run(|_app, event| match event {
             #[cfg(desktop)]
             tauri::RunEvent::ExitRequested { api, .. } => {
+                dictation::cancel_all(&_app.state::<dictation::Service>());
                 if storage::bridge::request_quit(_app) {
                     api.prevent_exit();
                 }
@@ -226,6 +235,7 @@ pub fn run() {
                 event: tauri::WindowEvent::CloseRequested { api, .. },
                 ..
             } => {
+                dictation::cancel_all(&_app.state::<dictation::Service>());
                 if storage::bridge::request_quit(_app) {
                     api.prevent_close();
                 }

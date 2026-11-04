@@ -1,6 +1,17 @@
 import { expect, it } from 'vitest'
 import { previewProjectData } from './fixtures'
-import { calendarItems, dayBounds, isUnscheduled, moveSchedule } from './calendarLayout'
+import {
+  calendarItems,
+  dayBounds,
+  allDayBars,
+  dragTop,
+  isUnscheduled,
+  movedStart,
+  moveSchedule,
+  planDrop,
+  resizedSchedule,
+  timedSegments,
+} from './calendarLayout'
 import {
   addDays,
   dayAt,
@@ -95,7 +106,9 @@ it('keeps independent deadlines and task start dates when scheduling', () => {
   const record = { ...task(), dueDate: '2026-12-01', startDate: '2026-10-01' }
   expect(schedulePatch(record, point())).toMatchObject({ dueLinked: false, dueDate: '2026-12-01' })
   expect(record.startDate).toBe('2026-10-01')
-  expect(isUnscheduled(record)).toBe(false)
+  // A deadline alone doesn't plan the work, so it can still be arranged.
+  expect(isUnscheduled(record)).toBe(true)
+  expect(isUnscheduled({ ...record, dueTime: '09:00' })).toBe(false)
   expect(isUnscheduled(task())).toBe(true)
   expect(isUnscheduled(task(point()))).toBe(false)
 })
@@ -184,4 +197,110 @@ it('validates ranges, dates, instants and named zones at the frontend boundary',
   expect(() => validateSchedule({ kind: 'point', start: 1.1, timeZone: 'UTC' })).toThrow()
   expect(() => validateSchedule({ kind: 'point', start: 1, timeZone: '+07:00' })).toThrow()
   expect(() => validateSchedule({ kind: 'point', start: 1, timeZone: 'Not/A_Zone' })).toThrow()
+})
+
+it('moves a dragged block by where it was grabbed', () => {
+  // Grabbed 70 minutes down: the pointer at 11:10 puts the top at 10:00.
+  expect(dragTop(600, 70, 670, 0, 1440)).toBe(600)
+  expect(dragTop(600, 70, 730, 0, 1440)).toBe(660)
+  // A day-only move keeps an off-grid time; a real move snaps to the grid.
+  expect(dragTop(847, 30, 880, 0, 1440)).toBe(847)
+  expect(dragTop(847, 30, 940, 0, 1440)).toBe(915)
+  // The top stays on the visible hours, and a late block isn't pulled up by a day-only move.
+  expect(dragTop(600, 70, 80, 480, 1200)).toBe(480)
+  expect(dragTop(1430, 2, 1432, 0, 1440)).toBe(1430)
+})
+
+it('keeps the real start when a later day of a multi-day block moves', () => {
+  const zone = 'Asia/Jakarta'
+  const start = resolveWallTime('2026-11-03', '23:00', zone)
+  const range = { kind: 'range' as const, start, end: start + 3 * 3_600_000, timeZone: zone }
+  expect(
+    movedStart(range, { day: '2026-11-04', top: 0 }, { day: '2026-11-05', top: 0 }, zone),
+  ).toEqual({ day: '2026-11-04', minute: 1380 })
+  expect(
+    movedStart(range, { day: '2026-11-03', top: 1380 }, { day: '2026-11-03', top: 1425 }, zone),
+  ).toEqual({ day: '2026-11-03', minute: 1425 })
+})
+
+it('plans drops by what is dragged and where it lands', () => {
+  const zone = 'Asia/Jakarta'
+  const dated = { ...task(), dueDate: '2026-11-04' }
+  const chip = { id: dated.id, marker: true }
+  expect(planDrop(dated, chip, '2026-11-05', 960, zone)).toEqual({
+    kind: 'timed',
+    day: '2026-11-05',
+    minute: 960,
+  })
+  expect(planDrop(dated, chip, '2026-11-05', null, zone)).toEqual({
+    kind: 'deadline',
+    day: '2026-11-05',
+  })
+  expect(planDrop({ ...dated, schedule: point() }, chip, '2026-11-05', 960, zone)).toEqual({
+    kind: 'deadline',
+    day: '2026-11-05',
+  })
+  const days = task({ kind: 'allDay', start: '2026-11-03', end: '2026-11-07' })
+  const bar = { id: days.id, marker: false, sourceDay: '2026-11-04' }
+  // Grabbed on its second day and dropped on Nov 6: two days later, on the grid or the row.
+  for (const top of [null, 600])
+    expect(planDrop(days, bar, '2026-11-06', top, zone)).toEqual({
+      kind: 'allDay',
+      start: '2026-11-05',
+      end: '2026-11-09',
+    })
+  const one = task({ kind: 'allDay', start: '2026-11-03', end: '2026-11-04' })
+  expect(planDrop(one, bar, '2026-11-06', 600, zone)).toEqual({
+    kind: 'timed',
+    day: '2026-11-06',
+    minute: 600,
+  })
+})
+
+it('keeps a minimum length when resizing', () => {
+  const zone = 'Asia/Jakarta'
+  const start = resolveWallTime('2026-11-03', '10:00', zone)
+  const end = resolveWallTime('2026-11-03', '11:00', zone)
+  const range: TaskSchedule = { kind: 'range', start, end, timeZone: zone }
+  expect(resizedSchedule(range, 'end', '2026-11-03', 480, zone)).toMatchObject({
+    start,
+    end: start + 900_000,
+  })
+  expect(resizedSchedule(range, 'start', '2026-11-03', 720, zone)).toMatchObject({
+    start: end - 900_000,
+    end,
+  })
+  expect(resizedSchedule(range, 'end', '2026-11-03', 1440, zone)).toMatchObject({
+    end: resolveWallTime('2026-11-04', '00:00', zone),
+  })
+  // A point gains an end by dragging its bottom edge.
+  expect(
+    resizedSchedule(point('2026-11-03', '10:00'), 'end', '2026-11-03', 720, zone),
+  ).toMatchObject({ kind: 'range', start, end: resolveWallTime('2026-11-03', '12:00', zone) })
+  const allDay: TaskSchedule = { kind: 'allDay', start: '2026-11-03', end: '2026-11-06' }
+  expect(resizedSchedule(allDay, 'end', '2026-11-01', null, zone)).toMatchObject({
+    end: '2026-11-04',
+  })
+  expect(resizedSchedule(allDay, 'start', '2026-11-09', null, zone)).toMatchObject({
+    start: '2026-11-05',
+  })
+})
+
+it('joins all-day days into bars and splits timed stretches by day', () => {
+  const days = ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05']
+  const items = calendarItems(
+    [task({ kind: 'allDay', start: '2026-11-01', end: '2026-11-05' })],
+    days,
+    'UTC',
+    true,
+  ).allDay
+  expect(allDayBars(items, days).map(({ from, span }) => [from, span])).toEqual([[0, 3]])
+  expect(timedSegments('2026-11-02', 1380, 120, days, 480, 1440)).toEqual([
+    { day: '2026-11-02', start: 1380, end: 1440 },
+  ])
+  expect(timedSegments('2026-11-02', 1380, 600, days, 0, 1440)).toEqual([
+    { day: '2026-11-02', start: 1380, end: 1440 },
+    { day: '2026-11-03', start: 0, end: 540 },
+  ])
+  expect(timedSegments('2026-11-09', 600, 60, days, 0, 1440)).toEqual([])
 })

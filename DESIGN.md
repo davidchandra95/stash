@@ -30,6 +30,7 @@ lists what changes for touch. Shared components must keep working on both.
 | Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`)  | `src/styles/theme-workspace.css`                    |
 | Menus, popovers, dialogs | Radix + `components/*`                                   | `src/styles/floating.css`, `dialogs.css`            |
 | Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`              | `src/styles/shell.css`                              |
+| Activity rail            | `src/app/ActivityRail.tsx`                               | `src/styles/sidebar.css`                            |
 | Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`     | `src/styles/sidebar.css`                            |
 | Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows` | `src/styles/notelist.css`                           |
 | Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`             | `src/styles/editor.css`                             |
@@ -55,7 +56,7 @@ when a token exists.
 - **Type:** `--text-xs` 12 (counts, dates, section headers), `--text-sm` 13 (secondary),
   `--text-md` 14 (default UI), `--text-lg` 16, `--text-xl` 18 (palette input).
   `--font-ui` is the system font. The interface font is not configurable.
-- **Geometry:** `--bar` 42px (pane title bars), `--row` 28px (sidebar rows), `--control` 28px
+- **Geometry:** `--bar` 42px (pane title bars), `--rail` 44px (activity rail), `--row` 28px (sidebar rows), `--control` 28px
   (buttons, fields, icon buttons), `--control-sm` 22px, `--icon` 17px, `--icon-sm` 15px.
 - **Spacing:** `--space-1…8` = 2, 4, 6, 8, 12, 16, 20, 24px.
 - **Radii:** `--radius-xs` 4 (menu items), `-sm` 5 (rows), `-md` 6 (controls), `-lg` 8 (groups,
@@ -88,14 +89,14 @@ Settings › Appearance › Theme. Native is the default.
 
 - **Native** follows macOS: vibrancy, the macOS accent for the automatic accent, AppKit context
   menus, translucent floating surfaces.
-- **Workspace** (`theme-workspace.css`): a pill-grey frame (`#eef0f4` / dark `#0e1520`) with the
-  notes list and editor in one bordered white content card (1px `#dfe4e7`, 8px radius, 8px
-  inset), slate text (`#1f2a3a` ink, `#686878` secondary, `#62748e` meta), navy note
+- **Workspace** (`theme-workspace.css`): a pill-grey frame (`#eef0f4` / dark `#0e1520`) holding
+  the activity rail, with the sidebar, notes list and editor on bordered white cards (1px
+  `#dfe4e7`, 8px radius, 8px inset; one shared card in the Standard layout, see
+  [Surfaces](#surfaces) for Cards), slate text (`#1f2a3a` ink, `#686878` secondary, `#62748e` meta), navy note
   headings (`--text-heading` `#08093f`), and indigo (`#494bcb` / dark `#7577e6`) as the
   automatic accent, kept for selection, focus and primary buttons. Floating surfaces are opaque
   and bordered (no blur); notices are navy `#1e2433`; field errors sit on `--danger-soft`;
   search marks use gold `#f2b01e`.
-  The selected sidebar row is lifted onto the card color with a hairline border.
   Desktop UI type drops to 13px; Android keeps its touch sizes. It turns off vibrancy (the
   Translucent sidebar setting is disabled) and native context menus, so the themed Radix menus
   show instead.
@@ -116,19 +117,20 @@ Settings › Appearance › Theme. Native is the default.
 
 ## Surfaces
 
-- The sidebar is the only translucent pane. Its material is dense (`--bg-sidebar-translucent`,
+- The activity rail and sidebar are the only translucent panes. Their material is dense (`--bg-sidebar-translucent`,
   about 80% neutral) so the wallpaper doesn't tint it. With the native Mac app and "Translucent sidebar"
-  on, the window uses the macOS sidebar material and the page is transparent behind the
-  sidebar (`:root[data-vibrancy]`). Otherwise it is `--bg-sidebar`.
+  on, the window uses the macOS sidebar material and the page is transparent behind them
+  (`:root[data-vibrancy]`). Otherwise it is `--bg-sidebar`.
 - The notes list and editor are `--bg-content` with 1px `--line` dividers. No cards, no gaps.
 - Floating surfaces (menus, popovers, palette, notices, tooltips) use `--bg-elevated`,
   backdrop blur and `--shadow-pop`. Dialogs and Settings use `--bg-content` and
   `--shadow-window`.
 - PDF pages, drawings and authored note colors keep their own colors.
 - **Cards layout** (Settings › Appearance › Layout, `appearance.layout = 'cards'`, desktop
-  only): the window takes the sidebar tone and the notes list and editor become rounded panels
-  (`--radius-xl`, `--shadow-card`) with 6px margins; note rows lose their dividers and get 2px
-  gaps. A saved v1 "Modern cards" style migrates to it. Standard stays the default.
+  only): the window takes the sidebar tone, with the activity rail bare on it. The sidebar and notes
+  list share one rounded card (`--bg-content`, a 1px `--line` divider), and the editor or project
+  page is a second card (`--radius-xl`, `--shadow-card`, 6px gaps); note rows lose their dividers and
+  get 2px gaps. With translucency on, only the rail keeps the material. A saved v1 "Modern cards" style migrates to it. Standard stays the default.
 - Desktop scrollbars are thin (4px thumb in a 10px gutter) and use `--scrollbar-idle` until
   their scroll area is hovered (`--scrollbar-hover`); the thumb itself brightens to
   `--scrollbar-active` while hovered or dragged. Android keeps native scrollbars.
@@ -154,27 +156,28 @@ Settings › Appearance › Theme. Native is the default.
 
 ## Window layout
 
-- Three columns: sidebar (default 232px), notes list (300px), editor. Widths are saved; pane
-  resizers are invisible until focused.
+- Four columns: activity rail (44px, fixed), sidebar (default 232px), notes list (300px), editor.
+  Widths are saved; pane resizers are invisible until focused.
 - A full-width 42px `.app-bar` (`app/AppBar.tsx`) sits above every pane and holds what is global.
   Left: 70px traffic-light clearance in the native app (`--window-controls`), the sidebar toggle,
   and the notes-list toggle while that list is hidden. Center: Back/Forward and the search field.
   Right: the Appearance menu (Light, Sepia, Dark, Auto), whose icon shows the current mode.
   The panes and the content card start below it.
-- Each pane also has a 42px `.pane-bar`. App and pane bars are window drag regions
+- Each pane also has a 42px `.pane-bar`; the sidebar's shows the active area's name. App and pane bars are window drag regions
   (`data-tauri-drag-region` on the bar and on empty filler elements).
 - Notes bar: view title, count, "Sort and view options" menu, New note. Editor bar: tabs, note
   controls (Focus mode, Table of contents, Find in note, Note actions).
 - Back/Forward follow one timeline across notes, PDFs, project pages and tasks (`timeline.ts`).
   Stops that no longer exist are skipped, and a stop whose tab was closed reopens in a new tab.
-- Focus mode hides the sidebar and notes list. A PDF tab hides the notes list.
-- The app has two areas, Notes and Projects. The domain switcher tabs at the top of the sidebar
-  picks one, as do Show Notes (⌘1) and Show Projects (⌘2). The sidebar below it
-  belongs to the active area. Switching to Projects reopens the
+- The editor can split into two groups side by side, each with its own tabs and tab bar. See
+  [Split notes](#split-notes).
+- Focus mode hides the activity rail, sidebar and notes list. Hiding the sidebar keeps the rail. A PDF tab hides the notes list.
+- The app has two areas, Notes and Projects. The activity rail picks one, as do Show Notes (⌘1)
+  and Show Projects (⌘2). The sidebar belongs to the active area. Switching to Projects reopens the
   project page last open there (Due today by default).
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
-- The sidebar footer holds sync status, Trash and Settings. There is no account menu.
+- The bottom of the activity rail holds sync status, Trash and Settings. There is no account menu.
 - Settings opens centered and can be dragged by its title bars, staying inside the window; it
   re-centers each time it opens.
 
@@ -208,18 +211,40 @@ Use the shared classes before writing new CSS:
 - All hover hints use `AppTooltip`. Icon-only buttons pass `instant`; everything else uses the
   700ms delay.
 
-## Domain switcher
+## Split notes
 
-- It is app-level navigation, so it must not look like a sidebar row: a `--fill-2` tray
-  (`--radius-xl`, 3px padding) holding one equal-width tab per area, each a Lucide outline icon
-  and the area name (13px, 500). The current tab gets `--bg-control` with `--shadow-control`;
-  the others are `--text-2`.
-- Tabs are `aria-pressed` buttons; their tooltip shows the area's shortcut. A red count badge
-  shows overdue tasks on the Projects tab.
-- One selection background slides between the tabs with a `--normal` (180ms) transform
-  transition and `--ease`. The active area and page change immediately. Reduced motion and
-  the Animations setting disable the slide; the background starts in place on launch.
-- Add an area only when a real domain ships; the switcher is not a launcher.
+- There are at most two groups, side by side. Open a split with the tab menu (Split Right, Split
+  Left), the `Columns2` button in the editor bar, ⌘\, the command palette, or by dragging a tab.
+- The menu, button and shortcut copy the tab; the original stays. Once split, they copy to the
+  other group, and the menu only offers that direction. Dragging a tab moves it. A group's only tab
+  is copied instead, since moving it would close the group.
+- While dragging, the outer 35% of a lone document shows a half-pane `--accent-soft` band with a
+  1px accent inset outline. With two groups, the other group shows the same band across its
+  document. A `.note-drag-ghost` tab follows the pointer outside the strip. Escape cancels.
+- A group closes when it loses its last tab. Divider, keyboard and drag resizing use the PDF split
+  divider; groups keep 240px each when the pane allows it. The layout is saved.
+- Clicking or tabbing into a group focuses it. Note lists, the palette and shortcuts act on the
+  focused group. Its active tab is `--fill-2`, and the other group's is `--fill-1`. Find and the
+  table of contents show only in the focused group. Both bars keep the same controls, so moving
+  focus never shifts tabs under the pointer.
+- The same note can be open on both sides. Each side has its own scroll, selection and undo, and
+  edits appear on the other side as they are typed. Undo only reverses that side's own edits.
+- PDFs stay in the main group and can't be split, because they already pair with a note. The split
+  hides while a PDF is showing and returns with the next note tab. Android has no split.
+
+## Activity rail
+
+- It is app-level navigation on the window frame, never on a card: 32px `.rail-btn` icon buttons
+  (Lucide outline icons, 19px for areas and 17px below) in `--text-2`, areas at the top; sync status,
+  Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
+- The current area is `--fill-2` with an `--accent` icon. Hover is `--fill-frame` on themes that
+  define it, else `--fill-1`.
+- Area buttons are `aria-pressed`; their tooltip shows the area's shortcut. Clicking the current
+  area toggles the sidebar; clicking another area switches to it and shows the sidebar. A red count
+  badge shows overdue tasks on Projects.
+- Sync status is icon-only; its label is the button's accessible name and tooltip, and the icon
+  turns `--danger` on failure. Tooltips open to the right.
+- Add an area only when a real domain ships; the rail is not a launcher.
 
 ## Projects and tasks
 
@@ -231,7 +256,9 @@ Use the shared classes before writing new CSS:
 - Task rows are 34px with inset dividers; selection uses the notes-list treatment
   (`--accent-soft` with an accent hairline). Due dates turn `--warning` within two days and
   `--danger` when late. Priority is three bars; high is `--danger`.
-- The project header's progress bar marks the elapsed share of the project's dates.
+- The desktop project header shows progress only through its ring; health and progress bars
+  live in All projects. Android's project page keeps its bar, which marks the elapsed share of
+  the project's dates.
 - Board columns are `--fill-1` panels (radius `--radius-lg`) holding `--bg-content` cards with
   `--shadow-card`; the drop position is a 2px accent line, and the target column gets an accent
   inset outline. Timeline bars use the project color at 28% with the done share filled solid;
@@ -242,6 +269,11 @@ Use the shared classes before writing new CSS:
   date. A missing or deleted task uses a dashed outline and muted text. Typing `@` at the start
   of a word opens a task picker built from the note-link menu rows; it shows nothing, rather than
   an empty state, when no task matches.
+- The task detail panel is an inspector: every field is one 28px row with a 72px label column,
+  and values read as plain text until hovered (`--fill-1`, select chevrons appear) or focused.
+  Hairlines separate properties, schedule, description and mentions. Boolean options use
+  `.switch`. Its left edge is a pane resizer (280–560px, default 320px, always leaving the main
+  view 360px); the width is saved.
 - Task and project menus are Radix menus on every platform; destructive items use
   `.menu-item.is-danger`.
 - New-task fields share a date and time smart input. Keep the native input and caret, mark
@@ -251,10 +283,46 @@ Use the shared classes before writing new CSS:
   See `documents/TASK_SMART_INPUT.md` for parsing, title and preference rules.
 
 - Calendar is a Projects pane with a sticky date header, scrollable all-day area and time grid.
-  Today uses the accent, and the current time uses `--danger`. Task blocks show their title and
-  project name; completed tasks use the usual strike-through. Use the shared task detail panel
-  for exact date/time edits and the calendar draft dialog for new tasks. On Android, use Day and
-  3 days with touch controls, and keep task details in the existing task page.
+  Today uses the accent, and the current time uses `--danger`. Hour lines are full `--line`,
+  half-hour lines fainter. Task blocks are the project color at 16% on `--bg-content` with a 36%
+  1px outline (`--text-3` for Inbox), a block's height is its true duration so it stays inside its
+  cells, and its text is only the title and start time: one line under 40px, two lines above.
+  Project, end time and offset stay in the tooltip and accessible name. Hover deepens the whole
+  block's tint; resize edges show only a cursor. All-day work is one continuous bar with one
+  checkbox. Deadline chips have no fill and a flag: `--warning` within two days,
+  `--danger` and "Overdue" when late. A past unfinished block fades instead of turning red, since
+  red means a missed deadline. Completed tasks use the usual strike-through. While dragging, an
+  accent band with the resulting time shows where the block lands and the source dims to 40%;
+  there is no separate preview text. Use the shared task detail panel
+  for exact date/time edits; its schedule fields save as you edit, with no Apply button, and wait
+  until focus leaves before reporting a half-typed field. On desktop a new task opens a compact window
+  centred on screen, with no dimming so its draft band stays in view: title, project and a summary
+  of the time, with the full schedule fields behind "Edit time". A click elsewhere dismisses an untitled draft, but never a typed title;
+  Escape and Cancel discard. On Android, use Day and 3 days with touch controls, the draft dialog
+  for new tasks, and the existing task page for details.
+  The toolbar is the top bar, with no empty pane bar above it. The time zone row shows only when
+  the calendar's zone differs from the device's, or tasks fall outside the visible hours. The
+  all-day "+" appears on hover or focus (always on Android). Overlapping blocks cascade: each is
+  1.6 times its share of the column, the one under the pointer comes to the front, and a 6px gutter
+  on the right keeps the cell clickable. In Week, a short overlapping block drops its time, and three
+  or more drop the checkbox, so the room goes to the title. Keys: T today, ←/→ previous and next,
+  D/1 Day, W/2 Week, M/3 Month, Y/4 Year, A/5 Agenda, N new task. They never apply while typing or
+  in a dialog or menu, and arrows only apply in the calendar. Desktop chooses its range from one
+  menu; Multi-Day (2–14) and Multi-Week (2–8) rows show their length, and − and + when highlighted
+  (←/→ by keyboard), without closing the menu. Previous, Today and next are one joined control.
+  Month and Multi-Week are rows of weeks where a day grows to fit its tasks, with no "+N more"; a
+  timed task is one line that keeps its time when moved to another day. Year is always 4×3 and
+  fits the pane, with a mark on days that have tasks. Agenda lists 30 days and lists a spanning
+  task once. View options is a dialog. The range label opens a date popover, day headers and day
+  numbers open that day, the view is remembered, and the time grid opens scrolled to the current
+  time.
+  A moved block keeps the point it was grabbed by, so changing only the day never changes the
+  time. A click takes the start of its half-hour cell; drags snap to 15 minutes. Resizes stop at
+  15 minutes, the grid scrolls at its edges during a gesture, and several-day all-day work stays
+  all-day when dropped on the grid. A deadline chip
+  dropped on the time grid schedules the task and keeps the deadline, or moves only the deadline
+  if the task already has a work time or the drop is on the all-day row. Arrange tasks lists open
+  work with no work time, including dated tasks.
 
 ## Writing surface
 
@@ -273,6 +341,15 @@ Use the shared classes before writing new CSS:
   the effect.
 - The editor's caret and selection are drawn by layers (`.writing-cursor-layer`,
   `.selection-highlight`); native selection paint stays transparent in editable notes.
+- Native macOS dictation starts from the note toolbar's microphone in a floating bar docked
+  where the formatting toolbar docks, centered on the editor pane (up to 640px, 20px radius,
+  `--bg-elevated`). It is not modal, so the note stays editable, and it replaces the docked
+  toolbar while open. Recording shows Cancel, the timer, a live level waveform (dots for silence,
+  bars for speech, newest on the right), Stop and review, and the accent Insert button, which also
+  stops and inserts directly. Review turns the same bar into a small auto-growing text box with
+  Discard, Copy, Dictate more and Insert (Return inserts, Shift+Return adds a line). Text goes in
+  at the note's cursor. The microphone button or shortcut starts and stops; Escape cancels.
+  Model and language choices live only in Settings › Editor › Dictation.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
   when the pane is narrow.
 
@@ -284,8 +361,8 @@ Use the shared classes before writing new CSS:
   drags, keyboard moves and pin changes settle into their slots with the same short timing,
   without bounce or scaling. Dragged tabs follow the pointer directly; tab gaps and pinned
   group boundaries stay intact. Reduced motion and Animations off disable these slides.
-- The sidebar view, pane widths, list mode, sorting, tabs and contents width are workspace
-  preferences restored on launch.
+- The sidebar view, pane widths, list mode, sorting, tabs, contents width and task detail width
+  are workspace preferences restored on launch.
 - Autosave is silent; failures, conflicts and preview-only storage are always visible.
 - Command palette: Cmd/Ctrl+P finds notes, projects and tasks (titles first, then task and project
   descriptions), Tab toggles note text, `>` for commands, Cmd/Ctrl+Enter opens a note in a new
@@ -355,8 +432,8 @@ surfaces. Don't add colors there; use the tokens.
 - Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors.
 - For Android changes, check `?mobile=1` at 390×844 and 844×390 in light and dark, plus a short
   viewport (about 844×260) for the keyboard-open case.
-- Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, and Settings at a
-  narrow width.
+- Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, split notes, and
+  Settings at a narrow width.
 - Check hover, selection (active and inactive pane), keyboard focus, disabled and error states,
   and menus opened from both the mouse and the keyboard.
 - Run `npm test` and `npm run build`. Report browser-preview checks and native-app checks

@@ -17,7 +17,7 @@ import DesktopWritingToolbar from './DesktopWritingToolbar'
 import { contextPresentation, portablePresentation, samePresentation } from './editorPresentation'
 import { EditorContent, useEditorState, type Editor, type JSONContent } from '@tiptap/react'
 import { useLayoutEffect } from 'react'
-import { getEditor } from '../editor/session'
+import { SplitEditorContext, sessionEditor } from './noteEditorView'
 import { retainEditorView } from '../editor/lifecycle'
 import { setCursorSettings } from '../editor/cursor'
 import { runCommand } from '../editor/commands'
@@ -58,7 +58,8 @@ export default function NoteEditor({
   onChange: (content: JSONContent, text: string) => void
 }) {
   const overrides = useContext(ShortcutContext)
-  const editor = getEditor(note.id, note.content, onChange, !!note.source)
+  const split = useContext(SplitEditorContext)
+  const editor = sessionEditor(split)(note.id, note.content, onChange, !!note.source)
   useLayoutEffect(() => retainEditorView(editor), [editor])
   useLayoutEffect(() => {
     editorShortcutOverrides.set(editor, overrides)

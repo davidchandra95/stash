@@ -45,6 +45,7 @@ export default function DateField({
   value,
   onChange,
   disabled = false,
+  clearable = true,
   className = '',
 }: {
   id?: string
@@ -52,6 +53,7 @@ export default function DateField({
   value: string | null
   onChange: (date: string | null) => void
   disabled?: boolean
+  clearable?: boolean
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -102,7 +104,7 @@ export default function DateField({
             <button type="button" className="date-today" onClick={() => choose(today())}>
               Today
             </button>
-            {value && (
+            {value && clearable && (
               <button type="button" className="date-clear" onClick={() => choose(null)}>
                 Clear
               </button>

@@ -1,0 +1,155 @@
+/* Docks where the formatting toolbar docks, and takes its place while open. */
+.dictation-composer {
+  position: fixed;
+  z-index: 600;
+  bottom: var(--space-6);
+  left: var(--dictation-center, 50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  width: min(640px, calc(var(--dictation-area, 100vw) - var(--space-8)));
+  padding: var(--space-2);
+  border-radius: 20px;
+  outline: none;
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: var(--text-md);
+  transform: translateX(-50%);
+}
+.window:has(.dictation-composer) .desktop-writing-toolbar[data-placement='docked'] {
+  visibility: hidden;
+}
+.dictation-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control);
+}
+.dictation-composer[data-view='review'] .dictation-row {
+  align-items: flex-end;
+}
+.dictation-composer .icon-btn {
+  border-radius: 50%;
+}
+.dictation-time {
+  flex: none;
+  min-width: 32px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.dictation-waveform {
+  flex: 1;
+  min-width: 0;
+  height: var(--control);
+  color: var(--text-2);
+}
+.dictation-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.dictation-status:empty {
+  display: none;
+}
+.dictation-status progress {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  accent-color: var(--accent);
+}
+[data-motion='on'] .dictation-status .is-working {
+  animation: dictation-pulse 1.4s var(--ease) infinite alternate;
+}
+@keyframes dictation-pulse {
+  to {
+    opacity: 0.5;
+  }
+}
+.dictation-text {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-height: 132px;
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  outline: none;
+  overflow-y: auto;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  line-height: 20px;
+}
+.dictation-text:focus,
+.dictation-text:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+.dictation-text::placeholder {
+  color: var(--text-4);
+}
+.dictation-line {
+  margin: 0;
+  padding: var(--space-1) var(--space-4) 0;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.dictation-line.is-error,
+.dictation-error,
+.dictation-settings [role='alert'] {
+  color: var(--danger);
+}
+.dictation-error {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.dictation-stop {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.dictation-stop .ui-icon {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
+  stroke-linejoin: round;
+}
+.icon-btn.dictation-send,
+.icon-btn.dictation-send:hover:not(:disabled),
+.icon-btn.dictation-send:active:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.icon-btn.dictation-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+}
+.icon-btn.dictation-send:disabled {
+  background: var(--fill-2);
+  color: var(--text-4);
+}
+.dictation-model-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dictation-settings {
+  display: grid;
+}
+.dictation-settings .field-help,
+.dictation-settings [role='alert'] {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-4);
+}

@@ -10,12 +10,10 @@ import {
   type RefObject,
 } from 'react'
 import {
-  defaultContentsWidth,
-  maximumContentsWidth,
-  minimumContentsWidth,
-  minimumDocumentWidth,
+  contentsLimits,
   normalizeContentsWidth,
   visibleContentsWidth,
+  type SidePanelLimits,
 } from './contentsWidth'
 
 type Session = {
@@ -34,6 +32,10 @@ export function useContentsResize({
   side = 'right',
   reserveWidth,
   adaptive = false,
+  workspaceKey,
+  limits = contentsLimits,
+  label = 'Resize table of contents',
+  className = 'contents-resizer',
 }: {
   workspaceRef: RefObject<HTMLElement | null>
   savedWidth: number | undefined
@@ -43,9 +45,14 @@ export function useContentsResize({
   reserveWidth?: (workspaceWidth: number) => number
   /** Notes can overlay instead of reducing the surrounding workspace panes. */
   adaptive?: boolean
+  /** Changes when `workspaceRef` moves to another element. */
+  workspaceKey?: unknown
+  limits?: SidePanelLimits
+  label?: string
+  className?: string
 }) {
   const [preferred, setPreferred] = useState(
-    () => normalizeContentsWidth(savedWidth) ?? defaultContentsWidth,
+    () => normalizeContentsWidth(savedWidth, limits) ?? limits.initial,
   )
   const preferredRef = useRef(preferred)
   // The live width is kept in a ref. State changes only when it changes the layout below,
@@ -63,16 +70,16 @@ export function useContentsResize({
   }
 
   useLayoutEffect(() => {
-    if (!session.current) setWidth(normalizeContentsWidth(savedWidth) ?? defaultContentsWidth)
+    if (!session.current) setWidth(normalizeContentsWidth(savedWidth, limits) ?? limits.initial)
   }, [savedWidth])
 
   const documentSpace = (width: number) => width - (reserveWidth?.(width) ?? 0)
   const layoutFor = (width: number, preferredWidth: number) => {
     const overlay =
-      adaptive && width > 0 && documentSpace(width) < preferredWidth + minimumDocumentWidth
+      adaptive && width > 0 && documentSpace(width) < preferredWidth + limits.minimumContent
     const shown = overlay
       ? Math.min(preferredWidth, documentSpace(width))
-      : visibleContentsWidth(preferredWidth, documentSpace(width))
+      : visibleContentsWidth(preferredWidth, documentSpace(width), limits)
     return { overlay, shown }
   }
   const latestLayout = useRef(layoutFor)
@@ -84,10 +91,13 @@ export function useContentsResize({
     const measure = () => {
       const width = Math.round(workspace.getBoundingClientRect().width)
       const layoutFor = latestLayout.current
+      const firstMeasure = workspaceWidth.current === 0
       const previous = layoutFor(workspaceWidth.current, preferredRef.current)
       workspaceWidth.current = width
       const next = layoutFor(width, preferredRef.current)
-      if (previous.overlay !== next.overlay || previous.shown !== next.shown) setLayoutWidth(width)
+      // The first render had no width, so the divider's maximum needs this one too.
+      if (firstMeasure || previous.overlay !== next.overlay || previous.shown !== next.shown)
+        setLayoutWidth(width)
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
@@ -97,14 +107,14 @@ export function useContentsResize({
       observer?.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [workspaceRef])
+  }, [workspaceRef, workspaceKey])
 
   const availableWidth = () =>
     Math.round(workspaceRef.current?.getBoundingClientRect().width ?? 0) || workspaceWidth.current
   const maximum = () =>
     Math.max(
-      minimumContentsWidth,
-      Math.min(maximumContentsWidth, documentSpace(availableWidth()) - minimumDocumentWidth),
+      limits.minimum,
+      Math.min(limits.maximum, documentSpace(availableWidth()) - limits.minimumContent),
     )
   const { overlay, shown } = layoutFor(workspaceWidth.current, preferred)
   const direction = side === 'left' ? 1 : -1
@@ -152,7 +162,7 @@ export function useContentsResize({
       if (latest.current.disabled || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault()
       const step = (event.key === 'ArrowRight' ? direction : -direction) * (event.shiftKey ? 32 : 8)
-      const width = Math.max(minimumContentsWidth, Math.min(maximum(), shown + step))
+      const width = Math.max(limits.minimum, Math.min(maximum(), shown + step))
       setWidth(width)
       latest.current.onCommit(width)
     },
@@ -175,7 +185,7 @@ export function useContentsResize({
       if (!active || active.pointerId !== event.pointerId) return
       setWidth(
         Math.max(
-          minimumContentsWidth,
+          limits.minimum,
           Math.min(
             maximum(),
             Math.round(active.startWidth + direction * (event.clientX - active.startX)),
@@ -211,11 +221,11 @@ export function useContentsResize({
   const maximumWidth = maximum()
   const dividerProps = useMemo(
     () => ({
-      className: 'contents-resizer',
+      className,
       role: 'separator' as const,
       'aria-orientation': 'vertical' as const,
-      'aria-label': 'Resize table of contents',
-      'aria-valuemin': minimumContentsWidth,
+      'aria-label': label,
+      'aria-valuemin': limits.minimum,
       'aria-valuemax': maximumWidth,
       'aria-valuenow': shown,
       'aria-valuetext': `${shown} pixels`,
@@ -223,7 +233,7 @@ export function useContentsResize({
       tabIndex: disabled ? -1 : 0,
       ...stableHandlers,
     }),
-    [maximumWidth, shown, disabled, stableHandlers],
+    [className, label, limits.minimum, maximumWidth, shown, disabled, stableHandlers],
   )
 
   return {

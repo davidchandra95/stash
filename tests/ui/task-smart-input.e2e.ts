@@ -183,11 +183,9 @@ test('times preview, save, display and remain editable on tasks', async ({ page 
   await row.click()
   await expect(page.getByLabel('Start time')).toHaveValue('14:00')
   await page.getByLabel('Start time').fill('17:45')
-  await page.getByRole('button', { name: 'Apply schedule' }).click()
   await saved(page, 'Throw trash', '2026-11-03', '17:45')
   await expect(row).toContainText('17:45')
   await page.getByRole('combobox', { name: 'Schedule', exact: true }).selectOption('none')
-  await page.getByRole('button', { name: 'Apply schedule' }).click()
   await saved(page, 'Throw trash', '2026-11-03')
   await expect(page.getByLabel('Start time')).toHaveCount(0)
 

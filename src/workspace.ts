@@ -52,8 +52,10 @@ export type WorkspacePreferences = {
   noteLists?: Record<string, NoteListPreferences>
   paneWidths?: PaneWidths
   contentsWidth?: number
+  taskDetailWidth?: number
   tabs: SavedTab[]
   activeTabId: string | null
+  split?: SavedSplit
 }
 export function restoreSidebarView(value: unknown, notebooks: Notebook[], notes: WorkspaceNote[]): View {
   if (typeof value !== 'string') return 'all'
@@ -111,6 +113,28 @@ export type WorkspaceTab = {
   preview?: boolean
 }
 export type Workspace = { tabs: WorkspaceTab[]; activeTabId: string | null }
+export type EditorGroupId = 'main' | 'split'
+export type SplitSide = 'left' | 'right'
+export type SavedSplit = {
+  tabs: SavedTab[]
+  activeTabId: string | null
+  side: SplitSide
+  /** The left group's share of the editor pane. */
+  ratio: number
+  focused: boolean
+}
+/**
+ * The main group plus an optional split group. Each is an ordinary Workspace, so the tab
+ * functions below work on either one. PDF tabs stay in the main group, which already pairs
+ * them with notes: the split steps aside while a PDF is showing.
+ */
+export type WorkspaceGroups = {
+  main: Workspace
+  split: Workspace | null
+  splitSide: SplitSide
+  ratio: number
+  focused: EditorGroupId
+}
 export const currentLocation = (tab: WorkspaceTab) => tab.entries[tab.index]
 export const activeTab = (state: Workspace) => state.tabs.find((t) => t.id === state.activeTabId)
 export function restoreWorkspace(
@@ -173,6 +197,143 @@ export function workspacePreferences(state: Workspace): WorkspacePreferences {
     }),
     activeTabId: state.activeTabId,
   }
+}
+export const focusedWorkspace = (groups: WorkspaceGroups) =>
+  groups.focused === 'split' && groups.split ? groups.split : groups.main
+export const groupOfTab = (groups: WorkspaceGroups, id: string): EditorGroupId | null =>
+  groups.main.tabs.some((tab) => tab.id === id)
+    ? 'main'
+    : groups.split?.tabs.some((tab) => tab.id === id)
+      ? 'split'
+      : null
+const pdfShowing = (state: Workspace) => {
+  const tab = activeTab(state)
+  return !!tab && currentLocation(tab).kind === 'pdf'
+}
+export const splitVisible = (groups: WorkspaceGroups) => !!groups.split && !pdfShowing(groups.main)
+export const normalizeRatio = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.max(0.1, Math.min(0.9, value)) : 0.5
+/** An emptied split closes; an emptied main group is replaced by the split. */
+export function normalizeGroups(groups: WorkspaceGroups): WorkspaceGroups {
+  let { main, split } = groups
+  if (split && !split.tabs.length) split = null
+  if (split && !main.tabs.length) {
+    main = split
+    split = null
+  }
+  const focused = split && !pdfShowing(main) ? groups.focused : 'main'
+  return main === groups.main && split === groups.split && focused === groups.focused
+    ? groups
+    : { ...groups, main, split, focused }
+}
+export function restoreGroups(
+  saved: WorkspacePreferences | null,
+  notes: WorkspaceNote[],
+  documents: { id: string }[] = [],
+): WorkspaceGroups {
+  const split = saved?.split
+  return normalizeGroups({
+    main: restoreWorkspace(saved, notes, documents),
+    split:
+      split && Array.isArray(split.tabs)
+        ? restoreWorkspace(
+            { tabs: split.tabs.filter((tab) => tab.kind !== 'pdf'), activeTabId: split.activeTabId },
+            notes,
+          )
+        : null,
+    splitSide: split?.side === 'left' ? 'left' : 'right',
+    ratio: normalizeRatio(split?.ratio),
+    focused: split?.focused === true ? 'split' : 'main',
+  })
+}
+export function groupsPreferences(groups: WorkspaceGroups): WorkspacePreferences {
+  return {
+    ...workspacePreferences(groups.main),
+    ...(groups.split
+      ? {
+          split: {
+            ...workspacePreferences(groups.split),
+            side: groups.splitSide,
+            ratio: groups.ratio,
+            focused: groups.focused === 'split',
+          },
+        }
+      : {}),
+  }
+}
+export function pruneGroups(
+  groups: WorkspaceGroups,
+  notes: WorkspaceNote[],
+  documents: { id: string }[] = [],
+): WorkspaceGroups {
+  const main = pruneWorkspace(groups.main, notes, documents)
+  const split = groups.split && pruneWorkspace(groups.split, notes, documents)
+  return main === groups.main && split === groups.split
+    ? groups
+    : normalizeGroups({ ...groups, main, split })
+}
+const otherGroup = (group: EditorGroupId): EditorGroupId => (group === 'main' ? 'split' : 'main')
+/** Puts a tab in a group, or selects the tab already showing the same note there. */
+function placeTab(state: Workspace, tab: WorkspaceTab, index?: number): Workspace {
+  const key = targetKey(currentLocation(tab))
+  const existing = state.tabs.find((other) => targetKey(currentLocation(other)) === key)
+  if (existing) return { ...state, activeTabId: existing.id }
+  const tabs = [...state.tabs]
+  const pinned = tabs.filter((other) => other.pinned).length
+  tabs.splice(Math.max(pinned, Math.min(tabs.length, index ?? tabs.length)), 0, tab)
+  return { tabs, activeTabId: tab.id }
+}
+/** Shows a note tab beside its group, as a copy with its own tab. PDF tabs can't be split. */
+export function splitTab(groups: WorkspaceGroups, id: string, side?: SplitSide): WorkspaceGroups {
+  const source = groupOfTab(groups, id)
+  const tab = source && groups[source]!.tabs.find((other) => other.id === id)
+  if (!source || !tab || currentLocation(tab).kind === 'pdf') return groups
+  const copy: WorkspaceTab = { id: crypto.randomUUID(), entries: [currentLocation(tab)], index: 0 }
+  if (groups.split) {
+    const target = otherGroup(source)
+    return normalizeGroups({
+      ...groups,
+      [target]: placeTab(groups[target]!, copy),
+      focused: target,
+    })
+  }
+  return {
+    ...groups,
+    split: { tabs: [copy], activeTabId: copy.id },
+    splitSide: side ?? 'right',
+    ratio: 0.5,
+    focused: 'split',
+  }
+}
+/** Moves a tab to the other group, or into a new split when `side` is given. */
+export function moveTabToGroup(
+  groups: WorkspaceGroups,
+  id: string,
+  options: { side?: SplitSide; index?: number } = {},
+): WorkspaceGroups {
+  const source = groupOfTab(groups, id)
+  const tab = source && groups[source]!.tabs.find((other) => other.id === id)
+  if (!source || !tab || currentLocation(tab).kind === 'pdf') return groups
+  // A group's only tab can't leave it without closing the group, so a new split copies it.
+  if (!groups.split && groups.main.tabs.length < 2) return splitTab(groups, id, options.side)
+  const { preview: _, pinned: __, ...moved } = tab
+  const remaining = closeTab(groups[source]!, id)
+  if (!groups.split)
+    return {
+      ...groups,
+      main: remaining,
+      split: { tabs: [moved], activeTabId: moved.id },
+      splitSide: options.side ?? 'right',
+      ratio: 0.5,
+      focused: 'split',
+    }
+  const target = otherGroup(source)
+  return normalizeGroups({
+    ...groups,
+    [source]: remaining,
+    [target]: placeTab(groups[target]!, moved, options.index),
+    focused: target,
+  })
 }
 export function captureLocation(
   state: Workspace,

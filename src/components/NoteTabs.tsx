@@ -1,10 +1,10 @@
-import { useTabDrag } from './useTabDrag'
+import { useTabDrag, type TabDragOutside } from './useTabDrag'
 import { useReorderMotion } from './useReorderMotion'
 import AppTooltip from './AppTooltip'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import NoteContextMenu from './NoteContextMenu'
-import { constrainTabIndex } from '../workspace'
-import { BookOpen, FileText, Pin, PinOff, X } from '../icons'
+import { constrainTabIndex, type SplitSide } from '../workspace'
+import { BookOpen, Columns2, FileText, Pin, PinOff, X } from '../icons'
 import type { Note } from '../model'
 import { useShortcutLabel } from '../useShortcuts'
 
@@ -19,6 +19,9 @@ export default function NoteTabs({
   onKeepOpenTab,
   onReorderTab,
   onPinTab,
+  splitSides = [],
+  onSplitTab,
+  dragOutside,
 }: {
   notes: Pick<Note, 'id' | 'title'>[]
   documents?: { id: string; name: string }[]
@@ -30,6 +33,10 @@ export default function NoteTabs({
   onCloseTab: (id: string) => void
   onKeepOpenTab: (id: string) => void
   onReorderTab: (id: string, targetIndex: number) => void
+  /** The directions a note tab can split toward. */
+  splitSides?: SplitSide[]
+  onSplitTab?: (id: string, side: SplitSide) => void
+  dragOutside?: TabDragOutside
 }) {
   const tabsRef = useRef<HTMLDivElement>(null)
   const revealTab = useRef<string | null>(null)
@@ -63,12 +70,14 @@ export default function NoteTabs({
     reorder,
     (id, index) => constrainTabIndex(tabs, id, index),
     reorderMotion,
+    dragOutside,
   )
   const shortcutLabel = useShortcutLabel()
   const close = (id: string) => {
     onCloseTab(id)
     requestAnimationFrame(() =>
       (
+        tabsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]') ??
         document.querySelector<HTMLElement>('.tabs [aria-selected="true"]') ??
         document.querySelector<HTMLElement>('[aria-label="New note"]')
       )?.focus(),
@@ -201,6 +210,13 @@ export default function NoteTabs({
                       onPinTab(tab.id, !tab.pinned)
                     },
                   },
+                  ...(tab.documentId
+                    ? []
+                    : splitSides.map((side) => ({
+                        label: side === 'left' ? 'Split Left' : 'Split Right',
+                        icon: Columns2,
+                        run: () => onSplitTab?.(tab.id, side),
+                      }))),
                   { label: 'Close', icon: X, run: () => close(tab.id) },
                 ]}
               >

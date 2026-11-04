@@ -575,6 +575,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             pinned: None,
         }],
         active_tab_id: Some("tab-a".into()),
+        split: None,
     });
     store.save_preferences(&prefs).unwrap();
     assert_eq!(store.save_preferences(&prefs).unwrap().revision, 2);
@@ -609,6 +610,7 @@ fn workspace_failure_is_atomic_and_empty_tabs_survive_restart() {
         note_lists: Default::default(),
         tabs: vec![],
         active_tab_id: None,
+        split: None,
     });
     store.save_preferences(&prefs).unwrap();
     prefs.expected_revision = 1;
@@ -651,6 +653,7 @@ fn workspace_rejects_multiple_preview_tabs() {
             })
             .collect(),
         active_tab_id: Some("a".into()),
+        split: None,
     });
     assert_eq!(
         store.save_preferences(&prefs).unwrap_err(),
@@ -1156,6 +1159,7 @@ fn recent_note_history_defaults_and_survives_restart_without_editing_notes() {
         note_lists: Default::default(),
         tabs: vec![],
         active_tab_id: None,
+        split: None,
     });
     store.save_preferences(&prefs).unwrap();
     drop(store);
@@ -1554,4 +1558,48 @@ fn library_summaries_ignore_orphaned_associations() {
         serde_json::to_value(&library.notes[0]).unwrap(),
         serde_json::to_value(store.note("a", false).unwrap()).unwrap(),
     );
+}
+
+#[test]
+fn saves_and_validates_the_split_editor_group() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let mut prefs = preferences();
+    let workspace = |split: serde_json::Value| {
+        serde_json::from_value::<WorkspacePreferences>(serde_json::json!({
+            "tabs": [{ "id": "tab-a", "noteId": "a" }],
+            "activeTabId": "tab-a",
+            "split": split,
+        }))
+        .unwrap()
+    };
+    let valid = serde_json::json!({
+        "tabs": [{ "id": "tab-a", "noteId": "a" }],
+        "activeTabId": "tab-a",
+        "side": "left",
+        "ratio": 0.4,
+        "focused": true,
+    });
+    let mut bad_side = valid.clone();
+    bad_side["side"] = "up".into();
+    let mut bad_ratio = valid.clone();
+    bad_ratio["ratio"] = 4.into();
+    let mut bad_active = valid.clone();
+    bad_active["activeTabId"] = "missing".into();
+    let mut pdf = valid.clone();
+    pdf["tabs"] = serde_json::json!([{ "id": "p", "kind": "pdf", "documentId": "d" }]);
+    pdf["activeTabId"] = "p".into();
+    for invalid in [bad_side, bad_ratio, bad_active, pdf] {
+        prefs.workspace = Some(workspace(invalid));
+        assert!(store.save_preferences(&prefs).is_err());
+    }
+    prefs.workspace = Some(workspace(valid));
+    store.save_preferences(&prefs).unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let split = store.library().unwrap().workspace.unwrap().split.unwrap();
+    assert_eq!(split.tabs[0].note_id, "a");
+    assert_eq!(split.side, "left");
+    assert_eq!(split.ratio, 0.4);
+    assert!(split.focused);
 }

@@ -1,15 +1,17 @@
-/* The window: three columns (sidebar, notes, editor), resizers and window chrome. */
+/* The window: four columns (rail, sidebar, notes, editor), resizers and window chrome. */
 
 .window {
   --sidebar-width: var(--sidebar-override, 232px);
-  --list-width: var(--list-override, 300px);
+  /* The default list gives way so the rail never pushes the editor below its 360px minimum. */
+  --list-width: var(--list-override, max(200px, min(300px, 100vw - var(--rail) - 592px)));
+  --rail-col: var(--rail);
   --sidebar-col: var(--sidebar-width);
   --list-col: var(--list-width);
   /* Clears the macOS traffic lights in whichever pane is leftmost. */
   --window-controls: 0px;
   position: relative;
   display: grid;
-  grid-template-columns: var(--sidebar-col) var(--list-col) minmax(0, 1fr);
+  grid-template-columns: var(--rail-col) var(--sidebar-col) var(--list-col) minmax(0, 1fr);
   grid-template-rows: var(--bar) minmax(0, 1fr);
   height: 100%;
   background: var(--bg-content);
@@ -30,6 +32,9 @@
 .window.no-sidebar {
   --sidebar-col: 0px;
 }
+.window.focus-mode {
+  --rail-col: 0px;
+}
 .window.no-note-list,
 .window.pdf-active {
   --list-col: 0px;
@@ -38,20 +43,24 @@
   grid-column: 1 / -1;
   grid-row: 1;
 }
-.window > .sidebar {
+.window > .activity-rail {
   grid-column: 1;
   grid-row: 2;
 }
-.window > .note-list {
+.window > .sidebar {
   grid-column: 2;
   grid-row: 2;
 }
-.window > .editor-pane {
+.window > .note-list {
   grid-column: 3;
   grid-row: 2;
 }
+.window > .editor-pane {
+  grid-column: 4;
+  grid-row: 2;
+}
 
-/* Native vibrancy: the page is transparent behind the sidebar only. */
+/* Native vibrancy: the page is transparent behind the rail and sidebar only. */
 :root[data-vibrancy],
 :root[data-vibrancy] body,
 :root[data-vibrancy] .window {
@@ -153,10 +162,10 @@
   touch-action: none;
 }
 .pane-resizer--sidebar {
-  left: var(--sidebar-col);
+  left: calc(var(--rail-col) + var(--sidebar-col));
 }
 .pane-resizer--noteList {
-  left: calc(var(--sidebar-col) + var(--list-col));
+  left: calc(var(--rail-col) + var(--sidebar-col) + var(--list-col));
 }
 .pane-resizer::after {
   content: '';
@@ -224,42 +233,63 @@
   color: var(--danger);
 }
 
-/* ───────── Cards layout: the notes list and editor float as panels ───────── */
+/* ───────── Cards layout: the rail on the frame, then a navigation card and a content card ───────── */
 
 .window.layout-cards {
+  --card-gap: 6px;
   background: var(--bg-sidebar);
 }
 :root[data-vibrancy] .window.layout-cards {
   background: transparent;
 }
-.window.layout-cards > .sidebar {
+.window.layout-cards > .activity-rail {
+  padding: 0 0 var(--card-gap);
   border-right: 0;
   background: transparent;
 }
-:root:not([data-vibrancy]) .window.layout-cards > .sidebar {
-  background: var(--bg-sidebar);
-}
+.window.layout-cards > .sidebar,
 .window.layout-cards > .note-list,
 .window.layout-cards > .editor-pane {
   overflow: hidden;
   border: 0;
-  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
+}
+/* The sidebar and notes list read as one card: each clips its shadow at the shared edge. */
+.window.layout-cards > .sidebar {
+  margin: 0 0 var(--card-gap);
+  border-right: 1px solid var(--line);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+  background: var(--bg-content);
+  clip-path: inset(-8px 0 -8px -8px);
+}
+:root[data-vibrancy] .window.layout-cards > .sidebar {
+  background: var(--bg-content);
+}
+.window.layout-cards > .note-list {
+  margin: 0 0 var(--card-gap);
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  clip-path: inset(-8px -8px -8px 0);
+}
+.window.layout-cards:is(.no-note-list, .pdf-active, .project-active) > .sidebar {
+  border-right: 0;
+  border-radius: var(--radius-xl);
+  clip-path: none;
+}
+.window.layout-cards.no-sidebar > .note-list {
+  border-radius: var(--radius-xl);
+  clip-path: none;
+}
+.window.layout-cards > .editor-pane {
+  border-radius: var(--radius-xl);
 }
 .window.layout-cards > .app-bar {
   border-bottom: 0;
   background: transparent;
 }
-.window.layout-cards > .note-list {
-  margin: 0 0 6px;
-}
 .window.layout-cards > .editor-pane {
-  margin: 0 6px 6px;
+  margin: 0 var(--card-gap) var(--card-gap);
 }
-.window.layout-cards.no-sidebar > .note-list {
-  margin-left: 6px;
-}
-.window.layout-cards:is(.no-note-list, .pdf-active):not(.no-sidebar) > .editor-pane {
+.window.layout-cards.no-sidebar:is(.no-note-list, .pdf-active):not(.focus-mode) > .editor-pane {
   margin-left: 0;
 }
 .window.layout-cards:is(.no-note-list, .pdf-active) > .note-list {

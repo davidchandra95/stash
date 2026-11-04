@@ -1,3 +1,6 @@
+import ModelSettings from '../dictation/ModelSettings'
+import { supported as dictationSupported } from '../dictation/client'
+import '../dictation/dictation.css'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
@@ -275,6 +278,18 @@ export default function Settings({
 
   const themeAccent = themeAccents[value.interfaceTheme]
   const items: Item[] = [
+    ...(dictationSupported()
+      ? [
+          {
+            id: 'dictation',
+            category: 'editor' as const,
+            group: 'Dictation',
+            search:
+              'Dictation voice speech microphone English Bahasa Indonesia Whisper model download',
+            content: <ModelSettings />,
+          },
+        ]
+      : []),
     {
       id: 'interface-theme',
       category: 'appearance',
@@ -409,7 +424,7 @@ export default function Settings({
       group: 'Window',
       search: 'Layout cards panels modern standard rounded',
       content: (
-        <Row label="Layout" description="Cards floats the notes list and editor as panels">
+        <Row label="Layout" description="Cards groups the sidebar and notes list beside the editor">
           <span className="segmented" role="radiogroup" aria-label="Layout">
             {layouts.map((layout) => (
               <button

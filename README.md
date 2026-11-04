@@ -30,6 +30,10 @@ npm run tauri dev
 
 For a browser preview, use `npm run dev` and open http://127.0.0.1:1420. Run `npm run build` to type-check and build the frontend. Run `cargo check --manifest-path src-tauri/Cargo.toml` to check the native shell.
 
+## Dictation
+
+On macOS, click the microphone in the note toolbar to dictate in English or Bahasa Indonesia. Download a multilingual Whisper model once, then record and transcribe offline. Review the text before inserting it. See [offline dictation](documents/DICTATION.md) for setup, privacy, and validation limits.
+
 ## Android
 
 See [Android development and builds](documents/ANDROID.md) for native setup, the mobile browser preview, debug APKs, and acceptance checks.

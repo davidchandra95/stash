@@ -8,7 +8,7 @@
   display: none;
 }
 .window > .project-pane {
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
   grid-row: 2;
 }
 :root[data-vibrancy] .window > .project-pane {
@@ -16,11 +16,11 @@
 }
 .window.layout-cards > .project-pane {
   overflow: hidden;
-  margin: 0 6px 6px;
+  margin: 0 var(--card-gap) var(--card-gap);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
 }
-.window.layout-cards:not(.no-sidebar) > .project-pane {
+.window.layout-cards.no-sidebar:not(.focus-mode) > .project-pane {
   margin-left: 0;
 }
 .pane-spacer {
@@ -88,7 +88,7 @@
   background: var(--bg-content);
 }
 .project-pane.has-detail {
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 30%, 360px);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .project-main {
   display: flex;
@@ -98,7 +98,7 @@
 }
 .project-header {
   flex: none;
-  padding: var(--space-3) 28px var(--space-6);
+  padding: var(--space-6) 28px;
   border-bottom: 1px solid var(--line);
 }
 .project-title {
@@ -121,6 +121,13 @@
   letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.project-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 .project-description {
   margin: var(--space-2) 0 0;
@@ -186,19 +193,6 @@
 .status-dot.is-cancelled {
   background: var(--text-3);
 }
-.project-progress {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-5);
-  margin-top: var(--space-6);
-  color: var(--text-2);
-  font-size: var(--text-sm);
-}
-.project-progress strong {
-  color: var(--text);
-  font-weight: 600;
-}
 .progress-track {
   position: relative;
   width: 220px;
@@ -235,9 +229,6 @@
 }
 .project-health.is-on_track {
   color: var(--success);
-}
-.project-progress-note {
-  color: var(--text-3);
 }
 
 /* ───────── Task list ───────── */
@@ -572,6 +563,17 @@
 
 /* ───────── Task detail ───────── */
 
+.task-detail-slot {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+.task-detail-resizer {
+  top: 0;
+  left: 0;
+}
 .task-detail {
   display: flex;
   flex-direction: column;
@@ -579,8 +581,10 @@
   min-height: 0;
   border-left: 1px solid var(--line);
 }
+.task-detail > .pane-bar {
+  padding-left: 20px;
+}
 .task-detail-label {
-  padding-left: var(--space-2);
   color: var(--text-2);
   font-size: var(--text-sm);
 }
@@ -618,7 +622,7 @@
 .task-props {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-1) var(--space-4);
   align-items: center;
   margin-top: var(--space-6);
   font-size: var(--text-sm);
@@ -630,6 +634,66 @@
   width: 100%;
   font-size: var(--text-sm);
 }
+.task-detail-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+/* Every field is one inspector row: the label column, then a value that looks like text until
+   it's hovered or focused. */
+.task-detail .schedule-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+.task-detail .schedule-fields .field-label {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+  color: var(--text-3);
+}
+.task-detail :is(.task-props, .schedule-fields) .field {
+  height: var(--control);
+  background-color: transparent;
+  box-shadow: none;
+  font-size: var(--text-sm);
+}
+.task-detail :is(.task-props, .schedule-fields) .field:hover:not(:disabled, :focus) {
+  background-color: var(--fill-1);
+}
+.task-detail :is(.task-props, .schedule-fields) .field:is(:focus, [aria-expanded='true']) {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.task-detail .date-field > .ui-icon {
+  display: none;
+}
+/* The neutral chevron has to be a literal: a background image can't read tokens. */
+.task-detail select.field {
+  padding-right: 24px;
+  appearance: none;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  background-position: right 7px center;
+  background-repeat: no-repeat;
+  background-size: 12px;
+}
+.task-detail select.field:is(:hover, :focus):not(:disabled) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5M7 9l5-5 5 5'/%3E%3C/svg%3E");
+}
+.task-detail .schedule-editor {
+  gap: var(--space-3);
+}
+.task-detail .schedule-link {
+  justify-content: space-between;
+  min-height: var(--control);
+  margin-top: var(--space-2);
+  color: var(--text-2);
+}
+.task-detail .field-help {
+  margin: 0;
+}
 .task-date.is-late {
   color: var(--danger);
 }
@@ -638,17 +702,25 @@
 }
 .task-detail-heading {
   display: block;
-  margin: var(--space-7) 0 var(--space-3);
+  margin: 0 0 var(--space-3);
   color: var(--text-3);
   font-size: var(--text-xs);
   font-weight: 600;
 }
-.task-description {
-  width: 100%;
-  min-height: 96px;
-  padding: var(--space-4) 10px;
-  resize: vertical;
+.task-detail .task-description {
+  display: block;
+  width: calc(100% + var(--space-8));
+  min-height: 60px;
+  margin-inline: calc(var(--space-4) * -1);
+  padding: var(--space-3) var(--space-4);
+  resize: none;
+  field-sizing: content;
+  background: transparent;
+  box-shadow: none;
   font: var(--text-sm) / 20px var(--font-ui);
+}
+.task-detail .task-description:hover:not(:disabled, :focus) {
+  background: var(--fill-1);
 }
 .task-detail-footer {
   flex: none;
@@ -1125,9 +1197,6 @@ h3.task-detail-heading {
   margin: var(--space-2) var(--space-2) 0;
   color: var(--text-4);
   font-size: var(--text-xs);
-}
-.pane-bar > .segmented {
-  margin-right: var(--space-2);
 }
 
 /* ───────── Timeline ───────── */

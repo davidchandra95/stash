@@ -55,8 +55,15 @@ export const shortcutCommands: ShortcutCommand[] = [
     ['next-tab', 'Next tab', 'Select the next open tab.', 'Ctrl+Tab'],
     ['previous-tab', 'Previous tab', 'Select the previous open tab.', 'Ctrl+Shift+Tab'],
     ['close-tab', 'Close current tab', 'Close the active note tab.', 'Mod+w'],
+    ['split-note', 'Split note', 'Show the active note beside its tab group.', 'Mod+\\'],
   ]),
   ...group('Notes', [
+    [
+      'dictate-note',
+      'Dictate note',
+      'Start dictating, or stop and review the text.',
+      null,
+    ],
     ['pin', 'Pin / unpin note', 'Toggle pinning for the active note.', 'Mod+Alt+p'],
     ['duplicate', 'Duplicate note', 'Create a copy of the active note.', null],
     ['trash', 'Move note to Trash', 'Move the active note to Trash.', null],

@@ -1,5 +1,12 @@
 import { effectiveDueDate } from './schedule'
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import * as Context from '@radix-ui/react-context-menu'
 import AppTooltip from '../components/AppTooltip'
@@ -21,7 +28,7 @@ import {
   Trash2,
 } from '../icons'
 import ProjectRing from './ProjectRing'
-import TaskDetail from './TaskDetail'
+import ResizableTaskDetail from './ResizableTaskDetail'
 import TaskCalendar from './TaskCalendar'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
@@ -30,12 +37,9 @@ import NewTask from './NewTask'
 import {
   bySort,
   dueState,
-  elapsed,
   formatTaskTiming,
   formatRange,
   groupOf,
-  health,
-  healthLabel,
   priorities,
   progress,
   projectStatuses,
@@ -117,31 +121,28 @@ export default trackApp(function ProjectPane() {
     (t) => t.id === app.selectedTaskId,
   )
 
-  const bar = (
-    <div className="pane-bar" data-tauri-drag-region>
-      <span className="pane-spacer" data-tauri-drag-region />
-      {(project || inbox) && (
-        <div className="segmented" role="group" aria-label="Task layout">
-          <button
-            aria-pressed={app.projectLayout === 'list'}
-            onClick={() => app.setProjectLayout('list')}
-          >
-            List
-          </button>
-          <button
-            aria-pressed={app.projectLayout === 'board'}
-            onClick={() => app.setProjectLayout('board')}
-          >
-            Board
-          </button>
-        </div>
-      )}
+  const actions = (
+    <div className="project-actions">
+      <div className="segmented" role="group" aria-label="Task layout">
+        <button
+          aria-pressed={app.projectLayout === 'list'}
+          onClick={() => app.setProjectLayout('list')}
+        >
+          List
+        </button>
+        <button
+          aria-pressed={app.projectLayout === 'board'}
+          onClick={() => app.setProjectLayout('board')}
+        >
+          Board
+        </button>
+      </div>
       {project && <ProjectMenu project={project} />}
     </div>
   )
   if (calendar) return <section className={`project-pane ${selected ? 'has-detail' : ''}`} aria-label="Calendar" data-pane="project">
-    <div className="project-main">{bar}<TaskCalendar tasks={tasks} projects={projects} disabled={blocked} selectedId={app.selectedTaskId} onSelect={app.setSelectedTaskId} notify={app.setProjectNotice} /></div>
-    {selected && <TaskDetail task={selected} />}
+    <div className="project-main"><TaskCalendar tasks={tasks} projects={projects} disabled={blocked} selectedId={app.selectedTaskId} onSelect={app.setSelectedTaskId} notify={app.setProjectNotice} /></div>
+    {selected && <ResizableTaskDetail task={selected} />}
   </section>
   if (dateView)
     return (
@@ -151,17 +152,15 @@ export default trackApp(function ProjectPane() {
         data-pane="project"
       >
         <div className="project-main">
-          {bar}
           <TaskDateView view={dateView} />
         </div>
-        {selected && <TaskDetail task={selected} />}
+        {selected && <ResizableTaskDetail task={selected} />}
       </section>
     )
   if (overview)
     return (
       <section className="project-pane" aria-label="Projects" data-pane="project">
         <div className="project-main">
-          {bar}
           <ProjectsOverview />
         </div>
       </section>
@@ -173,8 +172,11 @@ export default trackApp(function ProjectPane() {
       data-pane="project"
     >
       <div className="project-main">
-        {bar}
-        {project ? <ProjectHeader project={project} tasks={own} /> : <InboxHeader />}
+        {project ? (
+          <ProjectHeader project={project} tasks={own} actions={actions} />
+        ) : (
+          <InboxHeader actions={actions} />
+        )}
         {app.projectLayout === 'board' ? (
           <div className="task-scroll board-scroll">
             <NewTask key={projectId ?? 'inbox'} projectId={projectId} disabled={blocked} />
@@ -184,43 +186,45 @@ export default trackApp(function ProjectPane() {
           <TaskList key={projectId ?? 'inbox'} projectId={projectId} tasks={own} disabled={blocked} />
         )}
       </div>
-      {selected && <TaskDetail task={selected} />}
+      {selected && <ResizableTaskDetail task={selected} />}
     </section>
   )
 })
 
-function InboxHeader() {
+function InboxHeader({ actions }: { actions: ReactNode }) {
   return (
     <header className="project-header">
       <div className="project-title">
         <Inbox aria-hidden="true" />
         <h1>Inbox</h1>
+        {actions}
       </div>
       <p className="project-description">Tasks that don’t belong to a project yet.</p>
     </header>
   )
 }
 
-function ProjectHeader({ project, tasks }: { project: Project; tasks: Task[] }) {
+function ProjectHeader({
+  project,
+  tasks,
+  actions,
+}: {
+  project: Project
+  tasks: Task[]
+  actions: ReactNode
+}) {
   const app = useApp()
   const blocked = useBlocked()
   const current = today()
   const stats = progress(tasks)
-  const state = health(project, tasks, current)
-  const time = elapsed(project, current)
   const notebook = app.notebooks.find((book) => book.id === project.notebookId)
   const range = formatRange(project.startDate, project.endDate, current)
-  const left = project.endDate
-    ? Math.round(
-        (Date.parse(`${project.endDate}T00:00:00Z`) - Date.parse(`${current}T00:00:00Z`)) /
-          86_400_000,
-      )
-    : null
   return (
     <header className="project-header">
       <div className="project-title">
         <ProjectRing project={project} ratio={stats.ratio} className="is-large" />
         <h1>{project.name}</h1>
+        {actions}
       </div>
       {project.description && <p className="project-description">{project.description}</p>}
       <div className="project-props">
@@ -275,43 +279,6 @@ function ProjectHeader({ project, tasks }: { project: Project; tasks: Task[] }) 
             <Notebook aria-hidden="true" />
             {notebook.name}
           </button>
-        )}
-      </div>
-      <div className="project-progress">
-        <span
-          className="progress-track"
-          role="progressbar"
-          aria-label="Tasks done"
-          aria-valuemin={0}
-          aria-valuemax={stats.total}
-          aria-valuenow={stats.done}
-          style={
-            {
-              '--done': `${(stats.ratio ?? 0) * 100}%`,
-              '--elapsed': `${(time ?? 0) * 100}%`,
-            } as CSSProperties
-          }
-        >
-          <i />
-          {time !== null && <b title="Time elapsed" />}
-        </span>
-        <span>
-          <strong>
-            {stats.done} of {stats.total}
-          </strong>{' '}
-          done
-        </span>
-        {state && (
-          <span className={`project-health is-${state}`}>
-            <span className={`health-dot is-${state}`} aria-hidden="true" />
-            {healthLabel[state]}
-          </span>
-        )}
-        {time !== null && project.status === 'active' && (
-          <span className="project-progress-note">
-            {Math.round(time * 100)}% of time elapsed
-            {left !== null && left >= 0 && ` · ${left} ${left === 1 ? 'day' : 'days'} left`}
-          </span>
         )}
       </div>
     </header>

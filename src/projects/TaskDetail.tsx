@@ -230,28 +230,54 @@ export default function TaskDetail({ task }: { task: Task }) {
           />
           </>}
         </div>
-        <h3 className="task-detail-heading">Work schedule</h3>
-        <ScheduleEditor key={task.id} schedule={task.schedule} disabled={blocked} onSave={async (schedule) => {
-          const current = projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
-          await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
-        }} />
-        {task.schedule && <label className="schedule-link"><input type="checkbox" checked={!!task.dueLinked} disabled={blocked}
-          onChange={(event) => updateTask(task, event.target.checked
-            ? { dueLinked: true, dueDate: null, dueTime: null }
-            : { dueLinked: false, dueDate: effectiveDueDate(task, zone) })} />Due day follows schedule</label>}
-        {task.dueLinked && <p className="field-help">Due {effectiveDueDate(task, zone)}. Editing Due above sets a separate deadline.</p>}
-        <label className="task-detail-heading" htmlFor="task-description">
-          Description
-        </label>
-        <textarea
-          id="task-description"
-          className="field task-description"
-          placeholder="Add details"
-          maxLength={10_000}
-          disabled={blocked}
-          {...description.props}
-        />
-        <MentionedIn taskId={task.id} />
+        <div className="task-detail-section">
+          <ScheduleEditor
+            key={task.id}
+            schedule={task.schedule}
+            disabled={blocked}
+            onSave={async (schedule) => {
+              const current = projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
+              await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
+            }}
+          />
+          {task.schedule && (
+            <label className="schedule-link">
+              Due day follows schedule
+              <button
+                type="button"
+                role="switch"
+                className="switch"
+                aria-checked={!!task.dueLinked}
+                disabled={blocked}
+                onClick={() =>
+                  updateTask(
+                    task,
+                    task.dueLinked
+                      ? { dueLinked: false, dueDate: effectiveDueDate(task, zone) }
+                      : { dueLinked: true, dueDate: null, dueTime: null },
+                  )
+                }
+              />
+            </label>
+          )}
+          {task.dueLinked && <p className="field-help">Editing Due sets a separate deadline.</p>}
+        </div>
+        <div className="task-detail-section">
+          <label className="task-detail-heading" htmlFor="task-description">
+            Description
+          </label>
+          <textarea
+            id="task-description"
+            className="field task-description"
+            placeholder="Add details"
+            maxLength={10_000}
+            disabled={blocked}
+            {...description.props}
+          />
+        </div>
+        <div className="task-detail-section">
+          <MentionedIn taskId={task.id} />
+        </div>
       </div>
       <div className="task-detail-footer">
         Created {when(task.created)} · Edited {when(task.updated)}

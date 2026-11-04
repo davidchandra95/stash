@@ -33,10 +33,10 @@ async function mount(configured: boolean, syncError = '') {
   await act(async () => root!.render(<App />))
 }
 
-const footer = () => host!.querySelector<HTMLElement>('.sidebar-footer')!
-const syncButton = () => footer().querySelector<HTMLButtonElement>('button.sync-status')!
-const footerButton = (label: string) =>
-  footer().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+const rail = () => host!.querySelector<HTMLElement>('.activity-rail')!
+const syncButton = () => rail().querySelector<HTMLButtonElement>('button.rail-sync')!
+const railButton = (label: string) =>
+  rail().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
 const settingsTitle = () => document.querySelector('[role="dialog"] .settings-title')?.textContent
 
 async function clickSync() {
@@ -51,10 +51,10 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-it('opens Sync settings from the footer sync status when no connection exists', async () => {
+it('opens Sync settings from the rail sync status when no connection exists', async () => {
   await mount(false)
   const sync = vi.spyOn(library, 'sync').mockResolvedValue()
-  expect(syncButton().textContent).toBe('Sync is off')
+  expect(syncButton().getAttribute('aria-label')).toBe('Sync is off')
   expect(syncButton().disabled).toBe(false)
   await clickSync()
   const dialog = document.querySelector('[role="dialog"]')!
@@ -64,10 +64,10 @@ it('opens Sync settings from the footer sync status when no connection exists', 
   expect(sync).not.toHaveBeenCalled()
 })
 
-it('shows a sync failure in the workspace notice and retries from there and the footer', async () => {
+it('shows a sync failure in the workspace notice and retries from there and the rail', async () => {
   await mount(true, 'Network unavailable')
   const sync = vi.spyOn(library, 'sync').mockResolvedValue()
-  expect(syncButton().textContent).toBe('Couldn’t sync')
+  expect(syncButton().getAttribute('aria-label')).toBe('Couldn’t sync')
   const alert = host!.querySelector<HTMLElement>('.notices .notice[role="alert"]')!
   expect(alert.textContent).toContain('Couldn’t sync')
   expect(alert.textContent).toContain('Network unavailable')
@@ -81,7 +81,7 @@ it('shows a sync failure in the workspace notice and retries from there and the 
   expect(document.querySelector('[role="dialog"]')).toBeNull()
 })
 
-it('opens Trash from the footer and Settings on Appearance', async () => {
+it('opens Trash from the rail and Settings on Appearance', async () => {
   await mount(true)
   await act(async () =>
     host!
@@ -94,14 +94,14 @@ it('opens Trash from the footer and Settings on Appearance', async () => {
       .click(),
   )
   expect(host!.querySelector('#note-list')?.hasAttribute('inert')).toBe(true)
-  const trash = footerButton('Trash')
+  const trash = railButton('Trash')
   expect(trash.getAttribute('aria-pressed')).toBe('false')
   await act(async () => trash.click())
-  expect(footerButton('Trash').getAttribute('aria-pressed')).toBe('true')
+  expect(railButton('Trash').getAttribute('aria-pressed')).toBe('true')
   expect(host!.querySelector('.list-title')?.textContent).toContain('Trash')
   expect(host!.querySelector('#note-list')?.hasAttribute('inert')).toBe(false)
 
-  await act(async () => footerButton('Settings').click())
+  await act(async () => railButton('Settings').click())
   expect(document.querySelector('[role="dialog"]')).not.toBeNull()
   expect(settingsTitle()).toBe('Appearance')
 })

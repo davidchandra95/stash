@@ -21,6 +21,13 @@ type Session = {
   items: { id: string; left: number; width: number }[]
 }
 
+/** Lets a tab be dragged out of its strip, for example into a new editor split. */
+export type TabDragOutside = {
+  over: (id: string, x: number, y: number) => void
+  drop: (id: string, x: number, y: number) => void
+  end: () => void
+}
+
 export function useTabDrag(
   stripRef: RefObject<HTMLDivElement | null>,
   signature: string,
@@ -28,6 +35,7 @@ export function useTabDrag(
   onMove: (id: string, index: number) => void,
   constrain: (id: string, index: number) => number = (_, index) => index,
   motion?: { capture: () => void; cancel: () => void },
+  outside?: TabDragOutside,
 ) {
   const session = useRef<Session | null>(null)
   const suppressClick = useRef(false)
@@ -38,13 +46,18 @@ export function useTabDrag(
   constrainRef.current = constrain
   const motionRef = useRef(motion)
   motionRef.current = motion
+  const outsideRef = useRef(outside)
+  outsideRef.current = outside
   useEffect(() => {
     let frame = 0
     let lastTime = 0
     const finish = (commit = false) => {
       const drag = session.current
       if (!drag) return
-      if (drag.active) motionRef.current?.capture()
+      if (drag.active) {
+        motionRef.current?.capture()
+        outsideRef.current?.end()
+      }
       session.current = null
       cancelAnimationFrame(frame)
       if (drag.button.hasPointerCapture?.(drag.pointerId))
@@ -57,6 +70,8 @@ export function useTabDrag(
       const drag = session.current,
         strip = stripRef.current
       if (!drag || !strip || !drag.active) return
+      // A lone tab has nothing to swap with and can only leave the strip.
+      if (drag.items.length < 2) return setVisual({ id: drag.id, offsets: {} })
       const source = drag.items[drag.index]
       const delta = drag.x - drag.startX + strip.scrollLeft - drag.startScroll
       const first = drag.items[0]
@@ -133,18 +148,21 @@ export function useTabDrag(
       if (drag.active) {
         event.preventDefault()
         paint()
+        outsideRef.current?.over(drag.id, drag.x, drag.y)
       }
     }
     const up = (event: PointerEvent) => {
       if (event.pointerId !== session.current?.pointerId) return
       const bounds = stripRef.current?.getBoundingClientRect()
-      finish(
+      const inside =
         !!bounds &&
-          event.clientX >= bounds.left &&
-          event.clientX <= bounds.right &&
-          event.clientY >= bounds.top &&
-          event.clientY <= bounds.bottom,
-      )
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom
+      const drag = session.current
+      finish(inside)
+      if (!inside && drag.active) outsideRef.current?.drop(drag.id, event.clientX, event.clientY)
     }
     const cancel = () => finish()
     const key = (event: KeyboardEvent) => {
@@ -188,7 +206,7 @@ export function useTabDrag(
           width: rect.width,
         }
       })
-      if (items.length < 2) return
+      if (items.length < 2 && !outsideRef.current) return
       const index = items.findIndex((item) => item.id === id)
       session.current = {
         id,

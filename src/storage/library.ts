@@ -23,7 +23,7 @@ import { defaultCursorSettings } from '../editor/cursor'
 import { initialNotes, initialNotebooks, type Appearance, type Note, type Notebook } from '../model'
 import { notebookDeleteScope } from '../notebooks'
 import { normalizePaneWidths, type PaneWidths } from '../paneLayout'
-import { normalizeContentsWidth } from '../contentsWidth'
+import { normalizeContentsWidth, taskDetailLimits } from '../contentsWidth'
 import { SaveQueue, type SaveStatus } from './saveQueue'
 import { tagsFromContent } from '../tags'
 import { defaultHeadingStyles, normalizeHeadingStyles } from '../headingStyles'
@@ -53,7 +53,8 @@ function normalizeWorkspacePreferences(
   if (!workspace) return null
   const paneWidths = normalizePaneWidths(workspace.paneWidths)
   const contentsWidth = normalizeContentsWidth(workspace.contentsWidth)
-  const { paneWidths: _, contentsWidth: __, ...legacyWorkspace } = workspace
+  const taskDetailWidth = normalizeContentsWidth(workspace.taskDetailWidth, taskDetailLimits)
+  const { paneWidths: _, contentsWidth: __, taskDetailWidth: ___, ...legacyWorkspace } = workspace
   return {
     ...legacyWorkspace,
     ...(workspace.noteListMode !== undefined
@@ -63,6 +64,7 @@ function normalizeWorkspacePreferences(
     recentNoteIds: normalizeRecentNotes(workspace.recentNoteIds),
     ...(paneWidths ? { paneWidths } : {}),
     ...(contentsWidth ? { contentsWidth } : {}),
+    ...(taskDetailWidth ? { taskDetailWidth } : {}),
   }
 }
 
@@ -1219,6 +1221,14 @@ export class LibraryStore {
       contentsWidth,
     })
   }
+  setTaskDetailWidth = (value: number) => {
+    const taskDetailWidth = normalizeContentsWidth(value, taskDetailLimits)
+    if (!taskDetailWidth) return
+    this.setWorkspace({
+      ...(this.state.workspace ?? { tabs: [], activeTabId: null }),
+      taskDetailWidth,
+    })
+  }
   setRecentNotes = (ids: string[]) => {
     const recentNoteIds = normalizeRecentNotes(ids, this.state.notes)
     this.setWorkspace({
@@ -1262,6 +1272,8 @@ export class LibraryStore {
       workspace = { ...workspace, paneWidths: this.state.workspace.paneWidths }
     if (this.state.workspace?.contentsWidth && !workspace.contentsWidth)
       workspace = { ...workspace, contentsWidth: this.state.workspace.contentsWidth }
+    if (this.state.workspace?.taskDetailWidth && !workspace.taskDetailWidth)
+      workspace = { ...workspace, taskDetailWidth: this.state.workspace.taskDetailWidth }
     if (
       this.state.syncing ||
       this.state.converting ||

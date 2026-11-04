@@ -117,7 +117,10 @@ export function usePaneResize({
   }, [appRef])
 
   const contextFor = (widths: PaneWidths): PaneLayoutContext => ({
-    appWidth: measurements.app || width(appRef.current),
+    // The fixed activity rail is never available to resizable panes or the editor.
+    appWidth:
+      (measurements.app || width(appRef.current)) -
+      width(appRef.current?.querySelector<HTMLElement>(':scope > .activity-rail') ?? null),
     sidebarVisible: latest.current.sidebarVisible,
     noteListVisible: latest.current.noteListVisible,
     sidebarWidth: widths.sidebar,

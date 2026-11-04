@@ -6,7 +6,12 @@ import { motionEase } from './motion'
  * layout, then panes slide into place with transforms, so the editor never re-wraps its text
  * on every frame of the animation.
  */
-const panes = [':scope > .sidebar', ':scope > .note-list', ':scope > .editor-pane']
+const panes = [
+  ':scope > .activity-rail',
+  ':scope > .sidebar',
+  ':scope > .note-list',
+  ':scope > .editor-pane',
+]
 type Snapshot = { element: HTMLElement; rect: DOMRect }
 type Pending = { duration: number; origin: DOMRect; panes: Snapshot[] }
 const pending = new WeakMap<HTMLElement, Pending>()
@@ -37,7 +42,7 @@ function play(app: HTMLElement, { duration, origin, panes: first }: Pending) {
   running.get(app)?.()
   const animations: Animation[] = []
   const pinned: HTMLElement[] = []
-  // Final rects, in window order: sidebar, notes list, editor.
+  // Final rects, in window order: rail, sidebar, notes list, editor.
   const final = visiblePanes(app).map((element) => ({
     element,
     last: element.getBoundingClientRect(),

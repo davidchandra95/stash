@@ -8,8 +8,12 @@ use objc2::{
 };
 use objc2_app_kit::NSApplication;
 use std::sync::OnceLock;
+use tauri::Manager;
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 unsafe extern "C-unwind" fn should_terminate(_: &AnyObject, _: Sel, _: &AnyObject) -> usize {
+    if let Some(app) = APP.get() {
+        crate::dictation::cancel_all(&app.state::<crate::dictation::Service>());
+    }
     match APP.get() {
         Some(app) if crate::storage::bridge::request_quit(app) => 0, // NSTerminateCancel
         _ => 1, // NSTerminateNow (before editing is enabled or after save completion)

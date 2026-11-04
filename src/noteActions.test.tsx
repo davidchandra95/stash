@@ -212,7 +212,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
   expect(target().trashed).toBe(true)
   expect(matchesView(target(), 'quickAccess')).toBe(false)
   await act(async () =>
-    document.querySelector<HTMLButtonElement>('.sidebar-footer [aria-label="Trash"]')!.click(),
+    document.querySelector<HTMLButtonElement>('.activity-rail [aria-label="Trash"]')!.click(),
   )
   await context()
   expect(

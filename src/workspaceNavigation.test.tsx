@@ -299,7 +299,7 @@ it('keeps note actions at the end of the tab strip and preserves toggle shortcut
   await mount()
   const strip = host.querySelector('[role="tablist"]')!
   const editorPane = host.querySelector('main')!
-  const bar = editorPane.firstElementChild!
+  const bar = editorPane.querySelector('.editor-bar')!
   expect(bar.contains(strip)).toBe(true)
   expect(host.querySelector('.companion-bar')).toBeNull()
   const controls = bar.lastElementChild!
@@ -1101,9 +1101,7 @@ it('moves back and forward across notes and projects', async () => {
   await act(async () => row('Beta').click())
   expect(title()).toBe('Beta')
   const projects = () =>
-    [...host.querySelectorAll<HTMLButtonElement>('.domain-tab')].find((tab) =>
-      tab.textContent?.includes('Projects'),
-    )!
+    host.querySelector<HTMLButtonElement>('.activity-rail button[aria-label="Projects"]')!
   await act(async () => projects().click())
   expect(host.querySelector('.project-pane')).not.toBeNull()
   await act(async () => button('Go back').click())

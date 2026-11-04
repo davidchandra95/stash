@@ -102,7 +102,7 @@ export interface Appearance extends CursorSettings {
   accent: AccentColor
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
-  /** Desktop only. Cards floats the notes list and editor as rounded panels. */
+  /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */
   layout: WindowLayout
   sidebarCounts: boolean
   titleFont: string

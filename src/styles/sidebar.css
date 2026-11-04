@@ -16,95 +16,101 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 var(--space-4) var(--space-5);
+  padding: var(--space-4) var(--space-4) var(--space-5);
 }
 
-/* ───────── Domain switcher: app-level tabs in a tray, so it never reads as a sidebar row ───────── */
+/* ───────── Sidebar title: lines up with the notes list and editor bars ───────── */
 
-.domain-switcher {
-  --domain-inset: 3px;
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex: none;
-  gap: var(--space-1);
-  margin: var(--space-4) var(--space-4) var(--space-5);
-  padding: var(--domain-inset);
-  border-radius: var(--radius-xl);
-  background: var(--fill-2);
+.side-bar {
+  padding-left: var(--space-6);
+  border-bottom: 1px solid var(--line);
 }
-.domain-switcher::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: var(--domain-inset) auto var(--domain-inset) var(--domain-inset);
-  width: calc((100% - 2 * var(--domain-inset) - var(--space-1)) / 2);
-  border-radius: var(--radius-lg);
-  background: var(--bg-control);
-  box-shadow: var(--shadow-control);
-  pointer-events: none;
-  transform: translateX(0);
-  transition: transform var(--normal) var(--ease);
-}
-.domain-switcher[data-domain='projects']::before {
-  transform: translateX(calc(100% + var(--space-1)));
-}
-:root[data-theme='dark'] .domain-switcher::before {
-  background: rgba(255, 255, 255, 0.17);
-}
-.domain-switcher:has(.domain-tab[aria-pressed='true']:disabled)::before {
-  opacity: 0.5;
-}
-.domain-tab {
-  position: relative;
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  min-width: 0;
-  height: var(--control);
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-lg);
-  color: var(--text-2);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-.domain-tab .ui-icon {
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-.domain-tab:hover:not(:disabled):not([aria-pressed='true']) {
-  color: var(--text);
-}
-.domain-tab[aria-pressed='true'] {
-  color: var(--text);
-}
-.domain-tab:disabled {
-  opacity: 0.5;
-}
-.domain-name {
-  min-width: 0;
+.side-bar-title {
   overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.domain-badge {
+
+/* ───────── Activity rail: app-level navigation on the window frame, never a card ───────── */
+
+.activity-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-3) 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sidebar);
+}
+:root[data-vibrancy] .activity-rail {
+  background: var(--bg-sidebar-translucent);
+}
+.activity-rail-fill {
+  flex: 1;
+  align-self: stretch;
+}
+.rail-btn {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+}
+.rail-btn .ui-icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+.rail-btn.is-area .ui-icon {
+  width: 19px;
+  height: 19px;
+}
+.rail-btn:hover:not(:disabled) {
+  background: var(--fill-frame, var(--fill-1));
+  color: var(--text);
+}
+.rail-btn[aria-pressed='true'],
+.rail-btn[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--fill-2);
+  color: var(--accent);
+}
+.window.is-inactive .rail-btn[aria-pressed='true'] {
+  color: var(--text-2);
+}
+.rail-btn:disabled {
+  opacity: 0.5;
+}
+.rail-badge {
   position: absolute;
-  top: -5px;
+  top: -3px;
   right: -3px;
-  min-width: 16px;
-  height: 16px;
+  min-width: 15px;
+  height: 15px;
   padding: 0 4px;
   border-radius: 8px;
   background: var(--danger);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 15px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+.rail-sync.is-ok .ui-icon {
+  color: var(--success-mark);
+}
+.rail-sync.is-error .ui-icon {
+  color: var(--danger);
+}
+.rail-sync .spinner {
+  animation: spin 1s linear infinite;
 }
 
 /* ───────── Rows ───────── */
@@ -323,49 +329,6 @@ button.side-disclosure:hover {
 }
 .side-hint .btn-link {
   font-size: var(--text-xs);
-}
-
-/* ───────── Footer ───────── */
-
-.sidebar-footer {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-  height: 42px;
-  padding: 0 var(--space-3) 0 var(--space-4);
-  border-top: 1px solid var(--line);
-}
-.sync-status {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  height: var(--control);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--text-2);
-  font-size: var(--text-xs);
-}
-.sync-status:hover:not(:disabled) {
-  background: var(--fill-1);
-  color: var(--text);
-}
-.sync-status .ui-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--text-3);
-}
-.sync-status.is-ok .ui-icon {
-  color: var(--success-mark);
-}
-.sync-status.is-error,
-.sync-status.is-error .ui-icon {
-  color: var(--danger);
-}
-.sync-status .spinner {
-  animation: spin 1s linear infinite;
 }
 
 /* Sidebar views: the icon sits in a tinted tile. */

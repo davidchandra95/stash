@@ -2,6 +2,7 @@
 import { act, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
+import { taskDetailLimits } from './contentsWidth'
 import { useContentsResize } from './useContentsResize'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -28,12 +29,14 @@ function Fixture({
   reserveWidth,
   onEscape,
   adaptive = false,
+  limits,
 }: {
   savedWidth?: number
   side?: 'left' | 'right'
   reserveWidth?: (width: number) => number
   onEscape?: () => void
   adaptive?: boolean
+  limits?: typeof taskDetailLimits
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null)
   const resize = useContentsResize({
@@ -44,6 +47,7 @@ function Fixture({
     side,
     reserveWidth,
     adaptive,
+    limits,
   })
   return (
     <div
@@ -180,4 +184,23 @@ it('cancels an active resize when the writing pane becomes too narrow to dock', 
   expect(handle.parentElement!.dataset.overlay).toBe('true')
   expect(handle.getAttribute('aria-valuenow')).toBe('300')
   expect(commit).not.toHaveBeenCalled()
+})
+
+it('resizes a right-hand panel within its own limits', async () => {
+  const handle = await mount({ savedWidth: 100, limits: taskDetailLimits })
+  expect(handle.getAttribute('aria-valuenow')).toBe('320')
+  expect(handle.getAttribute('aria-valuemin')).toBe('280')
+  expect(handle.getAttribute('aria-valuemax')).toBe('440')
+  await act(async () => {
+    pointer(handle, 'pointerdown', 500)
+    pointer(handle, 'pointermove', 440)
+    pointer(handle, 'pointerup', 440)
+  })
+  expect(commit).toHaveBeenLastCalledWith(380)
+  await act(async () => {
+    pointer(handle, 'pointerdown', 500)
+    pointer(handle, 'pointermove', 900)
+    pointer(handle, 'pointerup', 900)
+  })
+  expect(commit).toHaveBeenLastCalledWith(280)
 })

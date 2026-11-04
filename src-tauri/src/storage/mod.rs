@@ -196,6 +196,36 @@ pub struct WorkspacePreferences {
     pub note_lists: std::collections::BTreeMap<String, NoteListPreferences>,
     pub tabs: Vec<WorkspaceTab>,
     pub active_tab_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split: Option<WorkspaceSplit>,
+}
+/// The second editor group: its tabs, which side it is on, and the left group's share.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSplit {
+    pub tabs: Vec<WorkspaceTab>,
+    pub active_tab_id: Option<String>,
+    pub side: String,
+    pub ratio: f64,
+    pub focused: bool,
+}
+fn invalid_tabs(tabs: &[WorkspaceTab], active_tab_id: &Option<String>) -> bool {
+    let mut ids = std::collections::HashSet::new();
+    tabs.iter().any(|tab| {
+        tab.id.is_empty()
+            || (tab.pinned == Some(true) && tab.preview == Some(true))
+            || !ids.insert(&tab.id)
+            || match tab.kind.as_str() {
+                "note" => tab.note_id.is_empty() || tab.document_id.is_some(),
+                "pdf" => {
+                    !tab.note_id.is_empty()
+                        || tab.document_id.as_ref().is_none_or(|id| id.is_empty())
+                        || tab.preview == Some(true)
+                }
+                _ => true,
+            }
+    }) || tabs.iter().filter(|tab| tab.preview == Some(true)).count() > 1
+        || active_tab_id.as_ref().is_some_and(|id| !ids.contains(id))
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -789,25 +819,13 @@ impl Store {
             }) {
                 return Err("Invalid workspace pane widths.".into());
             }
-            let mut ids = std::collections::HashSet::new();
-            if workspace
-                .tabs
-                .iter()
-                .any(|tab| tab.id.is_empty() || (tab.pinned == Some(true) && tab.preview == Some(true)) || !ids.insert(&tab.id) || match tab.kind.as_str() {
-                    "note" => tab.note_id.is_empty() || tab.document_id.is_some(),
-                    "pdf" => !tab.note_id.is_empty() || tab.document_id.as_ref().is_none_or(|id| id.is_empty()) || tab.preview == Some(true),
-                    _ => true,
+            if invalid_tabs(&workspace.tabs, &workspace.active_tab_id)
+                || workspace.split.as_ref().is_some_and(|split| {
+                    invalid_tabs(&split.tabs, &split.active_tab_id)
+                        || split.tabs.iter().any(|tab| tab.kind != "note")
+                        || !matches!(split.side.as_str(), "left" | "right")
+                        || !(0.0..=1.0).contains(&split.ratio)
                 })
-                || workspace
-                    .tabs
-                    .iter()
-                    .filter(|tab| tab.preview == Some(true))
-                    .count()
-                    > 1
-                || workspace
-                    .active_tab_id
-                    .as_ref()
-                    .is_some_and(|id| !ids.contains(id))
             {
                 return Err("Invalid workspace tabs.".into());
             }

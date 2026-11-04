@@ -1,6 +1,6 @@
 import AppTooltip from '../components/AppTooltip'
 import { fileTitleError, notebookPath } from '../notebooks'
-import { getEditor, noteScrollPositions } from '../editor/session'
+import { getEditor, getSplitEditor, noteScrollPositions, splitScrollPositions } from '../editor/session'
 import { observeEditorScrollSpace } from '../editorScrollSpace'
 import { libraryProjection } from '../storage/librarySelectors'
 import { LiveNoteEditor as NoteEditor, NoteStatistics, SaveStatus } from '../storage/libraryReaders'
@@ -8,6 +8,9 @@ import { library as libraryStore } from '../storage/useLibrary'
 import NoteNotebooksMenu from '../components/NoteNotebooksMenu'
 import { notebookColorValue } from '../notebookColors'
 import { Feather, SquarePen, X } from '../icons'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useLibrarySelector } from '../storage/useLibrary'
+import type { EditorGroupId } from '../workspace'
 import { useApp, useBlocked } from './context'
 
 const noteDate = new Intl.DateTimeFormat('en-US', {
@@ -46,10 +49,29 @@ function EmptyState() {
   )
 }
 
-export default function NoteDocument() {
+export default function NoteDocument({ group = 'main' }: { group?: EditorGroupId }) {
   const app = useApp()
   const blocked = useBlocked()
-  const { active, selected, library, notebooks, titleDraft, busyNote } = app
+  const { library, notebooks, titleDraft, busyNote } = app
+  // The focused group follows the controller, which also handles a PDF's companion note.
+  const focused = app.workspace.focusedGroup === group
+  const selected = focused ? app.selected : app.noteInGroup(group)
+  const loaded = useLibrarySelector((state) => !!selected && state.loaded.has(selected.id))
+  const active = focused ? app.active : loaded ? selected : undefined
+  const scrollPositions = group === 'split' ? splitScrollPositions : noteScrollPositions
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const attachScroll = useCallback((element: HTMLDivElement | null) => {
+    scrollRef.current = element
+    return observeEditorScrollSpace(element)
+  }, [])
+  useEffect(() => {
+    if (!focused && selected) void library.activate(selected.id)
+  }, [focused, selected?.id])
+  // A group that isn't focused still opens at its own place after a restart.
+  useLayoutEffect(() => {
+    if (!focused && active && scrollRef.current)
+      scrollRef.current.scrollTop = scrollPositions.get(active.id) ?? 0
+  }, [active?.id])
 
   if (!active && selected)
     return (
@@ -87,13 +109,13 @@ export default function NoteDocument() {
   return (
     <div
       className="note-scroll"
-      ref={observeEditorScrollSpace}
+      ref={attachScroll}
       key={active.id}
       data-note-id={active.id}
       onScroll={(event) => {
         const scroll = event.currentTarget.scrollTop
-        noteScrollPositions.set(active.id, scroll)
-        if (app.pairedDocumentId) app.setPdfPreferences({ scroll }, app.pairedDocumentId)
+        scrollPositions.set(active.id, scroll)
+        if (focused && app.pairedDocumentId) app.setPdfPreferences({ scroll }, app.pairedDocumentId)
       }}
     >
       {active.trashed && (
@@ -114,7 +136,7 @@ export default function NoteDocument() {
         <div className="note-title-wrap">
           <div className="note-title-highlights" aria-hidden="true" />
           <input
-            ref={app.titleInput}
+            ref={focused ? app.titleInput : undefined}
             className="note-title"
             aria-label="Note title"
             placeholder="Untitled"
@@ -148,7 +170,7 @@ export default function NoteDocument() {
               )
                 return
               event.preventDefault()
-              getEditor(
+              ;(group === 'split' ? getSplitEditor : getEditor)(
                 active.id,
                 libraryProjection.note(libraryStore.getSnapshot(), active.id)!.content,
               ).commands.focus('start')
@@ -165,7 +187,7 @@ export default function NoteDocument() {
             {titleError}
           </p>
         )}
-        <div className="note-chips" ref={app.chipsRef}>
+        <div className="note-chips" ref={focused ? app.chipsRef : undefined}>
           {memberships.map((book) => {
             const path = notebookPath(book, notebooks)
             return (

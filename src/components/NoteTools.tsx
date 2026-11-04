@@ -1,14 +1,14 @@
 import AppTooltip from './AppTooltip'
 import { useShortcutActions } from '../useShortcuts'
 import { MotionPresence, motion } from '../motion'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { HTMLAttributes, RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { useEditorState } from '@tiptap/react'
+import { useEditorState, type Editor } from '@tiptap/react'
 import { replaceBodyText } from '../editor/replace'
 import { ChevronDown, ChevronRight, ChevronUp, Search, X } from '../icons'
 import type { Note } from '../model'
-import { getEditor } from '../editor/session'
+import { SplitEditorContext, sessionEditor } from './noteEditorView'
 import { retainEditorView } from '../editor/lifecycle'
 import { referenceTitle } from '../editor/noteReferences'
 import { resolveMatch, type MatchNavigation } from '../search'
@@ -22,6 +22,11 @@ import {
   setFind,
   type HeadingEntry,
 } from '../editor/noteTools'
+
+/** The title highlights beside this editor, since two groups can each show a title. */
+const titleHighlights = (editor: Editor) =>
+  editor.view.dom.closest('.note-article')?.querySelector<HTMLElement>('.note-title-highlights') ??
+  document.querySelector<HTMLElement>('.note-title-highlights')
 
 export default function NoteTools({
   note,
@@ -54,7 +59,8 @@ export default function NoteTools({
   contentsLauncher?: RefObject<HTMLButtonElement | null>
   focusContentsOnOpen?: boolean
 }) {
-  const editor = getEditor(note.id, note.content, undefined, !!note.source)
+  const split = useContext(SplitEditorContext)
+  const editor = sessionEditor(split)(note.id, note.content, undefined, !!note.source)
   useLayoutEffect(() => retainEditorView(editor), [editor])
   useEditorState({
     editor,
@@ -240,7 +246,7 @@ export default function NoteTools({
     if (next < titleMatches.length) {
       const title = document.querySelector<HTMLInputElement>('.note-title')
       title?.scrollIntoView({ block: 'center' })
-      const highlights = document.querySelector<HTMLElement>('.note-title-highlights')
+      const highlights = titleHighlights(editor)
       const mark = highlights?.querySelectorAll<HTMLElement>('mark')[next]
       if (title && highlights && mark) {
         title.scrollLeft = Math.max(0, mark.offsetLeft - title.clientWidth / 2)
@@ -372,7 +378,7 @@ export default function NoteTools({
   )
   useLayoutEffect(() => {
     setSlot(document.getElementById('note-find-slot'))
-    setTitleSlot(document.querySelector('.note-title-highlights'))
+    setTitleSlot(titleHighlights(editor))
   }, [note.id])
   useEffect(() => {
     if (findOpen) input.current?.focus()

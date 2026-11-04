@@ -1,7 +1,6 @@
 import { displayZone, subscribeDisplayZone } from '../projects/schedule'
 import {
   useCallback,
-  useEffect,
   useId,
   useState,
   useSyncExternalStore,
@@ -32,10 +31,6 @@ import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
   ChevronRight,
-  CircleAlert,
-  CircleCheck,
-  Cloud,
-  CloudOff,
   FileText,
   Files,
   Inbox,
@@ -43,18 +38,12 @@ import {
   Calendar,
   CalendarClock,
   ListTodo,
-  NotebookPen,
   Pin,
   Plus,
-  RefreshCw,
   Search,
-  Settings,
-  SquareCheckBig,
   Star,
-  Trash2,
 } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
-import type { Domain } from './useAppController'
 import { SidebarToggle } from './WindowControls'
 
 function Section({
@@ -161,7 +150,11 @@ export default trackApp(function Sidebar({
 
   return (
     <aside {...presence} className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
-      <DomainSwitcher />
+      <div className="pane-bar side-bar" data-tauri-drag-region>
+        <h2 className="side-bar-title" data-tauri-drag-region>
+          {app.domain === 'projects' ? 'Projects' : 'Notes'}
+        </h2>
+      </div>
       <div className="sidebar-scroll">
         {app.domain === 'projects' ? (
           <ProjectsNavigation />
@@ -359,7 +352,6 @@ export default trackApp(function Sidebar({
           </>
         )}
       </div>
-      <SidebarFooter />
     </aside>
   )
 })
@@ -501,148 +493,5 @@ function ProjectsNavigation() {
         )}
       </Section>
     </>
-  )
-}
-
-const domains: { id: Domain; label: string; icon: ReactNode; shortcut: string }[] = [
-  {
-    id: 'notes',
-    label: 'Notes',
-    icon: <NotebookPen aria-hidden="true" />,
-    shortcut: 'show-notes',
-  },
-  {
-    id: 'projects',
-    label: 'Projects',
-    icon: <SquareCheckBig aria-hidden="true" />,
-    shortcut: 'show-projects',
-  },
-]
-
-/** The app-level switch between Notes and Projects. */
-function DomainSwitcher() {
-  useSyncExternalStore(subscribeDisplayZone, displayZone)
-  const app = useApp()
-  const blocked = useBlocked()
-  const overdue =
-    todayGroups(app.projects.tasks, today()).find((g) => g.id === 'overdue')?.tasks.length ?? 0
-  return (
-    <div className="domain-switcher" data-domain={app.domain} role="group" aria-label="Area">
-      {domains.map((d) => (
-        <AppTooltip key={d.id} label={d.label} shortcut={app.shortcutFor(d.shortcut)}>
-          <button
-            className="domain-tab"
-            aria-pressed={d.id === app.domain}
-            disabled={blocked || (d.id === 'projects' && !app.projects.ready)}
-            onClick={() => app.switchDomain(d.id)}
-          >
-            {d.icon}
-            <span className="domain-name">{d.label}</span>
-            {d.id === 'projects' && overdue > 0 && (
-              <span className="domain-badge" role="img" aria-label={`${overdue} overdue tasks`}>
-                {overdue}
-              </span>
-            )}
-          </button>
-        </AppTooltip>
-      ))}
-    </div>
-  )
-}
-
-function useNow(interval: number) {
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), interval)
-    return () => window.clearInterval(timer)
-  }, [interval])
-  return now
-}
-
-const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-function since(timestamp: number, now: number) {
-  const minutes = Math.round((timestamp - now) / 60_000)
-  if (minutes > -1) return 'just now'
-  if (minutes > -60) return relative.format(minutes, 'minute')
-  const hours = Math.round(minutes / 60)
-  if (hours > -24) return relative.format(hours, 'hour')
-  return relative.format(Math.round(hours / 24), 'day')
-}
-
-function SidebarFooter() {
-  const app = useApp()
-  const blocked = useBlocked()
-  const now = useNow(30_000)
-  const { library } = app
-  const { syncError, syncProgress } = useLibrarySelector(
-    (state) => ({ syncError: state.syncError, syncProgress: state.syncProgress }),
-    (a, b) => a.syncError === b.syncError && a.syncProgress === b.syncProgress,
-  )
-  const status = library.syncStatus
-  const trashCount = libraryProjection.count(libraryStore.getSnapshot(), 'trash')
-
-  let icon: ReactNode = <CloudOff aria-hidden="true" />
-  let label = 'Sync is off'
-  let tone = ''
-  if (library.preview) {
-    icon = <Cloud aria-hidden="true" />
-    label = 'Browser preview'
-  } else if (library.syncing) {
-    icon = <RefreshCw aria-hidden="true" className="ui-icon spinner" />
-    label = syncProgress || 'Syncing…'
-  } else if (syncError) {
-    icon = <CircleAlert aria-hidden="true" />
-    label = 'Couldn’t sync'
-    tone = 'is-error'
-  } else if (status?.configured) {
-    icon = <CircleCheck aria-hidden="true" />
-    tone = 'is-ok'
-    label = status.pending
-      ? `${status.pending.toLocaleString('en-US')} changes to sync`
-      : status.lastSuccess
-        ? `Synced ${since(status.lastSuccess, now)}`
-        : 'Not synced yet'
-  }
-
-  return (
-    <div className="sidebar-footer">
-      <AppTooltip label={library.preview ? 'Browser previews do not sync' : 'Sync now'}>
-        <button
-          className={`sync-status ${tone}`}
-          disabled={library.preview || blocked}
-          onClick={app.syncNow}
-        >
-          {icon}
-          <span className="truncate">{label}</span>
-        </button>
-      </AppTooltip>
-      <AppTooltip instant label={trashCount ? `Trash (${trashCount})` : 'Trash'}>
-        <button
-          className="icon-btn"
-          aria-label="Trash"
-          aria-pressed={!app.projectView && app.view === 'trash'}
-          disabled={blocked}
-          onClick={() => {
-            app.setNoteList(true)
-            app.navigate('trash')
-          }}
-        >
-          <Trash2 aria-hidden="true" />
-        </button>
-      </AppTooltip>
-      <AppTooltip instant label="Settings" shortcut={app.shortcutFor('settings')}>
-        <button
-          className="icon-btn"
-          aria-label="Settings"
-          disabled={blocked}
-          onClick={() => {
-            app.setSettingsCategory('appearance')
-            app.setAppearanceOpen(true)
-          }}
-        >
-          <Settings aria-hidden="true" />
-        </button>
-      </AppTooltip>
-    </div>
   )
 }

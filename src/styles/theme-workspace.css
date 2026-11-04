@@ -163,7 +163,7 @@
   font-weight: 600;
 }
 
-/* ───────── Window: a framed content card on the sidebar's frame ───────── */
+/* ───────── Window: framed cards beside the rail ───────── */
 
 :root[data-ui='workspace'] .window {
   --frame-gap: 8px;
@@ -173,58 +173,59 @@
   border-bottom: 0;
   background: transparent;
 }
-:root[data-ui='workspace'] .window > .sidebar {
+:root[data-ui='workspace'] .window > .activity-rail {
   border-right: 0;
   background: transparent;
 }
-/* Standard layout: the notes list and editor share one card. */
+:root[data-ui='workspace'] .window:not(.layout-cards) > .activity-rail {
+  padding: 0 0 var(--frame-gap);
+}
+/* Standard layout: the sidebar, notes list and editor share one card. */
+:root[data-ui='workspace'] .window:not(.layout-cards) > .sidebar,
 :root[data-ui='workspace'] .window:not(.layout-cards) > .note-list,
-:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane {
+:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane,
+:root[data-ui='workspace'] .window:not(.layout-cards) > .project-pane {
+  overflow: hidden;
   margin: 0 0 var(--frame-gap);
   border: 1px solid var(--line);
+  border-left: 0;
   background: var(--bg-content);
 }
-:root[data-ui='workspace'] .window:not(.layout-cards) > .note-list {
-  border-right-color: var(--line);
+:root[data-ui='workspace'] .window:not(.layout-cards) > .sidebar {
+  border-left: 1px solid var(--line);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
-:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane {
+:root[data-ui='workspace'] .window:not(.layout-cards) > .editor-pane,
+:root[data-ui='workspace'] .window:not(.layout-cards) > .project-pane {
   margin-right: var(--frame-gap);
-  border-left: 0;
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 :root[data-ui='workspace'] .window:not(.layout-cards).no-sidebar > .note-list {
-  margin-left: var(--frame-gap);
+  border-left: 1px solid var(--line);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 :root[data-ui='workspace'] .window:not(.layout-cards):is(.no-note-list, .pdf-active) > .note-list {
   margin: 0;
   border: 0;
 }
 :root[data-ui='workspace']
-  .window:not(.layout-cards):is(.no-note-list, .pdf-active)
-  > .editor-pane {
+  .window:not(.layout-cards).no-sidebar:is(.no-note-list, .pdf-active)
+  > .editor-pane,
+:root[data-ui='workspace'] .window:not(.layout-cards).no-sidebar > .project-pane {
   border-left: 1px solid var(--line);
   border-radius: var(--radius-lg);
 }
-:root[data-ui='workspace']
-  .window:not(.layout-cards):is(.no-note-list, .pdf-active).no-sidebar
-  > .editor-pane {
+:root[data-ui='workspace'] .window:not(.layout-cards).focus-mode > .editor-pane {
   margin-left: var(--frame-gap);
 }
 
-/* ───────── Sidebar: rows on the frame, selection lifted onto the card color ───────── */
+/* ───────── Sidebar rows: inside the card, selection uses the shared neutral fill ───────── */
 
 :root[data-ui='workspace'] .side-row {
   font-weight: 500;
 }
-:root[data-ui='workspace'] button.side-row:hover:not(:disabled),
-:root[data-ui='workspace'] .side-row.has-actions:hover {
-  background: var(--fill-frame);
-}
 :root[data-ui='workspace'] .side-row.is-selected,
 :root[data-ui='workspace'] .side-row.is-selected:hover {
-  background: var(--bg-content);
-  box-shadow: var(--shadow-control);
   font-weight: 600;
 }
 

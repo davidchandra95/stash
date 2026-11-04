@@ -1,3 +1,4 @@
+import DictationComposer from './dictation/Composer'
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import CommandPalette, { type PaletteScope } from './components/CommandPalette'
@@ -9,6 +10,7 @@ import type { Note } from './model'
 import { AppContext, AppStore, AppVersionContext } from './app/context'
 import { useAppController } from './app/useAppController'
 import { useLayoutMotion } from './layoutMotion'
+import ActivityRail from './app/ActivityRail'
 import AppBar from './app/AppBar'
 import Sidebar from './app/Sidebar'
 import NoteListPane from './app/NoteListPane'
@@ -122,6 +124,9 @@ export default function App() {
             onFocusCapture={paneFocus.track}
           >
             <AppBar onSearch={openSearch} />
+            <MotionPresence open={!app.focus} duration={motion.sidebar} initial={false}>
+              <ActivityRail />
+            </MotionPresence>
             <MotionPresence open={sidebarVisible} duration={motion.sidebar} initial={false}>
               <Sidebar />
             </MotionPresence>
@@ -135,6 +140,14 @@ export default function App() {
             <EditorPane />
             {app.projectView && <ProjectPane />}
             <Overlays />
+            {app.dictationTarget && (
+              <DictationComposer
+                target={app.dictationTarget}
+                stopRequest={app.dictationStopRequest}
+                activeNoteId={app.active?.id}
+                onClose={app.closeDictation}
+              />
+            )}
             <CommandPalette
               open={palette.open}
               onOpenChange={(open) => setPalette((value) => ({ ...value, open }))}

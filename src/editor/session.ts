@@ -3,15 +3,18 @@ import { Editor, type JSONContent } from '@tiptap/core'
 import { writingExtensions } from './extensions'
 import { markdownExtensions } from './markdown'
 import { undoDepth, redoDepth } from '@tiptap/pm/history'
-import { Selection } from '@tiptap/pm/state'
+import { Selection, type Transaction } from '@tiptap/pm/state'
+import { Step } from '@tiptap/pm/transform'
 import type { Mark } from '@tiptap/pm/model'
 import { findKey, revealKey } from './noteTools'
-import { registerEditorLifetime } from './lifecycle'
+import { registerEditorLifetime, retainEditorOperation } from './lifecycle'
 import { pendingFragments } from './fileNavigation'
 
 // Views are bounded; edited documents and their session undo stay authoritative.
 // History-free editors can be reconstructed from the caller's note model.
 export const noteScrollPositions = new Map<string, number>()
+/** Scroll positions in the split editor group, which can show the same note elsewhere. */
+export const splitScrollPositions = new Map<string, number>()
 type Change = (content: JSONContent, text: string) => void
 type ColdState = {
   selection: ReturnType<Selection['toJSON']>
@@ -34,6 +37,16 @@ const sessions = new Map<string, Session>()
 const live = new Set<Session>()
 const retentionListeners = new Set<() => void>()
 const maximumLiveViews = 4
+/** Second editors for notes shown in the split group. They live only while mounted. */
+type SplitView = {
+  editor: Editor
+  source: Editor
+  consumers: number
+  operations: number
+  dispose: () => void
+}
+const splitViews = new Map<string, SplitView>()
+const viewSync = 'noteViewSync'
 let trimScheduled = false
 const mobileExcludedExtensions = new Set(['writingCursorLayer', 'selectionHighlight'])
 
@@ -90,7 +103,19 @@ function makeCold(session: Session) {
   session.onChange = undefined
   live.delete(session)
 }
+function sweepSplitViews() {
+  for (const [id, split] of splitViews)
+    if (!split.consumers && !split.operations && !split.editor.view.dom.isConnected)
+      disposeSplitView(id)
+}
+function disposeSplitView(id: string) {
+  const split = splitViews.get(id)
+  if (!split) return
+  splitViews.delete(id)
+  split.dispose()
+}
 export function trimEditorSessions() {
+  sweepSplitViews()
   for (const session of live) {
     if (session.editor!.isDestroyed) {
       live.delete(session)
@@ -133,6 +158,107 @@ export function getSessionStats() {
     pendingOperations: records.reduce((sum, session) => sum + session.operations, 0),
   }
 }
+function createEditor(
+  content: JSONContent,
+  markdown: boolean,
+  onUpdate: (props: { editor: Editor }) => void = () => {},
+) {
+  return new Editor({
+    extensions: (markdown ? markdownExtensions : writingExtensions).filter(
+      (extension) => !platform.mobile || !mobileExcludedExtensions.has(extension.name),
+    ),
+    coreExtensionOptions: { clipboardTextSerializer: { blockSeparator: '\n' } },
+    content,
+    onUpdate,
+    editorProps: { attributes: { 'aria-label': 'Note content', spellcheck: 'true' } },
+  })
+}
+/** Applies another view's changes without entering this view's undo history. */
+function syncDocument(source: Editor, target: Editor, transactions: readonly Transaction[]) {
+  if (target.isDestroyed) return
+  const replaceAll = () =>
+    target.state.tr.replaceWith(
+      0,
+      target.state.doc.content.size,
+      target.schema.nodeFromJSON(source.state.doc.toJSON()).content,
+    )
+  let tr = target.state.tr
+  try {
+    // Each editor owns its schema, so steps have to be rebuilt against the target's.
+    for (const transaction of transactions)
+      for (const step of transaction.steps) tr.step(Step.fromJSON(target.schema, step.toJSON()))
+  } catch {
+    tr = replaceAll()
+  }
+  const mark = (change: Transaction) =>
+    change.setMeta(viewSync, true).setMeta('addToHistory', false).setMeta('skipTrailingNode', true)
+  target.view.dispatch(mark(tr))
+  // Plugins may react differently in each view. The editing view's document always wins.
+  if (target.state.doc.content.size !== source.state.doc.content.size)
+    target.view.dispatch(mark(replaceAll()))
+}
+function linkViews(source: Editor, target: Editor) {
+  const forward = ({
+    transaction,
+    appendedTransactions,
+  }: {
+    transaction: Transaction
+    appendedTransactions: Transaction[]
+  }) => {
+    if (transaction.getMeta(viewSync)) return
+    const changes = [transaction, ...appendedTransactions].filter((change) => change.docChanged)
+    if (changes.length) syncDocument(source, target, changes)
+  }
+  source.on('transaction', forward)
+  return () => source.off('transaction', forward)
+}
+/**
+ * The split group's own editor for a note. It shares the document with the main session but
+ * has its own view, selection and undo history. Saving still goes through the main session.
+ */
+export function getSplitEditor(
+  id: string,
+  content: JSONContent,
+  onChange?: Change,
+  markdown = false,
+) {
+  const source = getEditor(id, content, onChange, markdown)
+  const current = splitViews.get(id)
+  if (current?.source === source && !current.editor.isDestroyed) return current.editor
+  disposeSplitView(id)
+  const editor = createEditor(source.getJSON(), markdown)
+  const release = retainEditorOperation(source)
+  const unlink = [linkViews(source, editor), linkViews(editor, source)]
+  const split: SplitView = {
+    editor,
+    source,
+    consumers: 0,
+    operations: 0,
+    dispose: () => {
+      unlink.forEach((remove) => remove())
+      unregister()
+      editor.destroy()
+      release()
+    },
+  }
+  const retainSplit = (kind: 'consumers' | 'operations') => () => {
+    split[kind]++
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      split[kind]--
+      scheduleTrim()
+    }
+  }
+  const unregister = registerEditorLifetime(editor, {
+    view: retainSplit('consumers'),
+    operation: retainSplit('operations'),
+  })
+  splitViews.set(id, split)
+  scheduleTrim()
+  return editor
+}
 export function getEditor(id: string, content: JSONContent, onChange?: Change, markdown = false) {
   let session = sessions.get(id)
   if (
@@ -156,17 +282,9 @@ export function getEditor(id: string, content: JSONContent, onChange?: Change, m
   const currentSession = session
   if (onChange) session.onChange = onChange
   if (!session.editor) {
-    const editor = new Editor({
-      extensions: (markdown ? markdownExtensions : writingExtensions).filter(
-        (extension) => !platform.mobile || !mobileExcludedExtensions.has(extension.name),
-      ),
-      coreExtensionOptions: { clipboardTextSerializer: { blockSeparator: '\n' } },
-      content,
-      onUpdate: ({ editor: current }) => {
-        currentSession.changed = true
-        currentSession.onChange?.(current.getJSON(), current.getText())
-      },
-      editorProps: { attributes: { 'aria-label': 'Note content', spellcheck: 'true' } },
+    const editor = createEditor(content, markdown, ({ editor: current }) => {
+      currentSession.changed = true
+      currentSession.onChange?.(current.getJSON(), current.getText())
     })
     session.editor = editor
     session.changed = false
@@ -201,6 +319,7 @@ export function getEditor(id: string, content: JSONContent, onChange?: Change, m
   return session.editor
 }
 export function resetSession(id: string) {
+  disposeSplitView(id)
   const session = sessions.get(id)
   session?.editor?.destroy()
   session?.unregister?.()
@@ -209,11 +328,19 @@ export function resetSession(id: string) {
 }
 export function clearSessions() {
   noteScrollPositions.clear()
+  splitScrollPositions.clear()
   for (const id of sessions.keys()) resetSession(id)
 }
 export function pruneEditorSessions(noteIds: ReadonlySet<string>) {
   for (const id of sessions.keys()) if (!noteIds.has(id)) resetSession(id)
   for (const id of noteScrollPositions.keys()) if (!noteIds.has(id)) noteScrollPositions.delete(id)
+  for (const id of splitScrollPositions.keys())
+    if (!noteIds.has(id)) splitScrollPositions.delete(id)
   for (const id of pendingFragments.keys()) if (!noteIds.has(id)) pendingFragments.delete(id)
 }
 if (import.meta.hot) import.meta.hot.dispose(clearSessions)
+
+/** Read the mounted editor without creating or changing a session. */
+export function peekEditor(id: string, split = false) {
+  return (split ? splitViews.get(id)?.editor : undefined) ?? sessions.get(id)?.editor ?? undefined
+}

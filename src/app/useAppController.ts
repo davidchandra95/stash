@@ -1,3 +1,4 @@
+import { useDictation } from '../dictation/useDictation'
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
@@ -8,6 +9,7 @@ import {
   currentLocation,
   defaultPdfNotes,
   type PdfNotesPreferences,
+  type EditorGroupId,
   type WorkspaceTab,
 } from '../workspace'
 import { appendCapture } from '../pdf/capture'
@@ -35,7 +37,7 @@ import { startAutoSync } from '../autoSync'
 import { useShortcutActions } from '../useShortcuts'
 import { bindingFor, shortcutLabel } from '../shortcuts'
 import { validateMarkdown } from '../editor/markdown'
-import { getEditor, noteScrollPositions } from '../editor/session'
+import { getEditor, getSplitEditor, noteScrollPositions } from '../editor/session'
 import { motion, useMotionPreference, useAnimatedItems } from '../motion'
 import { useEffect, useMemo, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
@@ -278,13 +280,6 @@ export function useAppController() {
   }
   const [findOpen, setFindOpen] = useState(false)
   const [matchNavigation, setMatchNavigation] = useState<MatchNavigation | null>(null)
-  const contentsResize = useContentsResize({
-    workspaceRef: editorWorkspaceRef,
-    savedWidth: library.workspace?.contentsWidth,
-    disabled: library.quitting || library.syncing || library.converting,
-    onCommit: libraryStore.setContentsWidth,
-    adaptive: true,
-  })
   const pdfs = usePdfs(library.ready)
   const [pdfImportError, setPdfImportError] = useState('')
   const [pdfImporting, setPdfImporting] = useState(false)
@@ -343,6 +338,14 @@ export function useAppController() {
         setQuery(location.query)
       }
     },
+  })
+  const contentsResize = useContentsResize({
+    workspaceRef: editorWorkspaceRef,
+    savedWidth: library.workspace?.contentsWidth,
+    disabled: library.quitting || library.syncing || library.converting,
+    onCommit: libraryStore.setContentsWidth,
+    adaptive: true,
+    workspaceKey: workspace.focusedGroup,
   })
   const noteListVisible = noteList && !focus && !workspace.documentId && !projectView
   // Opening a note or PDF from anywhere (palette, links, sidebar) leaves the project page.
@@ -831,7 +834,11 @@ export function useAppController() {
       // "First line" notes start in the body, which then names the note.
       if (followsFirstLine(active.id)) {
         const note = libraryProjection.note(libraryStore.getSnapshot(), active.id)
-        if (note) getEditor(active.id, note.content).commands.focus('start')
+        if (note)
+          (workspace.focusedGroup === 'split' ? getSplitEditor : getEditor)(
+            active.id,
+            note.content,
+          ).commands.focus('start')
       } else titleInput.current?.focus()
       pendingTitleFocus.current = null
     }
@@ -1034,6 +1041,17 @@ export function useAppController() {
       },
     ]
   }
+  /** The note shown by a group's active tab. */
+  const noteInGroup = (group: EditorGroupId) => {
+    const tab = workspace.groups[group]?.tabs.find(
+      (t) => t.id === workspace.groups[group]?.activeTabId,
+    )
+    const noteId = tab && currentLocation(tab).noteId
+    return noteId ? notes.find((note) => note.id === noteId) : undefined
+  }
+  const splitActive = () => {
+    if (workspace.activeTabId && workspace.noteId) workspace.splitTab(workspace.activeTabId)
+  }
   const cycleTab = (direction: number) => {
     const index = workspace.tabs.findIndex((tab) => tab.id === workspace.activeTabId)
     const tab = workspace.tabs[(index + direction + workspace.tabs.length) % workspace.tabs.length]
@@ -1133,6 +1151,18 @@ export function useAppController() {
             run: toggleNoteList,
           },
         ]),
+    ...(workspace.noteId
+      ? [
+          {
+            id: 'split-note',
+            label: 'Split note',
+            keywords: 'side by side editor group right left',
+            shortcut: shortcutFor('split-note'),
+            icon: Columns2,
+            run: splitActive,
+          },
+        ]
+      : []),
     ...(active || activePdf
       ? [
           {
@@ -1167,8 +1197,10 @@ export function useAppController() {
       run: () => setAppearance({ ...appearance, colorMode: mode }),
     })),
   ]
+  const dictation = useDictation(active, busyNote, workspace.focusedGroup === 'split')
   useShortcutActions(
     {
+      'dictate-note': dictation.canDictate ? dictation.startDictation : undefined,
       'new-note': addNote,
       settings: () => setAppearanceOpen(true),
       sidebar: toggleSidebar,
@@ -1176,10 +1208,14 @@ export function useAppController() {
       contents:
         active && (!activePdf || focusedPane === 'note') ? () => toggleContents(true) : undefined,
       editor: active
-        ? () => document.querySelector<HTMLElement>('.note-scroll .tiptap')?.focus()
+        ? () =>
+            document.querySelector<HTMLElement>('.editor-group.is-focused .note-scroll .tiptap')?.focus()
         : undefined,
       title: active
-        ? () => document.querySelector<HTMLElement>('[aria-label="Note title"]')?.focus()
+        ? () =>
+            document
+              .querySelector<HTMLElement>('.editor-group.is-focused [aria-label="Note title"]')
+              ?.focus()
         : undefined,
       back: history.canBack ? () => history.move(-1) : undefined,
       forward: history.canForward ? () => history.move(1) : undefined,
@@ -1190,6 +1226,7 @@ export function useAppController() {
       'close-tab': () => {
         workspace.closeActive()
       },
+      'split-note': workspace.noteId ? splitActive : undefined,
       pin: () => {
         if (!activePdf || focusedPane === 'note') runNoteAction('pin')
       },
@@ -1224,6 +1261,7 @@ export function useAppController() {
     ...headingStyleVariables(appearance.headingStyles, appearance.noteFont),
   } as CSSProperties
   return {
+    ...dictation,
     library,
     notes,
     setNotes,
@@ -1291,6 +1329,8 @@ export function useAppController() {
     setLinkMessage,
     noteContext,
     setNoteContext,
+    noteInGroup,
+    splitActive,
     contentsOpen,
     setContentsOpen,
     contentsLauncher,
