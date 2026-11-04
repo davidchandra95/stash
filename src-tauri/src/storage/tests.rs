@@ -520,6 +520,56 @@ fn abrupt_process_termination_recovers_only_committed_data() {
 }
 
 #[test]
+fn backlink_candidates_find_saved_links_and_skip_trash() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_note(&note("target")).unwrap();
+    store.save_note(&note("unrelated")).unwrap();
+    let linking = |id: &str| {
+        let mut source = note(id);
+        source.content = Some(
+            json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"noteReference","attrs":{"noteId":"target","fallbackTitle":"Target"}}]}]}),
+        );
+        source
+    };
+    store.save_note(&linking("source")).unwrap();
+    let mut trashed = linking("trashed");
+    trashed.trashed = true;
+    store.save_note(&trashed).unwrap();
+    assert_eq!(store.backlink_candidates("target").unwrap(), vec!["source"]);
+    assert!(store.backlink_candidates("source").unwrap().is_empty());
+}
+
+#[test]
+fn backlink_candidates_search_linked_markdown_by_file_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    for id in ["target", "raw", "encoded", "by-id", "unrelated"] {
+        store.save_note(&note(id)).unwrap();
+    }
+    store
+        .conn
+        .execute("INSERT INTO linked_roots(id,path) VALUES('root','/root')", [])
+        .unwrap();
+    for (id, path, markdown) in [
+        ("target", "folder/My note.md", ""),
+        ("raw", "raw.md", "[a](<folder/My note.md>)"),
+        ("encoded", "encoded.md", "[a](folder/My%20note.md)"),
+        ("by-id", "by-id.md", "[a](upnote2://note/target)"),
+        ("unrelated", "unrelated.md", "[a](other.md)"),
+    ] {
+        store.conn.execute(
+            "INSERT INTO linked_notes(note_id,root_id,relative_path,fingerprint,markdown,identity) VALUES(?,'root',?,'f',?,?)",
+            params![id, path, markdown, id],
+        ).unwrap();
+    }
+    let mut found = store.backlink_candidates("target").unwrap();
+    found.sort();
+    assert_eq!(found, vec!["by-id", "encoded", "raw"]);
+    assert_eq!(encode_uri_component("日.md"), "%E6%97%A5.md");
+}
+
+#[test]
 fn references_roundtrip_and_reject_invalid_attributes() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();

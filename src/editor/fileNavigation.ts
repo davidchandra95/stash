@@ -63,6 +63,26 @@ export function fileReferences(
       : {}),
   }
 }
+/** Whether a document links to a note, through a reference or an ordinary link. */
+export function documentLinksTo(
+  doc: JSONContent,
+  targetId: string,
+  from: Note,
+  notes: Note[],
+  roots: LinkedRoot[],
+): boolean {
+  if (doc.type === 'noteReference' && doc.attrs?.noteId === targetId) return true
+  if (
+    doc.marks?.some(
+      (mark) =>
+        mark.type === 'link' &&
+        typeof mark.attrs?.href === 'string' &&
+        resolveFileLink(from, mark.attrs.href, notes, roots)?.id === targetId,
+    )
+  )
+    return true
+  return !!doc.content?.some((child) => documentLinksTo(child, targetId, from, notes, roots))
+}
 export function headingSlug(text: string) {
   return text
     .toLowerCase()

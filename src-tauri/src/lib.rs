@@ -200,6 +200,7 @@ pub fn run() {
             storage::bridge::sync_library,
             storage::bridge::open_library,
             storage::bridge::load_note,
+            storage::bridge::note_backlink_candidates,
             storage::bridge::save_note,
             storage::bridge::save_preferences,
             storage::bridge::delete_notebook,

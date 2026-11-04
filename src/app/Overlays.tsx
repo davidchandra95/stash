@@ -6,11 +6,13 @@ import {
   LiveFileConflictDialog as FileConflictDialog,
   LiveMoveNoteDialog as MoveNoteDialog,
   LiveNotebookDeleteDialog as NotebookDeleteDialog,
+  LiveNoteInformation as NoteInformation,
   LiveNoteOrganization as NoteOrganization,
   LiveSyncConnection as SyncConnection,
   SaveFeedback,
 } from '../storage/libraryReaders'
 import { library as libraryStore } from '../storage/useLibrary'
+import * as Dialog from '@radix-ui/react-dialog'
 import { X } from '../icons'
 import ProjectDialog from '../projects/ProjectDialog'
 import DeleteProjectDialog from '../projects/DeleteProjectDialog'
@@ -180,6 +182,35 @@ export default trackApp(function Overlays() {
           disabled={blocked}
         />
       )}
+      <Dialog.Root
+        open={!!app.informationId}
+        onOpenChange={(open) => !open && app.setInformationId(null)}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog" aria-describedby={undefined}>
+            <div className="dialog-header">
+              <Dialog.Title className="dialog-title">Note information</Dialog.Title>
+            </div>
+            <div className="dialog-body">
+              {app.informationId && (
+                <NoteInformation
+                  noteId={app.informationId}
+                  open={(id, newTab) => {
+                    app.setInformationId(null)
+                    app.noteLinks.open(id, newTab)
+                  }}
+                />
+              )}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn" onClick={() => app.setInformationId(null)}>
+                Close
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {organization &&
         app.notes.some((n) => n.id === organization.id && !n.trashed && !n.source) && (
           <MoveNoteDialog

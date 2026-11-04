@@ -1,13 +1,14 @@
 import { effectiveDueDate, subscribeDisplayZone } from '../projects/schedule'
 import { Node, type Editor } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type Selection } from '@tiptap/pm/state'
+import type { Node as DocumentNode, NodeType } from '@tiptap/pm/model'
 import { closeHistory } from '@tiptap/pm/history'
 import { hideMenu } from '../motion'
 import { platform } from '../platform'
 import { attachDomTooltip } from '../components/AppTooltip'
 import { noteLinkContext, validNoteId } from './noteReferences'
 import { projectStore } from '../projects/store'
-import { toggleTask } from '../projects/actions'
+import { createInboxTasks, toggleTask } from '../projects/actions'
 import { dueState, formatTaskDue, type Task } from '../projects/model'
 
 /**
@@ -65,6 +66,79 @@ export function mentionMatch(editor: Editor) {
   return { from: $from.start() + at, to: $from.pos, query: result[2] }
 }
 
+const maxTitleLength = 500
+const maxTasksAtOnce = 50
+export interface TaskSource {
+  from: number
+  to: number
+  title: string
+  /** The checklist item this replaces entirely; its box gives way to the mention's. */
+  item: { pos: number; checked: boolean } | null
+}
+/**
+ * The text a selection would turn into tasks, one per line. A caret stands for its whole
+ * checklist item. Lines holding anything a title can't carry (images, mentions, inline
+ * checkboxes) stay out, because replacing them would lose it.
+ */
+export function taskSources(doc: DocumentNode, selection: Selection, mention: NodeType) {
+  if (!(selection instanceof TextSelection)) return []
+  const { from, to, empty } = selection
+  const sources: TaskSource[] = []
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isTextblock) return true
+    const start = pos + 1,
+      end = start + node.content.size,
+      $start = doc.resolve(start),
+      parent = $start.node(-1),
+      checklist = parent.type.name === 'mixedListItem' && parent.attrs.kind === 'task' && $start.index(-1) === 0
+    if ((empty && !checklist) || !node.type.contentMatch.matchType(mention)) return false
+    const a = empty ? start : Math.max(from, start),
+      b = empty ? end : Math.min(to, end)
+    let plain = true
+    doc.nodesBetween(a, b, (inner) => {
+      if (inner.isInline && !inner.isText && inner.type.name !== 'hardBreak') plain = false
+    })
+    // With every leaf one character wide, string offsets match document positions.
+    const text = (x: number, y: number) => doc.textBetween(x, y, ' ', ' ')
+    const raw = text(a, b),
+      title = raw.trim().replace(/\s+/g, ' ')
+    if (!plain || !title || [...title].length > maxTitleLength) return false
+    const trimmedFrom = a + raw.length - raw.trimStart().length,
+      trimmedTo = b - (raw.length - raw.trimEnd().length),
+      whole = !text(start, a).trim() && !text(b, end).trim()
+    sources.push({
+      from: trimmedFrom,
+      to: trimmedTo,
+      title,
+      item: checklist && whole ? { pos: $start.before(-1), checked: parent.attrs.checked } : null,
+    })
+    return false
+  })
+  return sources.length > maxTasksAtOnce ? [] : sources
+}
+
+/** Runs after the keyboard commits its composition; replacing composing text would bring it back. */
+export function afterComposition(editor: Editor, run: () => void) {
+  if (!editor.view.composing) {
+    run()
+    return
+  }
+  editor.view.dom.blur()
+  setTimeout(() => {
+    editor.commands.focus()
+    run()
+  }, 60)
+}
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    taskReference: {
+      /** Turns the selected text or current checklist item into tasks and mentions them in place. */
+      createTaskFromSelection: () => ReturnType
+    }
+  }
+}
+
 const checkIcon =
   '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
 export const taskReferenceKey = new PluginKey('taskReferences')
@@ -96,6 +170,42 @@ export const TaskReference = Node.create({
         },
       },
     ]
+  },
+  addCommands() {
+    return {
+      createTaskFromSelection:
+        () =>
+        ({ tr, dispatch, editor }) => {
+          if (!editor.isEditable || !projectStore.getSnapshot().ready) return false
+          const sources = taskSources(tr.doc, tr.selection, this.type)
+          if (!sources.length) return false
+          if (!dispatch) return true
+          const tasks = createInboxTasks(
+            sources.map(({ title, item }) => ({ title, done: !!item?.checked })),
+          )
+          closeHistory(tr)
+          // Back to front, so earlier positions stay valid.
+          sources.forEach((_, index) => {
+            const at = sources.length - 1 - index,
+              { from, to, item } = sources[at],
+              task = tasks[at]
+            tr.replaceWith(from, to, this.type.create({ taskId: task.id, fallbackTitle: task.title }))
+            if (item)
+              tr.setNodeMarkup(item.pos, undefined, {
+                ...tr.doc.nodeAt(item.pos)!.attrs,
+                kind: 'bullet',
+                checked: false,
+              })
+          })
+          const last = sources[sources.length - 1]
+          const shift = sources
+            .slice(0, -1)
+            .reduce((sum, { from, to }) => sum + to - from - 1, 0)
+          tr.setSelection(TextSelection.create(tr.doc, last.from - shift + 1))
+          tr.scrollIntoView()
+          return true
+        },
+    }
   },
   renderHTML({ node }) {
     return [
@@ -237,16 +347,7 @@ export const TaskReference = Node.create({
     const choose = (index: number) => {
       const task = options()[index]
       if (!match() || !task) return
-      if (!editor.view.composing) {
-        insert(task)
-        return
-      }
-      // Replacing text the keyboard is still composing would bring it back: commit it first.
-      editor.view.dom.blur()
-      setTimeout(() => {
-        editor.commands.focus()
-        insert(task)
-      }, 60)
+      afterComposition(editor, () => insert(task))
     }
     const render = () => {
       if (!menu) return
