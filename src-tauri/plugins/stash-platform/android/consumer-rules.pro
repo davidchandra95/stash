@@ -1,2 +1,6 @@
 -keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }
 -keep class local.stash.platform.StashPlatformPlugin { *; }
+-keep class local.stash.platform.ReminderEntryArgs { *; }
+-keep class local.stash.platform.ReminderSyncArgs { *; }
+-keep class local.stash.platform.ReminderCancelArgs { *; }
+-keep class local.stash.platform.ReminderReceiver { *; }

@@ -348,3 +348,14 @@ button.side-disclosure:hover {
   background: var(--tone);
   color: var(--bg-content);
 }
+
+.rail-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--bg-sidebar);
+}

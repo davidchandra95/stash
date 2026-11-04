@@ -177,7 +177,7 @@ Settings › Appearance › Theme. Native is the default.
   project page last open there (Due today by default).
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
-- The bottom of the activity rail holds sync status, Trash and Settings. There is no account menu.
+- The bottom of the activity rail holds sync status, Recent reminders, Trash and Settings. There is no account menu.
 - Settings opens centered and can be dragged by its title bars, staying inside the window; it
   re-centers each time it opens.
 
@@ -236,7 +236,7 @@ Use the shared classes before writing new CSS:
 
 - It is app-level navigation on the window frame, never on a card: 32px `.rail-btn` icon buttons
   (Lucide outline icons, 19px for areas and 17px below) in `--text-2`, areas at the top; sync status,
-  Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
+  Recent reminders, Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
 - The current area is `--fill-2` with an `--accent` icon. Hover is `--fill-frame` on themes that
   define it, else `--fill-1`.
 - Area buttons are `aria-pressed`; their tooltip shows the area's shortcut. Clicking the current
@@ -286,6 +286,14 @@ Use the shared classes before writing new CSS:
   calendar button. Clicking the mark cancels recognition without deleting text. The popover
   embeds the shared calendar and uses shared fields, buttons and surface tokens; manual dates and times override recognition.
   See `documents/TASK_SMART_INPUT.md` for parsing, title and preference rules.
+
+- Reminders are rows in the task inspector and task page: label, time in `--text-3`, and a remove
+  button, with an "Add reminder" select below. Passed reminders use `--text-4`. Open tasks with a
+  reminder still ahead show a 12px `--text-3` bell after their date; calendar blocks don't.
+  Permission text appears only when notifications won't reach the person, and offers the one action
+  that helps. Settings › Notifications always shows the status. See `documents/TASK_REMINDERS.md`.
+  Recent reminders is a rail popover on desktop and a drawer page on Android: title, then time and
+  offset in `--text-3`. Its unread mark is an `--accent` dot, because red means a missed deadline.
 
 - Calendar is a Projects pane with a sticky date header, scrollable all-day area and time grid.
   Today uses the accent, and the current time uses `--danger`. Hour lines are full `--line`,

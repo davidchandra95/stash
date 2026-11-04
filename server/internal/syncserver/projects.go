@@ -88,6 +88,25 @@ func validateRepeat(raw json.RawMessage) bool {
 	return true
 }
 
+// validateReminders mirrors the client's rule, for the same reason.
+func validateReminders(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var minutes []int64
+	if json.Unmarshal(raw, &minutes) != nil || minutes == nil || len(minutes) > 5 {
+		return false
+	}
+	seen := map[int64]bool{}
+	for _, value := range minutes {
+		if value < 0 || value > 40_320 || seen[value] {
+			return false
+		}
+		seen[value] = true
+	}
+	return true
+}
+
 func validateSchedule(raw json.RawMessage) bool {
 	if len(raw) == 0 || string(raw) == "null" {
 		return true
@@ -173,6 +192,7 @@ func validateProjectRecord(op Operation) error {
 		Schedule                       json.RawMessage `json:"schedule"`
 		DueLinked                      *bool           `json:"dueLinked"`
 		Repeat                         json.RawMessage `json:"repeat"`
+		Reminders                      json.RawMessage `json:"reminders"`
 		CompletedAt                    *int64          `json:"completedAt"`
 		Sort                           *float64        `json:"sort"`
 		DeletedAt                      *int64          `json:"deletedAt"`
@@ -206,6 +226,9 @@ func validateProjectRecord(op Operation) error {
 	}
 	if !validateRepeat(t.Repeat) {
 		return errors.New("invalid task repeat")
+	}
+	if !validateReminders(t.Reminders) {
+		return errors.New("invalid task reminders")
 	}
 	hasSchedule := len(t.Schedule) != 0 && string(t.Schedule) != "null"
 	if t.DueLinked != nil && *t.DueLinked && (!hasSchedule || t.DueDate != nil || t.DueTime != nil) {
@@ -266,6 +289,10 @@ func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision
 	incoming[field] = string(name) + suffix
 	// A copy is for review, so it must not become a second live routine.
 	delete(incoming, "repeat")
+	if op.Kind == "task" {
+		// Nor should one conflict make the same reminder go off twice.
+		incoming["reminders"] = []int64{}
+	}
 	copyData, err := json.Marshal(incoming)
 	if err != nil {
 		return err

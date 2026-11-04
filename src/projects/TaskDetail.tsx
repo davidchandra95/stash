@@ -1,6 +1,7 @@
 import DateField from '../components/DateField'
 import RepeatEditor from './RepeatEditor'
 import ScheduleEditor from './ScheduleEditor'
+import TaskReminders from './TaskReminders'
 import { displayZone, effectiveDueDate, schedulePatch, subscribeDisplayZone } from './schedule'
 import { projectStore } from './store'
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -265,6 +266,10 @@ export default function TaskDetail({ task }: { task: Task }) {
             </label>
           )}
           {task.dueLinked && <p className="field-help">Editing Due sets a separate deadline.</p>}
+        </div>
+        <div className="task-detail-section">
+          <h3 className="task-detail-heading">Reminders</h3>
+          <TaskReminders task={task} disabled={blocked} />
         </div>
         <div className="task-detail-section">
           <label className="task-detail-heading" htmlFor="task-description">

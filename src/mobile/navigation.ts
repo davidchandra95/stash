@@ -2,12 +2,13 @@ import type { View } from '../model'
 import type { PdfNavigation } from '../pdf/model'
 import type { TaskGroup } from '../projects/model'
 export type TaskDateView = 'today' | 'upcoming'
-export type SettingsCategory = 'appearance' | 'typography' | 'editor' | 'sync'
+export type SettingsCategory = 'appearance' | 'typography' | 'editor' | 'notifications' | 'sync'
 export type MobileRoute =
   | { kind: 'list'; view: View; query: string; scroll: number; sortTitle: boolean }
   | { kind: 'note'; id: string; focusTitle?: boolean; scroll: number }
   | { kind: 'settings'; category?: SettingsCategory }
   | { kind: 'calendar' }
+  | { kind: 'reminders' }
   | { kind: 'projects'; scroll: number }
   /** `id` is a project ID, or 'inbox'. */
   | { kind: 'project'; id: string; scroll: number; collapsed: TaskGroup[] }

@@ -215,3 +215,36 @@ func TestConflictCopyOfRepeatingTaskDoesNotRepeat(t *testing.T) {
 		t.Fatalf("copy kept its repeat: %s", copied.Data)
 	}
 }
+
+func TestValidateReminders(t *testing.T) {
+	for _, value := range []string{``, `null`, `[]`, `[0]`, `[0,15,60,1440,40320]`} {
+		if !validateReminders(json.RawMessage(value)) {
+			t.Errorf("rejected %s", value)
+		}
+	}
+	for _, value := range []string{`0`, `{}`, `[-1]`, `[40321]`, `[5,5]`, `[0,1,2,3,4,5]`, `[1.5]`, `["5"]`} {
+		if validateReminders(json.RawMessage(value)) {
+			t.Errorf("accepted %s", value)
+		}
+	}
+	if validateProjectRecord(taskOp("t", "T", 0, map[string]any{"reminders": []int{-1}})) == nil {
+		t.Error("accepted a task with invalid reminders")
+	}
+}
+
+func TestConflictCopyOfTaskDoesNotRemind(t *testing.T) {
+	s, _, token := setup(t)
+	reminders := []int{0, 60}
+	base := apply(t, s, token, taskOp("t", "Review", 0, map[string]any{"reminders": reminders})).Current.Revision
+	apply(t, s, token, taskOp("t", "From phone", base, map[string]any{"reminders": reminders}))
+	if r := apply(t, s, token, taskOp("t", "From mac", base, map[string]any{"reminders": reminders})); r.CopyID == "" {
+		t.Fatalf("%+v", r)
+	}
+	copied, ok := changesByTitle(t, s, token)["From mac (conflict copy)"]
+	if !ok {
+		t.Fatal("missing conflict copy")
+	}
+	if !strings.Contains(string(copied.Data), `"reminders":[]`) {
+		t.Fatalf("copy kept its reminders: %s", copied.Data)
+	}
+}

@@ -36,7 +36,7 @@ Month and year offsets clamp to the last valid day of the destination month: one
 - Due today supplies today's date unless a recognized phrase or manual choice overrides it. Cancelling recognition restores that default; **No date** explicitly removes it. After adding a task, the next draft returns to the view's default date.
 - Enter during input method composition does not create a task. All creation and correction controls respect the app's blocked state.
 
-Dates without times save to `dueDate` as `YYYY-MM-DD`. Times save to `schedule` as points or ranges with `dueLinked: true`; they do not set `dueTime`. The due day can be unlinked in task details, and clearing the schedule keeps the existing due day. See [native storage](LOCAL_STORAGE.md#task-calendar-schema-13) for the migration. Calendar tasks and deadlines do not sync and do not create notifications.
+Dates without times save to `dueDate` as `YYYY-MM-DD`. Times save to `schedule` as points or ranges with `dueLinked: true`; they do not set `dueTime`. The due day can be unlinked in task details, and clearing the schedule keeps the existing due day. See [native storage](LOCAL_STORAGE.md#task-calendar-schema-13) for the migration. A date or time also sets a [reminder](TASK_REMINDERS.md).
 
 ## Implementation and checks
 

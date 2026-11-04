@@ -32,10 +32,12 @@ export interface Task {
   priority: Priority
   startDate: string | null
   dueDate: string | null
-  /** Local wall-clock time as HH:mm; requires a dueDate. No notification is implied. */
+  /** Local wall-clock time as HH:mm; requires a dueDate. */
   dueTime: string | null
   schedule?: TaskSchedule | null
   dueLinked?: boolean
+  /** Minutes before the task's moment. `null` is the default; empty turns reminders off. */
+  reminders?: number[] | null
   repeat?: TaskRepeat | null
   completedAt: number | null
   sort: number

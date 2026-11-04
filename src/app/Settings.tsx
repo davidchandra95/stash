@@ -21,7 +21,9 @@ import {
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
+import ReminderSettings from '../projects/ReminderSettings'
 import {
+  Bell,
   Keyboard,
   Palette,
   PenLine,
@@ -38,12 +40,13 @@ import { platform } from '../platform'
 import { shortcutCommands } from '../shortcuts'
 import { library, useLibrarySelector } from '../storage/useLibrary'
 
-type Category = 'appearance' | 'typography' | 'editor' | 'shortcuts' | 'sync'
+type Category = 'appearance' | 'typography' | 'editor' | 'notifications' | 'shortcuts' | 'sync'
 
 const categories: { id: Category; label: string; icon: IconComponent; color: string }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette, color: '#007aff' },
   { id: 'typography', label: 'Typography', icon: Type, color: '#f7821b' },
   { id: 'editor', label: 'Editor', icon: PenLine, color: '#4fa83a' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#e5484d' },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, color: '#8c8c8c' },
   { id: 'sync', label: 'Sync', icon: RefreshCw, color: '#30b0c7' },
 ]
@@ -278,6 +281,13 @@ export default function Settings({
 
   const themeAccent = themeAccents[value.interfaceTheme]
   const items: Item[] = [
+    {
+      id: 'task-reminders',
+      category: 'notifications',
+      group: '',
+      search: 'Notifications task reminders permission allowed blocked snooze',
+      content: <ReminderSettings />,
+    },
     ...(dictationSupported()
       ? [
           {

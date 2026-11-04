@@ -5,6 +5,7 @@ mod macos_quit;
 mod native_menu;
 #[cfg(desktop)]
 mod provision;
+mod reminders;
 mod storage;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -162,6 +163,8 @@ pub fn run() {
                 credentials::for_app(app.handle()),
             )));
             #[cfg(target_os = "macos")]
+            reminders::install(app.handle());
+            #[cfg(target_os = "macos")]
             macos_quit::install(app.handle())?;
             Ok(())
         })
@@ -174,6 +177,13 @@ pub fn run() {
             dictation::dictation_stop,
             dictation::dictation_cancel,
             platform_info,
+            reminders::reminder_status,
+            reminders::reminder_request_permission,
+            reminders::reminder_pending,
+            reminders::reminder_sync,
+            reminders::reminder_cancel,
+            reminders::reminder_take_open,
+            reminders::reminder_open_settings,
             native_menu::show_outline_menu,
             native_menu::cancel_outline_menu,
             set_mobile_keyboard,

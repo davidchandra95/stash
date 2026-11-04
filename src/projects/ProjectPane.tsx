@@ -1,4 +1,5 @@
 import { effectiveDueDate } from './schedule'
+import { ReminderMark } from './TaskReminders'
 import {
   useEffect,
   useRef,
@@ -465,6 +466,7 @@ function TaskList({
               <span className={`task-due is-${due}`}>
                 <Calendar aria-hidden="true" />
                 {formatTaskTiming(task)}
+                <ReminderMark task={task} />
               </span>
             )}
             {task.repeat && <RepeatMark repeat={task.repeat} />}

@@ -109,6 +109,7 @@ Projects and tasks are whole records, and deleting one sets `deletedAt` rather t
 - A deletion from a device that had not seen a newer edit does not apply. The edited record stays and the device gets a warning.
 - Changes that differ only in order or timestamps, or that delete the same record twice, keep the accepted record with no copy or warning.
 - A live task saved into a project that was deleted moves to the Inbox.
+- Chosen reminders sync with their task, and the server validates them. Each device schedules its own notifications and keeps its own snoozes. A conflict copy has reminders off. A client from before reminders ignores them and drops them if it edits that task.
 - A repeat rule syncs with its task, and the server validates it. A conflict copy of a repeating task doesn't repeat, so a conflict can't start a second routine. If two devices complete the same occurrence, the routine moves forward once and each device's finished occurrence is kept. A client from before repeats ignores the rule and drops it if it edits that task.
 
 A project's link to a folder-linked or device-only notebook stays on that device.

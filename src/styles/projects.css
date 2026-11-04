@@ -1306,6 +1306,127 @@ h3.task-detail-heading {
   gap: var(--space-1);
   margin-top: var(--space-7);
 }
+
+/* Reminders: inspector rows, with a quiet line only when notifications won't appear. */
+.task-reminder-mark {
+  display: inline-flex;
+  margin-inline-start: var(--space-1);
+  color: var(--text-3);
+}
+.task-reminder-mark .ui-icon {
+  width: 12px;
+  height: 12px;
+}
+.task-reminder-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-reminder-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.task-reminder-list li.is-past {
+  color: var(--text-4);
+}
+.task-reminder-list .truncate {
+  flex: 1;
+  min-width: 0;
+}
+.task-reminder-time {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.task-reminder-list li.is-past .task-reminder-time {
+  color: var(--text-4);
+}
+.task-reminder-add {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+.reminder-permission {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.reminder-permission .btn {
+  flex: none;
+}
+.reminder-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.reminder-status [data-status='denied'] {
+  color: var(--danger);
+}
+.task-detail .task-reminder-add {
+  width: calc(100% + var(--space-8));
+  margin-inline: calc(var(--space-4) * -1);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Recent reminders: the rail popover on desktop, a page on Android. */
+.recent-reminders-popover {
+  width: 320px;
+  max-height: min(var(--radix-popover-content-available-height, 70vh), 480px);
+}
+.recent-reminders ul {
+  margin: 0 calc(var(--space-3) * -1);
+  padding: 0;
+  list-style: none;
+}
+.recent-reminders li button {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-reminders li button:hover {
+  background: var(--fill-1);
+}
+.recent-reminder-title {
+  font-size: var(--text-sm);
+}
+.recent-reminder-meta {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.recent-reminders-empty {
+  padding: var(--space-5) 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.recent-reminders-empty p {
+  margin: 0 0 var(--space-1);
+}
+.recent-reminders-empty small {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
 .repeat-editor {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);

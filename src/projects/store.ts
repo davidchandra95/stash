@@ -65,6 +65,7 @@ function saveRequest(changes: Changes) {
       dueTime: t.dueTime,
       schedule: t.schedule ?? null,
       dueLinked: t.dueLinked ?? false,
+      reminders: t.reminders ?? null,
       repeat: t.repeat ?? null,
       sort: t.sort,
       deleted: t.deletedAt !== null,
