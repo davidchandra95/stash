@@ -2115,3 +2115,10 @@ select {
   padding-bottom: var(--space-2);
   padding-left: var(--space-7);
 }
+.repeat-editor {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-3) var(--space-4);
+}
+.repeat-day {
+  height: var(--target);
+}

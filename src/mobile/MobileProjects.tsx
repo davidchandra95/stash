@@ -1,3 +1,5 @@
+import RepeatEditor from '../projects/RepeatEditor'
+import { formatRepeat } from '../projects/repeat'
 import ScheduleEditor from '../projects/ScheduleEditor'
 import { effectiveDueDate, schedulePatch } from '../projects/schedule'
 import { projectStore } from '../projects/store'
@@ -267,11 +269,12 @@ function TaskRow({
       <TaskCheck task={task} disabled={disabled} />
       <button className="mobile-task-label" onClick={() => onOpen(task.id)}>
         <span className={`mobile-row-title is-${task.status}`}>{task.title}</span>
-        {(effectiveDueDate(task) || task.schedule || task.priority > 0 || project) && (
+        {(effectiveDueDate(task) || task.schedule || task.repeat || task.priority > 0 || project) && (
           <span className="mobile-row-meta">
             {(effectiveDueDate(task) || task.schedule) && (
               <span className={`is-${dueState(task)}`}>{formatTaskTiming(task)}</span>
             )}
+            {task.repeat && <span>{formatRepeat(task.repeat)}</span>}
             {task.priority > 0 && <span>{priority?.label}</span>}
             {project && <span>{project}</span>}
           </span>
@@ -789,6 +792,8 @@ function TaskFields({
           'task-dates',
         )}
       </div>
+      <h3 className="mobile-task-heading">Repeat</h3>
+      <RepeatEditor task={task} disabled={disabled || task.status === 'done' || task.status === 'cancelled'} />
       <h3 className="mobile-task-heading">Work schedule</h3>
       <ScheduleEditor schedule={task.schedule} disabled={disabled} onSave={async (schedule) => {
         const current = projectStore.getSnapshot().tasks.find((entry) => entry.id === task.id) ?? task

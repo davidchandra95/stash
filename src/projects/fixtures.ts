@@ -37,6 +37,7 @@ export function previewProjectData(now = new Date()): ProjectData {
     dueTime: null,
     schedule: null,
     dueLinked: false,
+    repeat: null,
     completedAt: fields.status === 'done' ? at : null,
     sort,
     deletedAt: null,

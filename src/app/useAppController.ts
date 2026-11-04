@@ -23,6 +23,7 @@ import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
 import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
+import { setRepeatNotify } from '../projects/actions'
 import { projectStore, useProjects } from '../projects/store'
 import type { Project } from '../projects/model'
 import { taskLink } from '../editor/taskReferences'
@@ -296,6 +297,7 @@ export function useAppController() {
   const [projectNotice, setProjectNotice] = useState<{ message: string; undo?: () => void } | null>(
     null,
   )
+  useEffect(() => setRepeatNotify(setProjectNotice), [])
   const openProject = (id: string) => {
     setProjectView(id)
     setSelectedTaskId(null)

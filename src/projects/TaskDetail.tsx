@@ -1,4 +1,5 @@
 import DateField from '../components/DateField'
+import RepeatEditor from './RepeatEditor'
 import ScheduleEditor from './ScheduleEditor'
 import { displayZone, effectiveDueDate, schedulePatch, subscribeDisplayZone } from './schedule'
 import { projectStore } from './store'
@@ -229,6 +230,9 @@ export default function TaskDetail({ task }: { task: Task }) {
             onChange={(event) => updateTask(task, { dueTime: event.target.value || null })}
           />
           </>}
+        </div>
+        <div className="task-detail-section">
+          <RepeatEditor task={task} disabled={blocked || task.status === 'done' || task.status === 'cancelled'} />
         </div>
         <div className="task-detail-section">
           <ScheduleEditor

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/context'
 import { Calendar } from '../icons'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
+import { RepeatMark } from './RepeatEditor'
 import { deleteTask, toggleTask, updateTask } from './actions'
 import {
   boardColumns,
@@ -147,7 +148,7 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                           {task.title}
                         </span>
                       </div>
-                      {(effectiveDueDate(task) || task.schedule || task.priority > 0) && (
+                      {(effectiveDueDate(task) || task.schedule || task.repeat || task.priority > 0) && (
                         <div className="task-meta board-card-meta">
                           {(effectiveDueDate(task) || task.schedule) && (
                             <span className={`task-due is-${due}`}>
@@ -155,6 +156,7 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                               {formatTaskTiming(task)}
                             </span>
                           )}
+                          {task.repeat && <RepeatMark repeat={task.repeat} />}
                           {task.priority > 0 && <PriorityBars priority={task.priority} />}
                         </div>
                       )}

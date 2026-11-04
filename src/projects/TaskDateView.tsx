@@ -5,6 +5,7 @@ import { Calendar, CalendarClock } from '../icons'
 import AppTooltip from '../components/AppTooltip'
 import ProjectRing from './ProjectRing'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
+import { RepeatMark } from './RepeatEditor'
 import { deleteTask, toggleTask } from './actions'
 import NewTask from './NewTask'
 import {
@@ -118,6 +119,7 @@ export default function TaskDateView({ view }: { view: DateView }) {
                             {formatTaskTiming(task, current)}
                           </span>
                         )}
+                        {task.repeat && <RepeatMark repeat={task.repeat} />}
                         {task.priority > 0 && (
                           <AppTooltip label={`${priorities[task.priority].label} priority`}>
                             <span className="task-priority">

@@ -1,6 +1,15 @@
-import { effectiveDueDate, schedulePatch, type TaskSchedule } from './schedule'
+import { nextOccurrence, repeatAnchor, shiftSchedule } from './repeat'
+import { addDays, dayAt, effectiveDueDate, schedulePatch, type TaskSchedule } from './schedule'
 import { newId, projectStore } from './store'
-import { bySort, sortBetween, type Project, type Task, type TaskStatus } from './model'
+import {
+  bySort,
+  daysBetween,
+  formatDate,
+  sortBetween,
+  type Project,
+  type Task,
+  type TaskStatus,
+} from './model'
 
 /** Shows an undo notice; the app supplies it. */
 export type Notify = (notice: { message: string; undo?: () => void } | null) => void
@@ -18,11 +27,78 @@ const live = () => {
 const latest = (task: Task) =>
   projectStore.getSnapshot().tasks.find((t) => t.id === task.id) ?? task
 
+// Completion happens from places with no notice of their own, such as a note's task mention.
+let repeatNotify: Notify = () => {}
+/** The app supplies the notice that offers to undo completing a repeating task. */
+export function setRepeatNotify(notify: Notify) {
+  repeatNotify = notify
+}
+
+/**
+ * The task keeps its ID and moves to its next date, so note mentions follow the routine. The
+ * finished occurrence stays behind as an ordinary done task. Both save in one transaction.
+ */
+function completeOccurrence(original: Task, next: Task) {
+  const repeat = next.repeat!
+  const zone = next.schedule && next.schedule.kind !== 'allDay' ? next.schedule.timeZone : undefined
+  const current = dayAt(Date.now(), zone)
+  const anchor = repeatAnchor(next) ?? current
+  const occurrence = nextOccurrence(repeat, anchor, current)
+  // Beyond year 9999 there is no date to store, so the series ends here.
+  if (occurrence.date.length !== 10) return save({ tasks: [next] })
+  const days = daysBetween(anchor, occurrence.date)
+  const shift = (date: string | null) => (date ? addDays(date, days) : null)
+  const dated = !next.schedule || next.dueDate
+  const upcoming: Task = {
+    ...next,
+    status: 'todo',
+    completedAt: null,
+    startDate: shift(next.startDate),
+    // A dateless task gets its first date here, which is what it returned to.
+    dueDate: dated ? (shift(next.dueDate) ?? occurrence.date) : null,
+    schedule: next.schedule ? shiftSchedule(next.schedule, days) : next.schedule,
+    repeat: occurrence.repeat,
+  }
+  const history: Task = {
+    ...next,
+    id: newId(),
+    repeat: null,
+    completedAt: null,
+    created: Date.now(),
+    updated: Date.now(),
+    revision: 0,
+  }
+  save({ tasks: [upcoming, history] })
+  repeatNotify({
+    message: `Completed “${next.title}”. Next: ${formatDate(occurrence.date, current)}`,
+    undo: () => {
+      const moved = latest(upcoming)
+      const finished = latest(history)
+      save({
+        tasks: [
+          {
+            ...moved,
+            status: original.status,
+            startDate: original.startDate,
+            dueDate: original.dueDate,
+            schedule: original.schedule ?? null,
+            repeat: original.repeat,
+          },
+          { ...finished, deletedAt: Date.now() },
+        ],
+      })
+    },
+  })
+}
+
 export function updateTask(task: Task, patch: Partial<Task>) {
-  const next = { ...latest(task), ...patch }
+  const original = latest(task)
+  const next = { ...original, ...patch }
   if ('dueDate' in patch && !('dueLinked' in patch)) next.dueLinked = false
   if (!next.dueDate) next.dueTime = null
-  save({ tasks: [next] })
+  if (next.status === 'done' && original.status !== 'done' && next.repeat)
+    completeOccurrence(original, next)
+  else save({ tasks: [next] })
 }
 export function setTaskStatus(task: Task, status: TaskStatus) {
   updateTask(task, { status })
@@ -35,7 +111,7 @@ export function toggleTask(task: Task) {
 export function buildTask(
   projectId: string | null,
   title: string,
-  fields: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked'>> = {},
+  fields: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked' | 'repeat'>> = {},
 ): Task {
   const siblings = live().tasks.filter((t) => t.projectId === projectId && t.status === 'todo')
   const first = siblings.sort(bySort)[0]
@@ -52,6 +128,7 @@ export function buildTask(
     dueTime: null,
     schedule: null,
     dueLinked: false,
+    repeat: null,
     completedAt: null,
     sort: sortBetween(undefined, first?.sort),
     deletedAt: null,
