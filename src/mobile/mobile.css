@@ -2115,3 +2115,30 @@ select {
   padding-bottom: var(--space-2);
   padding-left: var(--space-7);
 }
+
+/* Recent reminders page and its drawer mark. */
+.mobile-drawer nav > button > span.mobile-reminder-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  overflow: visible;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.recent-reminders {
+  padding: var(--space-3) var(--space-6);
+}
+.recent-reminders ul {
+  margin: 0;
+}
+.recent-reminders li + li {
+  border-top: 1px solid var(--line);
+}
+.recent-reminders li button {
+  min-height: 56px;
+  padding: var(--space-3) 0;
+  border-radius: 0;
+}
+.recent-reminders li button:active {
+  background: var(--fill-1);
+}

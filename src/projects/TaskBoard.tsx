@@ -1,4 +1,5 @@
 import { effectiveDueDate } from './schedule'
+import { ReminderMark } from './TaskReminders'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/context'
 import { Calendar } from '../icons'
@@ -153,6 +154,7 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                             <span className={`task-due is-${due}`}>
                               <Calendar aria-hidden="true" />
                               {formatTaskTiming(task)}
+                              <ReminderMark task={task} />
                             </span>
                           )}
                           {task.priority > 0 && <PriorityBars priority={task.priority} />}

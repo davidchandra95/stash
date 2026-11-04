@@ -1,4 +1,5 @@
 import ScheduleEditor from '../projects/ScheduleEditor'
+import TaskReminders, { ReminderMark } from '../projects/TaskReminders'
 import { effectiveDueDate, schedulePatch } from '../projects/schedule'
 import { projectStore } from '../projects/store'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
@@ -270,7 +271,10 @@ function TaskRow({
         {(effectiveDueDate(task) || task.schedule || task.priority > 0 || project) && (
           <span className="mobile-row-meta">
             {(effectiveDueDate(task) || task.schedule) && (
-              <span className={`is-${dueState(task)}`}>{formatTaskTiming(task)}</span>
+              <span className={`is-${dueState(task)}`}>
+                {formatTaskTiming(task)}
+                <ReminderMark task={task} />
+              </span>
             )}
             {task.priority > 0 && <span>{priority?.label}</span>}
             {project && <span>{project}</span>}
@@ -798,6 +802,8 @@ function TaskFields({
         onChange={(event) => updateTask(task, event.target.checked
           ? { dueLinked: true, dueDate: null, dueTime: null }
           : { dueLinked: false, dueDate: effectiveDueDate(task) })} />Due day follows schedule</label>}
+      <h3 className="mobile-task-heading">Reminders</h3>
+      <TaskReminders task={task} disabled={disabled} />
       <label className="mobile-task-heading" htmlFor="mobile-task-description">
         Description
       </label>

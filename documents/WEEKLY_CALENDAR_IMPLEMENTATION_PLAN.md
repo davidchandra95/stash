@@ -8,7 +8,7 @@ Verification on 3 November 2026: 958 frontend tests, 14 focused Playwright tests
 
 Add a task calendar to Stash that lets a user see and plan a week like the [TickTick Week View](https://help.ticktick.com/articles/7055782149730861056). It should show tasks from the Inbox and projects, including dated tasks without a time, timed tasks, and tasks that span several days. Creating, moving, resizing, opening and completing a calendar item must update the same task used elsewhere in Stash.
 
-The initial target is the linked week-view workflow, not an entire replacement for TickTick. The phases below cover the desktop week view and the mobile work needed for a usable calendar. Day, month, year, agenda and configurable multi-day or multi-week views are separate extensions. External calendars, habits, focus records, reminders, and recurring tasks require their own data models and are not implied by a visual calendar. They remain possible follow-up work, not capabilities claimed for this plan.
+The initial target is the linked week-view workflow, not an entire replacement for TickTick. The phases below cover the desktop week view and the mobile work needed for a usable calendar. Day, month, year, agenda and configurable multi-day or multi-week views are separate extensions. External calendars, habits, focus records, and recurring tasks require their own data models and are not implied by a visual calendar. They remain possible follow-up work, not capabilities claimed for this plan.
 
 ## Reference: what was checked
 

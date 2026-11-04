@@ -28,6 +28,7 @@ import { onBackButtonPress } from '@tauri-apps/api/app'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import {
   FileText,
+  Bell,
   CalendarClock,
   Calendar,
   ArrowDownWideNarrow,
@@ -95,6 +96,8 @@ import {
   type MobileRoute,
   type SettingsCategory,
 } from './navigation'
+import RecentReminders, { useRecentReminders } from '../projects/RecentReminders'
+import { useTaskReminders } from '../projects/reminderService'
 import { projectStore, useProjects } from '../projects/store'
 import type { Notify } from '../projects/actions'
 import { bySort, health, isOpenProject, progress, type Project } from '../projects/model'
@@ -138,6 +141,7 @@ const categoryNames = {
   appearance: 'Appearance',
   typography: 'Typography',
   editor: 'Editor',
+  notifications: 'Notifications',
   sync: 'Sync',
 }
 type Overlay =
@@ -269,8 +273,8 @@ export default function MobileApp() {
         ? `list:${route.view}`
         : route.kind === 'settings'
           ? `settings:${route.category ?? ''}`
-          : route.kind === 'calendar'
-            ? 'calendar'
+          : route.kind === 'calendar' || route.kind === 'reminders'
+            ? route.kind
             : route.kind === 'projects'
               ? 'projects'
             : route.kind === 'tasks'
@@ -373,6 +377,8 @@ export default function MobileApp() {
     })
   const openNote = (id: string) => push({ kind: 'note', id, scroll: 0 })
   const openTask = (id: string) => push({ kind: 'task', id, scroll: 0 })
+  useTaskReminders(projectData.ready, openTask)
+  const { unread: recentUnread } = useRecentReminders()
   const openProjects = (project?: string) =>
     void perform(() => {
       dispatch({ type: 'projects', project })
@@ -566,6 +572,8 @@ export default function MobileApp() {
           : 'Settings'
         : route.kind === 'calendar'
           ? 'Calendar'
+          : route.kind === 'reminders'
+            ? 'Recent reminders'
           : route.kind === 'projects'
             ? 'Projects'
             : route.kind === 'tasks'
@@ -1104,6 +1112,7 @@ export default function MobileApp() {
             onCategory={(category) => push({ kind: 'settings', category })}
           />
         )}
+        {route.kind === 'reminders' && <RecentReminders onOpen={openTask} />}
         {route.kind === 'calendar' && (
           <TaskCalendar
             tasks={projectData.tasks}
@@ -1328,6 +1337,15 @@ export default function MobileApp() {
                     <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
                       <CalendarDays aria-hidden="true" />
                       <span>Calendar</span>
+                    </button>
+                    <button
+                      className={route.kind === 'reminders' ? 'selected' : ''}
+                      aria-current={route.kind === 'reminders' ? 'page' : undefined}
+                      onClick={() => { setOverlay(null); push({ kind: 'reminders' }) }}
+                    >
+                      <Bell aria-hidden="true" />
+                      <span>Recent reminders</span>
+                      {recentUnread > 0 && <span className="mobile-reminder-dot" role="img" aria-label={`${recentUnread} new`} />}
                     </button>
                     <button
                       className={route.kind === 'projects' ? 'selected' : ''}

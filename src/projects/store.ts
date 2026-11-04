@@ -64,6 +64,7 @@ function saveRequest(changes: Changes) {
       dueTime: t.dueTime,
       schedule: t.schedule ?? null,
       dueLinked: t.dueLinked ?? false,
+      reminders: t.reminders ?? null,
       sort: t.sort,
       deleted: t.deletedAt !== null,
       expectedRevision: confirmed.tasks.get(t.id)?.revision ?? 0,

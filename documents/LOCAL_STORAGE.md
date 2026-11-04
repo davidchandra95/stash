@@ -48,7 +48,11 @@ Schema 12's optional `due_time` is a legacy floating wall-clock deadline. Migrat
 
 Upgrades create and sync the existing SQLite backup before running migration. A schema 11 library adds both `due_time` and the schedule columns in one transaction. A schema 12 library adds only the schedule columns. Fresh libraries have the same schema. Older builds refuse schema 13. To downgrade, close Stash and restore the complete pre-upgrade backup; later changes will be lost.
 
-Task writes still use revision checks and replace full records in one transaction. A failed write reloads the confirmed tasks and cancels queued edits based on the failed snapshot. Calendar drafts remain editable on failure. Move and resize undo is offered only after confirmation and checks that the scheduling fields still match the change it will undo. Projects, tasks and calendar preferences remain local. Schedules do not create reminders.
+Task writes still use revision checks and replace full records in one transaction. A failed write reloads the confirmed tasks and cancels queued edits based on the failed snapshot. Calendar drafts remain editable on failure. Move and resize undo is offered only after confirmation and checks that the scheduling fields still match the change it will undo. Projects, tasks and calendar preferences remain local.
+
+## Task reminders (schema 14)
+
+Schema 14 adds nullable `tasks.reminders`, a JSON list of minutes before the task's moment. `NULL` is the default reminder at that moment and an empty list turns reminders off. Upgrades back up the library first and leave existing values untouched. Older builds refuse schema 14. See [Task reminders](TASK_REMINDERS.md).
 
 ## Autosave contract
 

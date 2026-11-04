@@ -23,6 +23,7 @@ import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
 import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
+import { useTaskReminders } from '../projects/reminderService'
 import { projectStore, useProjects } from '../projects/store'
 import type { Project } from '../projects/model'
 import { taskLink } from '../editor/taskReferences'
@@ -309,6 +310,7 @@ export function useAppController() {
     setSelectedTaskId(task.id)
     setFocus(false)
   }
+  useTaskReminders(projects.ready, openTask)
   const copyTaskLink = (id: string) => {
     const text = taskLink(id)
     void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((error) =>

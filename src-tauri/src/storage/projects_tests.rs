@@ -29,10 +29,31 @@ fn task(id: &str, project_id: Option<&str>) -> SaveTask {
         due_time: None,
         schedule: None,
         due_linked: false,
+        reminders: None,
         sort: 1.0,
         deleted: false,
         expected_revision: 0,
     }
+}
+
+#[test]
+fn reminders_round_trip_and_reject_invalid_lists() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let saved = store.save_project_changes(&changes(vec![], vec![task("default", None)])).unwrap();
+    assert_eq!(saved.tasks[0].reminders, None);
+    for (id, reminders) in [("off", vec![]), ("chosen", vec![0, 15, 1440])] {
+        let input = SaveTask { reminders: Some(reminders.clone()), ..task(id, None) };
+        let saved = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
+        assert_eq!(saved.tasks[0].reminders, Some(reminders));
+    }
+    for reminders in [vec![-5], vec![40_321], vec![5, 5], vec![0, 5, 15, 30, 60, 120]] {
+        let input = SaveTask { reminders: Some(reminders), ..task("bad", None) };
+        assert!(store.save_project_changes(&changes(vec![], vec![input])).unwrap_err().contains("reminders"));
+    }
+    let before = store.project_data().unwrap();
+    drop(store);
+    assert_eq!(Store::open(dir.path()).unwrap().project_data().unwrap().tasks, before.tasks);
 }
 
 #[test]
@@ -86,7 +107,7 @@ fn version_twelve_schedule_upgrade_preserves_legacy_wall_times_and_backup() {
     let mut input = task("legacy-time", None);
     input.due_time = Some("14:00".into());
     let before = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
     drop(store);
     let store = Store::open(dir.path()).unwrap();
     assert_eq!(store.project_data().unwrap().tasks, before.tasks);
@@ -102,7 +123,7 @@ fn schedule_upgrade_backup_failure_and_migration_failure_preserve_version_twelve
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path()).unwrap();
         store.save_project_changes(&changes(vec![], vec![task("kept", None)])).unwrap();
-        store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+        store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
         if !backup_failure { store.conn.execute_batch("ALTER TABLE tasks ADD COLUMN due_linked TEXT;").unwrap(); }
         drop(store);
         if backup_failure { fs::write(dir.path().join("backups"), b"blocked").unwrap(); }
@@ -168,13 +189,13 @@ fn version_eleven_migration_preserves_tasks_and_backs_up_before_adding_due_time(
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
     let before = store.save_project_changes(&changes(vec![project("p")], vec![task("t", Some("p"))])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
     drop(store);
     let mut store = Store::open(dir.path()).unwrap();
     let after = store.project_data().unwrap();
     assert_eq!(after.projects, before.projects);
     assert_eq!(after.tasks, before.tasks);
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 13);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 14);
     let backups: Vec<_> = fs::read_dir(dir.path().join("backups")).unwrap().map(|entry| entry.unwrap().path()).collect();
     assert_eq!(backups.len(), 1);
     let backup = Connection::open(&backups[0]).unwrap();
@@ -322,7 +343,7 @@ fn version_ten_libraries_gain_project_tables_after_a_backup() {
 
     let mut store = Store::open(dir.path()).unwrap();
     let version: i64 = store.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 13);
+    assert_eq!(version, 14);
     assert_eq!(store.note("a", false).unwrap().title, "Kept");
     store
         .save_project_changes(&changes(vec![project("p")], vec![]))

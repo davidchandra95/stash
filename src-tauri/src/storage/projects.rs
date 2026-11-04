@@ -36,6 +36,9 @@ pub struct Task {
     pub schedule: Option<TaskSchedule>,
     #[serde(default)]
     pub due_linked: bool,
+    /// Minutes before the task's moment. `None` is the default; empty turns reminders off.
+    #[serde(default)]
+    pub reminders: Option<Vec<i64>>,
     pub completed_at: Option<i64>,
     pub sort: f64,
     pub deleted_at: Option<i64>,
@@ -91,6 +94,8 @@ pub struct SaveTask {
     pub schedule: Option<TaskSchedule>,
     #[serde(default)]
     pub due_linked: bool,
+    #[serde(default)]
+    pub reminders: Option<Vec<i64>>,
     pub sort: f64,
     pub deleted: bool,
     pub expected_revision: i64,
@@ -105,7 +110,7 @@ pub struct ProjectChanges {
 }
 
 const PROJECT_COLUMNS: &str = "id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision";
-const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked";
+const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,reminders";
 
 fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -139,6 +144,8 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         schedule: r.get::<_, Option<String>>(15)?.map(|json| serde_json::from_str(&json)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(15, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         due_linked: r.get(16)?,
+        reminders: r.get::<_, Option<String>>(17)?.map(|json| serde_json::from_str(&json)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(17, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         completed_at: r.get(8)?,
         sort: r.get(9)?,
         deleted_at: r.get(10)?,
@@ -264,6 +271,15 @@ fn validate_task(t: &SaveTask) -> Result<()> {
             TaskSchedule::Range { start, end, time_zone } => valid_instant(*start) && valid_instant(*end) && end > start && valid_zone(time_zone),
         };
         if !valid { return Err("Invalid task schedule. Check the dates, duration and named time zone.".into()); }
+    }
+    if let Some(reminders) = &t.reminders {
+        let unique: std::collections::HashSet<_> = reminders.iter().collect();
+        if reminders.len() > 5
+            || unique.len() != reminders.len()
+            || reminders.iter().any(|minutes| !(0..=40_320).contains(minutes))
+        {
+            return Err("A task can have up to 5 different reminders, up to 4 weeks ahead.".into());
+        }
     }
     if t.project_id.as_deref().is_some_and(|id| !valid_record_id(id)) {
         return Err("Invalid project ID.".into());
@@ -421,10 +437,10 @@ impl Store {
                 .deleted
                 .then(|| current.as_ref().and_then(|c| c.4).unwrap_or(at));
             tx.execute(
-                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,reminders)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
-                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,
+                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,reminders=excluded.reminders,
                  completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,
                  updated=excluded.updated,revision=excluded.revision",
                 params![
@@ -444,7 +460,8 @@ impl Store {
                     revision + 1,
                     t.due_time,
                     t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
-                    t.due_linked
+                    t.due_linked,
+                    t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?
                 ],
             )
             .map_err(db_err)?;

@@ -1,4 +1,5 @@
 import { effectiveDueDate } from './schedule'
+import { ReminderMark } from './TaskReminders'
 import { useRef, type KeyboardEvent } from 'react'
 import { useApp, useBlocked } from '../app/context'
 import { Calendar, CalendarClock } from '../icons'
@@ -116,6 +117,7 @@ export default function TaskDateView({ view }: { view: DateView }) {
                           <span className={`task-due is-${due}`}>
                             <Calendar aria-hidden="true" />
                             {formatTaskTiming(task, current)}
+                            <ReminderMark task={task} />
                           </span>
                         )}
                         {task.priority > 0 && (
