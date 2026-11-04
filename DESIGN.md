@@ -269,6 +269,11 @@ Use the shared classes before writing new CSS:
   date. A missing or deleted task uses a dashed outline and muted text. Typing `@` at the start
   of a word opens a task picker built from the note-link menu rows; it shows nothing, rather than
   an empty state, when no task matches.
+- Create task (formatting toolbar, Android formatting bar, ⌘⇧T) replaces selected text with a new
+  Inbox task's mention, one task per selected line. A caret in a checklist item takes the whole
+  item, which becomes a bullet so it doesn't show two checkboxes, and a ticked item starts done.
+  Lines with images, mentions or inline checkboxes are left alone. The mention is the link back:
+  the task's "Mentioned in" lists the note. Success is silent, as with autosave.
 - The task detail panel is an inspector: every field is one 28px row with a 72px label column,
   and values read as plain text until hovered (`--fill-1`, select chevrons appear) or focused.
   Hairlines separate properties, schedule, description and mentions. Boolean options use

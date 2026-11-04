@@ -143,11 +143,12 @@ it('uses measured widths, reserves overflow space and preserves the core tools',
     'task',
     'number',
     'bullet',
+    'create-task',
     'highlight',
   ])
   for (const core of ['style', 'bold', 'italic', 'underline', 'undo', 'redo'])
     expect(hidden.has(core)).toBe(false)
-  expect(fitToolbar(804, widths, 2, 8, false).size).toBe(0)
+  expect(fitToolbar(834, widths, 2, 8, false).size).toBe(0)
   expect(fitToolbar(804, widths, 2, 8, true).has('superscript')).toBe(true)
 })
 
