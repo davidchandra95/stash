@@ -311,13 +311,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 14 {
+        if version > 16 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 14 {
+        if version > 0 && version < 16 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -431,6 +431,16 @@ impl Store {
             tx.commit().map_err(db_err)?;
         }
         if version < 14 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("project_sync_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 15 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_repeat_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 16 {
             let tx = store.conn.transaction().map_err(db_err)?;
             tx.execute_batch(include_str!("task_reminders_schema.sql")).map_err(db_err)?;
             tx.commit().map_err(db_err)?;

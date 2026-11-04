@@ -652,16 +652,16 @@
   align-items: center;
   color: var(--text-3);
 }
-.task-detail :is(.task-props, .schedule-fields) .field {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field {
   height: var(--control);
   background-color: transparent;
   box-shadow: none;
   font-size: var(--text-sm);
 }
-.task-detail :is(.task-props, .schedule-fields) .field:hover:not(:disabled, :focus) {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:hover:not(:disabled, :focus) {
   background-color: var(--fill-1);
 }
-.task-detail :is(.task-props, .schedule-fields) .field:is(:focus, [aria-expanded='true']) {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:is(:focus, [aria-expanded='true']) {
   box-shadow:
     inset 0 0 0 1px var(--accent),
     0 0 0 3px var(--accent-soft);
@@ -1426,4 +1426,54 @@ h3.task-detail-heading {
 .recent-reminders-empty small {
   color: var(--text-3);
   font-size: var(--text-xs);
+}
+.repeat-editor {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+.repeat-editor > label,
+.repeat-label {
+  color: var(--text-3);
+}
+.repeat-editor .field {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.repeat-editor .field-help {
+  grid-column: 1 / -1;
+}
+.repeat-interval {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.repeat-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.repeat-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-sm);
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.repeat-day:hover:not(:disabled, [aria-pressed='true']) {
+  background-color: var(--fill-1);
+}
+.repeat-day[aria-pressed='true'] {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+.repeat-day:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }

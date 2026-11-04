@@ -59,6 +59,7 @@ import {
   updateProject,
   updateTask,
 } from './actions'
+import { RepeatMark } from './RepeatEditor'
 
 const groups: { id: TaskGroup; label: string }[] = [
   { id: 'doing', label: 'Doing' },
@@ -468,6 +469,7 @@ function TaskList({
                 <ReminderMark task={task} />
               </span>
             )}
+            {task.repeat && <RepeatMark repeat={task.repeat} />}
             {task.priority > 0 && (
               <AppTooltip label={`${priorities[task.priority].label} priority`}>
                 <span className="task-priority">

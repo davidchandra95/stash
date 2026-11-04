@@ -2124,3 +2124,10 @@ select {
 .recent-reminders li button:active {
   background: var(--fill-1);
 }
+.repeat-editor {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-3) var(--space-4);
+}
+.repeat-day {
+  height: var(--target);
+}

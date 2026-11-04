@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useEffect, useSyncExternalStore } from 'react'
 import { previewProjectData } from './fixtures'
+import { validateRepeat } from './repeat'
 import { validateSchedule } from './schedule'
 import type { Project, ProjectData, Task } from './model'
 
@@ -65,6 +66,7 @@ function saveRequest(changes: Changes) {
       schedule: t.schedule ?? null,
       dueLinked: t.dueLinked ?? false,
       reminders: t.reminders ?? null,
+      repeat: t.repeat ?? null,
       sort: t.sort,
       deleted: t.deletedAt !== null,
       expectedRevision: confirmed.tasks.get(t.id)?.revision ?? 0,
@@ -125,6 +127,7 @@ export const projectStore = {
     for (const task of changes.tasks ?? []) {
       try {
         validateSchedule(task.schedule)
+        validateRepeat(task.repeat)
         if (task.dueLinked && (!task.schedule || task.dueDate || task.dueTime))
           throw Error('A linked deadline must use its schedule only.')
       } catch (error) {
@@ -181,6 +184,15 @@ export const projectStore = {
       }
     }
     const result = queue.then(run)
+    queue = result.catch(() => {})
+    return result
+  },
+  /** Waits for queued saves, so a sync uploads them. Save failures surface through the snapshot. */
+  settle: () => queue,
+  /** Reloads after a sync. Queued, so saves made after it use the downloaded revisions. */
+  refresh(): Promise<void> {
+    if (!snapshot.ready && !opening) return Promise.resolve()
+    const result = queue.then(load)
     queue = result.catch(() => {})
     return result
   },

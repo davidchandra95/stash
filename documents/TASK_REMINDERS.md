@@ -16,6 +16,8 @@ A separate deadline does not move a timed task's reminder; it counts from the wo
 
 `tasks.reminders` holds minutes before the moment: up to 5 different values, at most 4 weeks. `null` means the default and `[]` means off, so removing the last reminder stays off after later date changes. Existing tasks use the default, and reminders already in the past never fire. Done, cancelled and deleted tasks don't remind.
 
+Completing a repeating task moves its reminders to the next date, and any snooze ends. The finished occurrence doesn't remind.
+
 ## Permission
 
 Reminders schedule only while notifications are allowed, so permission is also their switch. Nothing asks at launch: Settings › Notifications and the task's Reminders section offer **Turn on**, and adding a reminder asks too. The status is one of:
@@ -45,6 +47,6 @@ The list is worked out from each task's current reminders rather than a delivery
 
 The system keeps what is pending, so Stash stores no delivery state. Identifiers carry what later steps need: `stash.task.<task>.<minutes>.<moment>` and `stash.snooze.<task>.<moment>.<until>`. Rescheduling a task changes the identifier, which retires old reminders and snoozes.
 
-Only the soonest 64 reminders are pending at once, the macOS limit, minus current snoozes. Later ones are scheduled as Stash runs, so someone with more than 64 upcoming reminders who doesn't open the app will miss the later ones. Reminders are per device, like tasks. Editing a display zone moves date-only reminders the next time the app syncs.
+Only the soonest 64 reminders are pending at once, the macOS limit, minus current snoozes. Later ones are scheduled as Stash runs, so someone with more than 64 upcoming reminders who doesn't open the app will miss the later ones. Chosen offsets sync with their task, and each device schedules its own notifications, so a synced task reminds on every device where notifications are allowed. Snoozes and the Recent reminders dot stay on the device. A conflict copy has reminders off, so a conflict can't remind twice. Editing a display zone moves date-only reminders the next time the app syncs.
 
 macOS requires a real `.app` bundle. `tauri dev` runs a bare binary, where the notification center would crash the process, so it reports Not available.

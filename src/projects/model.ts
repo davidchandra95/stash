@@ -1,4 +1,5 @@
 import { effectiveDueDate, clockAt, displayZone, calendarDate, dayAt, type TaskSchedule } from './schedule'
+import type { TaskRepeat } from './repeat'
 export { effectiveDueDate } from './schedule'
 export type ProjectStatus = 'planned' | 'active' | 'on_hold' | 'done' | 'cancelled'
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'cancelled'
@@ -37,6 +38,7 @@ export interface Task {
   dueLinked?: boolean
   /** Minutes before the task's moment. `null` is the default; empty turns reminders off. */
   reminders?: number[] | null
+  repeat?: TaskRepeat | null
   completedAt: number | null
   sort: number
   deletedAt: number | null

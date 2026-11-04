@@ -100,7 +100,7 @@ import {
 import RecentReminders, { useRecentReminders } from '../projects/RecentReminders'
 import { useTaskReminders } from '../projects/reminderService'
 import { projectStore, useProjects } from '../projects/store'
-import type { Notify } from '../projects/actions'
+import { setRepeatNotify, type Notify } from '../projects/actions'
 import { bySort, health, isOpenProject, progress, type Project } from '../projects/model'
 import ProjectRing from '../projects/ProjectRing'
 import ProjectDialog from '../projects/ProjectDialog'
@@ -174,6 +174,7 @@ export default function MobileApp() {
   const [projectDialog, setProjectDialog] = useState<{ project?: Project } | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
   const [projectNotice, setProjectNotice] = useState<Parameters<Notify>[0]>(null)
+  useEffect(() => setRepeatNotify(setProjectNotice), [])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [findOpen, setFindOpen] = useState(false)
   const [contentsOpen, setContentsOpen] = useState(false)
