@@ -96,9 +96,9 @@ try{
   await writeFile(join(dir,'editing-validation.json'),JSON.stringify(await send('native',{action:'editing-check'}),null,2))
   const conditions=['native','stash-paused','stash-autosave']
   const rows=[]
-  const sizes=stage==='full'?[[1320,880],[1800,1129]]:[[1320,880]]
-  const positions=['checks','input-checks'].includes(stage)?[]:stage==='smoke'?['top']:stage==='probe'?['middle','bottom']:['top','middle','bottom']
-  const repetitions=stage==='full'?5:1
+  const sizes=stage==='full'?[[1320,880],[1800,1129]]:stage==='diagnostic'?[[1800,1129]]:[[1320,880]]
+  const positions=['checks','input-checks'].includes(stage)?[]:stage==='smoke'?['top']:stage==='diagnostic'?['middle']:stage==='probe'?['middle','bottom']:['top','middle','bottom']
+  const repetitions=stage==='full'?5:stage==='diagnostic'?3:1
   const calibration=[]
   for(const client of ['checks','input-checks'].includes(stage)?[]:['native','stash']){
     const reference=await send('stash',{action:'prepare',position:'top',paused:true,control:true})
@@ -116,6 +116,22 @@ try{
     calibration.push({client,medianMs:analyzed.medianMs,p95Ms:analyzed.p95Ms,steps:analyzed.distinctGlyphSteps,frameIntervalMs:analyzed.captureIntervalMedianMs})
   }
   await writeFile(join(dir,'calibration.json'),JSON.stringify(calibration,null,2))
+  // A single character has no following keystroke that could accidentally
+  // satisfy its threshold. Check it in both short and long documents.
+  if(!['checks','input-checks'].includes(stage)) for(const client of ['native','stash']) for(const control of [true,false]) {
+    const reference=await send('stash',{action:'prepare',position:control?'top':'middle',paused:true,control})
+    const prepared=client==='native'?await send('native',{action:'prepare',position:control?'top':'middle',control,viewport:reference.viewport,textWidth:reference.viewport.textWidth}):reference
+    await sleep(300)
+    if(client==='native')prepared.roi=(await send('native',{action:'geometry'})).roi
+    const name=`single-glyph-${client}-${control?'short':'long'}`
+    const capture=await drive(client,{mode:'type',roi:prepared.roi,count:1,delayMs:100,debug:true},name)
+    const verified=await send(client,{action:'check',text:'x',undo:true})
+    const analyzed=analyze(capture,verified.advance,1)
+    const input=verified.inputTimes?.[0] ?? verified.inputWallTimes?.[0]-analyzed.wallClockOffset
+    if(!Number.isFinite(input) || analyzed.events[0].time+analyzed.responseMs[0]/1000<input-.004)throw Error(`Single-glyph detector failed causality: ${name}`)
+    await writeFile(join(dir,name+'.json'),JSON.stringify(analyzed,null,2))
+    console.log(JSON.stringify({singleGlyph:name,responseMs:analyzed.responseMs[0]}))
+  }
   for(const client of ['checks','input-checks'].includes(stage)?[]:['stash','native']){
     const reference=await send('stash',{action:'prepare',position:'top',paused:true})
     const prepared=client==='native'?await send('native',{action:'prepare',position:'top',viewport:reference.viewport,textWidth:reference.viewport.textWidth}):reference
@@ -132,7 +148,7 @@ try{
     }
     for(let trial=0;trial<repetitions;trial++){
       for(const position of positions){
-        for(const delayMs of (stage==='smoke'?[100]:stage==='probe'?[30]:[100,30])){
+        for(const delayMs of (['smoke','diagnostic'].includes(stage)?[100]:stage==='probe'?[30]:[100,30])){
           // Native goes first on even trials; Stash goes first on odd trials.
           for(const condition of (trial%2?[...conditions].reverse():conditions)){
             const client=condition==='native'?'native':'stash',paused=condition!=='stash-autosave'
@@ -161,7 +177,7 @@ try{
         }
       }
     }
-    if(stage!=='smoke'){
+    if(!['smoke','diagnostic'].includes(stage)){
       for(let trial=0;trial<repetitions;trial++)for(const condition of (trial%2?[...conditions].reverse():conditions)){
         const client=condition==='native'?'native':'stash'
         const reference=await send('stash',{action:'prepare',position:'top',paused:condition!=='stash-autosave'})
@@ -171,7 +187,8 @@ try{
         const check=await send(client,{action:'check',text:paste})
         const reference2=await send('stash',{action:'prepare',position:'top',paused:condition!=='stash-autosave'})
         const prepared2=client==='native'?await send('native',{action:'prepare',position:'top',viewport:reference2.viewport,textWidth:reference2.viewport.textWidth,viewportHeight:reference2.viewport.height}):reference2
-        const scrolling=await drive(client,{mode:'scroll',roi:{...prepared2.roi,width:Math.max(prepared2.roi.width,300),height:150},count:160,delayMs:16.67,capture:stage!=='input-checks'},`scroll-${width}-${trial}-${condition}`)
+        const scrollROI=client==='stash'?{x:reference2.viewport.x+reference2.viewport.width/2-150,y:reference2.viewport.y+reference2.viewport.height/2-75,width:300,height:150}:{...prepared2.roi,width:Math.max(prepared2.roi.width,300),height:150}
+        const scrolling=await drive(client,{mode:'scroll',roi:scrollROI,count:160,delayMs:16.67,capture:stage!=='input-checks'},`scroll-${width}-${trial}-${condition}`)
         const scrollCheck=await send(client,{action:'scroll-check'})
         rows.push({condition,width,trial,kind:'paste-scroll',pasteFirstChangeMs:pasted.firstChangeMs,check,scrollCheck,scrollMedianMs:scrolling.frameGapMedianMs,scrollP95Ms:scrolling.frameGapP95Ms,maxScrollGapMs:scrolling.maxFrameGapMs})
         await writeFile(join(dir,'summary.json'),JSON.stringify(rows,null,2))

@@ -65,7 +65,7 @@ final class NativeEditor: NSObject, NSApplicationDelegate, NSTextViewDelegate {
             importMs=(CACurrentMediaTime()-t)*1000
             window=NSWindow(contentRect:NSRect(x:40,y:50,width:1320,height:852),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
             window.title="Stash native editor prototype - edits stay in memory"
-            window.appearance=NSAppearance(named:fixture.appearance.dark ? .darkAqua : .aqua)
+            window.appearance=NSAppearance(named:fixture.appearance.resolvedDark ? .darkAqua : .aqua)
             let root=window.contentView!
             status=NSTextField(labelWithString:"")
             status.frame=NSRect(x:20,y:root.bounds.height-40,width:750,height:25)
@@ -98,7 +98,7 @@ final class NativeEditor: NSObject, NSApplicationDelegate, NSTextViewDelegate {
             textView.maxSize=NSSize(width:CGFloat.greatestFiniteMagnitude,height:CGFloat.greatestFiniteMagnitude)
             textView.backgroundColor=importer.background;textView.textColor=importer.ink
             textView.insertionPointColor=importer.ink
-            if fixture.appearance.theme == "zen" {
+            if fixture.appearance.resolvedTheme == "zen" {
                 textView.linkTextAttributes=[.foregroundColor:NSColor(srgbRed:209/255,green:207/255,blue:192/255,alpha:1),.underlineStyle:NSUnderlineStyle.single.rawValue]
                 textView.selectedTextAttributes=[.backgroundColor:NSColor(srgbRed:54/255,green:54/255,blue:54/255,alpha:1),.foregroundColor:importer.ink]
             }

@@ -6,6 +6,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { LogicalSize, LogicalPosition } from '@tauri-apps/api/dpi'
 import { invoke } from '@tauri-apps/api/core'
 const base='http://127.0.0.1:__PORT__'
+// Suppress only benchmark-window caret painting. The editor's normal cursor
+// logic still runs, but animated caret pixels cannot be mistaken for glyphs.
+const benchStyle=document.createElement('style')
+benchStyle.textContent='.writing-cursor-layer { opacity: 0 !important; } .tiptap { caret-color: transparent !important; }'
+document.head.append(benchStyle)
 let fixture: any, editor: any, before='', baseline='', prepareMs=0, caretStartX=0
 let inputWallTimes:number[]=[]
 let scrollStartY=0,scrollMaxY=0
@@ -56,6 +61,12 @@ async function execute(c:any) {
     await library.flush()
     editor.view.focus()
     editor.commands.scrollIntoView()
+    await wait(50)
+    // Keep the test line away from the floating formatting toolbar and edges.
+    const scroller=document.querySelector('.note-scroll') as HTMLElement
+    const caret=editor.view.coordsAtPos(pos+6)
+    const scrollRect=scroller.getBoundingClientRect()
+    scroller.scrollTop+=caret.top-(scrollRect.top+scrollRect.height/2)
     await wait(150)
     before=editor.getText()
     inputWallTimes=[]
@@ -66,7 +77,17 @@ async function execute(c:any) {
     const lineHeight=parseFloat(getComputedStyle(editor.view.dom).lineHeight)
     const pane=document.querySelector('.note-scroll')!.getBoundingClientRect()
     const documentRect=editor.view.dom.getBoundingClientRect()
-    return {roi:{x:rect.left+3,y:rect.top-2,width:Math.min(550,documentRect.right-rect.left-4),height:Math.max(rect.bottom-rect.top,lineHeight)+4},viewport:{x:pane.x,y:pane.y,width:pane.width,height:pane.height,textWidth:documentRect.width,topPadding:documentRect.top-pane.top+(document.querySelector('.note-scroll') as HTMLElement).scrollTop},colors:{ink:getComputedStyle(editor.view.dom).color,background:getComputedStyle(document.querySelector('.app')??document.body).backgroundColor},prepareMs,importMs,chars:before.length,baselineChars:baseline.length}
+    const roi={x:rect.left+3,y:rect.top-2,width:Math.min(550,documentRect.right-rect.left-4),height:Math.max(rect.bottom-rect.top,lineHeight)+4}
+    const cursor=document.querySelector('.writing-cursor-layer')
+    if(!cursor || getComputedStyle(cursor).opacity!=='0')throw Error('Benchmark caret suppression is not active')
+    const toolbar=document.querySelector('.desktop-writing-toolbar')
+    if(toolbar){
+      const style=getComputedStyle(toolbar),box=toolbar.getBoundingClientRect()
+      if(style.display!=='none' && style.visibility!=='hidden' && Number(style.opacity)>0 &&
+        roi.x<box.right && roi.x+roi.width>box.left && roi.y<box.bottom && roi.y+roi.height>box.top)
+        throw Error('Benchmark typing area overlaps the formatting toolbar')
+    }
+    return {roi,viewport:{x:pane.x,y:pane.y,width:pane.width,height:pane.height,textWidth:documentRect.width,topPadding:documentRect.top-pane.top+(document.querySelector('.note-scroll') as HTMLElement).scrollTop},colors:{ink:getComputedStyle(editor.view.dom).color,background:getComputedStyle(document.querySelector('.app')??document.body).backgroundColor},prepareMs,importMs,chars:before.length,baselineChars:baseline.length}
   }
   if(c.action==='check'){
     const text=editor.getText()

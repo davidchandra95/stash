@@ -9,9 +9,19 @@ struct Fixture: Decodable {
 }
 struct Appearance: Decodable {
     let noteFont, titleFont, codeFont: String
-    let theme: String
     let size, width, lineSpacing, paragraphSpacing, listItemSpacing: Double
-    let dark: Bool
+    private let theme: String?
+    private let interfaceTheme: String?
+    private let dark: Bool?
+    private let colorMode: String?
+    var resolvedTheme: String { interfaceTheme ?? theme ?? "native" }
+    var resolvedDark: Bool {
+        switch colorMode {
+        case "dark": return true
+        case "light", "sepia": return false
+        default: return dark ?? (NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
+        }
+    }
 }
 struct RichNode: Decodable {
     let type: String
@@ -53,9 +63,9 @@ final class RichImporter {
     var background = NSColor(calibratedRed:0.10, green:0.12, blue:0.14, alpha:1)
     init(_ fixture: Fixture) {
         self.fixture = fixture
-        if !fixture.appearance.dark { ink = .textColor; background = .textBackgroundColor }
-        if fixture.appearance.theme == "zen" {
-            if fixture.appearance.dark {
+        if !fixture.appearance.resolvedDark { ink = .textColor; background = .textBackgroundColor }
+        if fixture.appearance.resolvedTheme == "zen" {
+            if fixture.appearance.resolvedDark {
                 ink=NSColor(srgbRed:232/255,green:227/255,blue:218/255,alpha:1)
                 background=NSColor(srgbRed:24/255,green:24/255,blue:23/255,alpha:1)
             } else {
@@ -156,8 +166,8 @@ final class RichImporter {
                 a[.link] = href; a[.underlineStyle] = NSUnderlineStyle.single.rawValue
             case "code":
                 a[.font] = font(fixture.appearance.codeFont,size:fixture.appearance.size*0.85)
-                if fixture.appearance.theme == "zen" {
-                    a[.backgroundColor] = fixture.appearance.dark ? NSColor(srgbRed:34/255,green:34/255,blue:34/255,alpha:1) : NSColor(srgbRed:216/255,green:210/255,blue:196/255,alpha:1)
+                if fixture.appearance.resolvedTheme == "zen" {
+                    a[.backgroundColor] = fixture.appearance.resolvedDark ? NSColor(srgbRed:34/255,green:34/255,blue:34/255,alpha:1) : NSColor(srgbRed:216/255,green:210/255,blue:196/255,alpha:1)
                 }
             case "bold": a[.font] = NSFontManager.shared.convert(a[.font] as! NSFont,toHaveTrait:.boldFontMask)
             case "italic": a[.font] = NSFontManager.shared.convert(a[.font] as! NSFont,toHaveTrait:.italicFontMask)

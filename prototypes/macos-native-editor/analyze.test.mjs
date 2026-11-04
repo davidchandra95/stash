@@ -14,9 +14,18 @@ test('maps each input to the first captured glyph, including a coalesced frame',
   assert.equal(result.detectedCharacters,3)
 })
 test('rejects a wrapped or clipped line rather than publishing false timing',()=>{
-  assert.throws(()=>analyze({events:[{index:1,time:10}],frames:[{time:10.02,rightmostInk:10}]},10,54),/wrapped or ROI clipped/)
+  assert.throws(()=>analyze({events:[{index:1,time:10}],frames:[{time:10.02,rightmostInk:10}]},10,54),/wrapped.*ROI clipped/)
 })
 test('rejects missing glyphs rather than silently omitting slow inputs',()=>{
   const capture={events:[{index:1,time:10},{index:2,time:11},{index:3,time:12}],frames:[{time:10.1,rightmostInk:30}]}
   assert.throws(()=>analyze(capture,10,3),/Glyph not observed/)
+})
+test('detects the glyph when the last-pixel position has a small offset',()=>{
+  const capture={events:[{index:1,time:10},{index:2,time:11},{index:3,time:12}],frames:[
+    {time:9.9,rightmostInk:0},{time:10.02,rightmostInk:6},
+    {time:11.02,rightmostInk:15},{time:12.02,rightmostInk:24},
+    {time:13,rightmostInk:26},
+  ]}
+  const result=analyze(capture,9,3)
+  assert.deepEqual(result.responseMs.map(x=>Math.round(x)),[20,20,20])
 })

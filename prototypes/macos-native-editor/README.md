@@ -32,7 +32,8 @@ its run and releases that assertion when it ends. It sends native events directl
 to its owned windows, so another app taking focus does not receive test input.
 Avoid editing the two test windows during the run. The paste test temporarily uses
 the clipboard and restores it afterward. `--stage smoke` runs calibration and one
-short comparison; `--stage prepare` builds without taking measurements. Ctrl+C
+short comparison; `--stage diagnostic` runs three middle-of-note comparisons at
+1800 points and 100 ms between keys; `--stage prepare` builds without taking measurements. Ctrl+C
 stops the owned test apps and active capture helper. Results are saved incrementally.
 
 ## What is compared
@@ -68,9 +69,13 @@ temporary Stash build. It never sends global keyboard events or synthetic DOM
 events. The helper captures only the owned window using ScreenCaptureKit.
 For repeated X glyphs, it
 finds the first captured frame containing each expected glyph using measured
-caret advance. Tall caret columns and isolated thin runs are removed from the
-pixel signal. A short document and a caret-only idle interval validate the
-detector before the long-note trials.
+caret advance and a threshold halfway between adjacent glyph endpoints. The
+Stash caret is made invisible in the temporary benchmark window while its cursor
+logic continues to run. Tall caret columns and isolated thin runs are removed
+from the pixel signal. Short and long single-character checks, a short repeated
+typing test, and a caret-only idle interval validate the detector before the
+long-note trials. The Stash test line is centered when possible to avoid its
+floating toolbar.
 
 These are **input-post to captured-frame response times** through this controlled
 native input path. The global OS keyboard queue is bypassed, so these are not
@@ -98,7 +103,7 @@ node prototypes/macos-native-editor/report.mjs /absolute/run/directory /absolute
 node --test prototypes/macos-native-editor/analyze.test.mjs
 ```
 
-The report refuses incomplete runs. Native import validation is available without
+The report refuses incomplete runs and results from the old detector. Native import validation is available without
 capture after building:
 
 ```sh
