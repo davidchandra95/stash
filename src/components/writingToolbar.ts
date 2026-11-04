@@ -5,6 +5,7 @@ import {
   AlignRight,
   AlignJustify,
   Bold,
+  CircleCheck,
   Code,
   Code2,
   Highlighter,
@@ -68,6 +69,7 @@ export const toolbarTools: ToolbarTool[] = [
   { id: 'number', label: 'Numbered list', icon: ListOrdered, listKind: 'number' },
   { id: 'task', label: 'Checklist', icon: ListTodo, listKind: 'task' },
   { id: 'checkbox', label: 'Inline checkbox', icon: SquareCheck },
+  { id: 'create-task', label: 'Create task', icon: CircleCheck },
   { id: 'alignment', label: 'Alignment', icon: AlignLeft, picker: 'alignment' },
   { id: 'quote', label: 'Quote', icon: Quote, mark: 'blockquote' },
   { id: 'code', label: 'Code block', icon: Code2, mark: 'codeBlock' },
@@ -83,6 +85,7 @@ export const toolbarTools: ToolbarTool[] = [
 export const toolbarPriority = [
   'format',
   'highlight',
+  'create-task',
   'bullet',
   'number',
   'task',

@@ -936,26 +936,8 @@ select {
 .mobile-membership span {
   overflow-wrap: anywhere;
 }
-.mobile-info {
-  display: grid;
-  margin: 0;
+.note-info {
   padding: 0 var(--space-5) var(--space-4);
-}
-.mobile-info > div {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-4) 0;
-}
-.mobile-info > div + div {
-  border-top: 1px solid var(--line);
-}
-.mobile-info dt {
-  color: var(--text-3);
-  font-size: var(--text-sm);
-}
-.mobile-info dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 @keyframes drawer-in {

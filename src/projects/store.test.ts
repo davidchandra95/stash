@@ -220,3 +220,18 @@ it('cancelling or reopening a repeating task does not create an occurrence', asy
   expect(tasks).toHaveLength(1)
   expect(tasks[0]).toMatchObject({ status: 'cancelled', dueDate: '2026-11-04' })
 })
+
+it('refresh waits for queued saves and keeps them', async () => {
+  const { projectStore, createTask } = await load()
+  const task = createTask(null, 'Queued')
+  await projectStore.settle()
+  expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.revision).toBe(1)
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(true)
+})
+
+it('refresh does nothing before the store opens', async () => {
+  const { projectStore } = await import('./store')
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(false)
+})

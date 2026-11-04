@@ -24,10 +24,12 @@ let editor: Editor
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let width: number
+let toolWidth: number
 let resize: () => void
 let menus: { actions: NativeMenuAction[]; resolve: () => void; reject: (error: Error) => void }[]
 beforeEach(() => {
   width = 1000
+  toolWidth = 28
   menus = []
   vi.mocked(showNativeContextMenu)
     .mockReset()
@@ -44,7 +46,7 @@ beforeEach(() => {
     return new DOMRect(
       0,
       600,
-      this.dataset.tool === 'style' ? 76 : this.dataset.tool ? 28 : width,
+      this.dataset.tool === 'style' ? 76 : this.dataset.tool ? toolWidth : width,
       28,
     )
   })
@@ -142,6 +144,8 @@ it('uses native colors with a checkmark and applies to the mapped selection, the
 })
 
 it('cancels without editing and returns keyboard focus to the launcher', async () => {
+  // Narrow enough that Alignment stays on the toolbar instead of moving to overflow.
+  toolWidth = 25
   await mount()
   const before = editor.getJSON()
   await open('Alignment', true)

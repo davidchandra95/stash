@@ -50,9 +50,9 @@ Upgrades create and sync the existing SQLite backup before running migration. A 
 
 Task writes still use revision checks and replace full records in one transaction. A failed write reloads the confirmed tasks and cancels queued edits based on the failed snapshot. Calendar drafts remain editable on failure. Move and resize undo is offered only after confirmation and checks that the scheduling fields still match the change it will undo. Projects, tasks and calendar preferences remain local. Schedules do not create reminders.
 
-## Task repeats (schema 14)
+## Task repeats (schema 15)
 
-`tasks.repeat` is an optional JSON rule (`unit`, `interval`, `weekdays`, `monthDay`, `from`). The native store validates it on save. The upgrade adds only this column, after the usual backup, and existing tasks stay one-off. Rules don't sync. See [repeating tasks](PROJECTS_AND_TASKS.md#repeating-tasks).
+`tasks.repeat` is an optional JSON rule (`unit`, `interval`, `weekdays`, `monthDay`, `from`). The native store validates it on save. The upgrade adds only this column, after the usual backup, and existing tasks stay one-off. Rules sync with the task. See [repeating tasks](PROJECTS_AND_TASKS.md#repeating-tasks).
 
 ## Autosave contract
 

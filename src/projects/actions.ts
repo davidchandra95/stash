@@ -111,7 +111,9 @@ export function toggleTask(task: Task) {
 export function buildTask(
   projectId: string | null,
   title: string,
-  fields: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked' | 'repeat'>> = {},
+  fields: Partial<
+    Pick<Task, 'status' | 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked' | 'repeat'>
+  > = {},
 ): Task {
   const siblings = live().tasks.filter((t) => t.projectId === projectId && t.status === 'todo')
   const first = siblings.sort(bySort)[0]
@@ -143,6 +145,17 @@ export function createTask(...args: Parameters<typeof buildTask>): Task {
   const task = buildTask(...args)
   save({ tasks: [task] })
   return task
+}
+/** Creates Inbox tasks in one save, keeping their order at the top of To do. */
+export function createInboxTasks(rows: { title: string; done: boolean }[]): Task[] {
+  const first = live().tasks.filter((t) => t.projectId === null && t.status === 'todo').sort(bySort)[0]
+  let previous: number | undefined
+  const tasks = rows.map(({ title, done }) => {
+    previous = sortBetween(previous, first?.sort)
+    return { ...buildTask(null, title, { status: done ? 'done' : 'todo' }), sort: previous }
+  })
+  save({ tasks })
+  return tasks
 }
 export async function createTaskConfirmed(...args: Parameters<typeof buildTask>): Promise<Task> {
   const task = buildTask(...args)

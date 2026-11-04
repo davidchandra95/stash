@@ -55,6 +55,7 @@ const writingCommands: WritingCommand[] = [
   { id: 'bullet', label: 'Bullet list', run: (c) => c.toggleListKind('bullet') },
   { id: 'number', label: 'Numbered list', run: (c) => c.toggleListKind('number') },
   { id: 'task', label: 'Checklist', run: (c) => c.toggleListKind('task') },
+  { id: 'create-task', label: 'Create task', slash: false, run: (c) => c.createTaskFromSelection() },
   { id: 'quote', label: 'Quote', run: (c) => c.toggleBlockquote() },
   {
     id: 'table',
