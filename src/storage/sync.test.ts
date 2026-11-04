@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { LibraryStore, defaultAppearance, type LibraryData, type SavedNote } from './library'
+import { projectStore } from '../projects/store'
 const note: SavedNote = {
   id: 'a',
   title: 'local',
@@ -35,6 +36,27 @@ function setup(command: (name: string, args: Record<string, unknown>) => Promise
   return { store: new LibraryStore(transport), transport }
 }
 describe('manual sync', () => {
+  it('uploads queued task saves and reloads tasks after the download', async () => {
+    const order: string[] = []
+    const settle = vi.spyOn(projectStore, 'settle').mockImplementation(async () => {
+      order.push('settle')
+    })
+    const refresh = vi.spyOn(projectStore, 'refresh').mockImplementation(async () => {
+      order.push('refresh')
+    })
+    const { store } = setup(async (name) => {
+      order.push(name)
+      return {
+        library: data,
+        status: { configured: true, url: 'https://stash.example.com', pending: 0, warnings: [] },
+      }
+    })
+    await store.open()
+    await store.sync()
+    expect(order).toEqual(['settle', 'sync_library', 'refresh'])
+    settle.mockRestore()
+    refresh.mockRestore()
+  })
   it('flushes local changes before syncing and reloads loaded documents', async () => {
     const order: string[] = []
     const { store, transport } = setup(async (name) => {

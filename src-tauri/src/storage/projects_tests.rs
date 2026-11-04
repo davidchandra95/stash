@@ -174,7 +174,7 @@ fn version_eleven_migration_preserves_tasks_and_backs_up_before_adding_due_time(
     let after = store.project_data().unwrap();
     assert_eq!(after.projects, before.projects);
     assert_eq!(after.tasks, before.tasks);
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 13);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 14);
     let backups: Vec<_> = fs::read_dir(dir.path().join("backups")).unwrap().map(|entry| entry.unwrap().path()).collect();
     assert_eq!(backups.len(), 1);
     let backup = Connection::open(&backups[0]).unwrap();
@@ -322,7 +322,7 @@ fn version_ten_libraries_gain_project_tables_after_a_backup() {
 
     let mut store = Store::open(dir.path()).unwrap();
     let version: i64 = store.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 13);
+    assert_eq!(version, 14);
     assert_eq!(store.note("a", false).unwrap().title, "Kept");
     store
         .save_project_changes(&changes(vec![project("p")], vec![]))

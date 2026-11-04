@@ -397,3 +397,287 @@ fn synced_tags_come_from_confirmed_content_not_plain_text_or_old_indexes() {
     store.finish_sync().unwrap();
     assert_eq!(store.note("tags", true).unwrap().tags, vec!["confirmed"]);
 }
+
+fn save_task(id: &str, title: &str, project: Option<&str>, revision: i64) -> projects::SaveTask {
+    projects::SaveTask {
+        id: id.into(),
+        title: title.into(),
+        description: String::new(),
+        status: "todo".into(),
+        project_id: project.map(Into::into),
+        priority: 0,
+        start_date: None,
+        due_date: None,
+        due_time: None,
+        schedule: Some(projects::TaskSchedule::Point { start: 1, time_zone: "Asia/Hong_Kong".into() }),
+        due_linked: true,
+        sort: 1.0,
+        deleted: false,
+        expected_revision: revision,
+    }
+}
+fn save_project(id: &str, name: &str, notebook: Option<&str>, revision: i64) -> projects::SaveProject {
+    projects::SaveProject {
+        id: id.into(),
+        name: name.into(),
+        description: String::new(),
+        status: "active".into(),
+        start_date: None,
+        end_date: None,
+        notebook_id: notebook.map(Into::into),
+        color: "#112233".into(),
+        sort: 1.0,
+        deleted: false,
+        expected_revision: revision,
+    }
+}
+fn outbox(s: &Store) -> Vec<Operation> {
+    let mut q = s.conn.prepare("SELECT operation FROM sync_outbox ORDER BY sequence").unwrap();
+    let rows = q.query_map([], |r| r.get::<_, String>(0)).unwrap();
+    rows.map(|raw| serde_json::from_str(&raw.unwrap()).unwrap()).collect()
+}
+fn download(s: &mut Store, changes: Vec<Entity>) {
+    let after: i64 = s.conn.query_row("SELECT cursor FROM sync_state", [], |r| r.get(0)).unwrap();
+    let target = after + changes.len() as i64;
+    s.prepare_sync().unwrap();
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.stage_page(Page { library_id: "test".into(), changes, cursor: target, target }).unwrap();
+    s.finish_sync().unwrap();
+}
+
+#[test]
+fn projects_and_tasks_upload_project_first_and_soft_deletes_are_updates() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.save_project_changes(&projects::ProjectChanges {
+        projects: vec![save_project("p", "Project", None, 0)],
+        tasks: vec![save_task("t", "Task", Some("p"), 0)],
+    })
+    .unwrap();
+    assert_eq!(s.sync_status().unwrap().pending, 2);
+    s.prepare_sync().unwrap();
+    let ops = outbox(&s);
+    assert_eq!(ops.iter().map(|op| op.kind.as_str()).collect::<Vec<_>>(), ["project", "task"]);
+    assert_eq!(ops[1].data["projectId"], "p");
+    assert_eq!(ops[1].data["schedule"]["timeZone"], "Asia/Hong_Kong");
+    assert!(ops.iter().all(|op| !op.deleted));
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.conn.execute("UPDATE sync_state SET active=0", []).unwrap();
+    let mut task = save_task("t", "Task", Some("p"), 1);
+    task.deleted = true;
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![task] }).unwrap();
+    s.prepare_sync().unwrap();
+    let ops = outbox(&s);
+    assert_eq!(ops.len(), 1);
+    assert!(!ops[0].deleted);
+    assert!(ops[0].data["deletedAt"].is_i64());
+}
+
+#[test]
+fn existing_projects_queue_on_upgrade() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    s.save_project_changes(&projects::ProjectChanges {
+        projects: vec![save_project("p", "Project", None, 0)],
+        tasks: vec![save_task("t", "Task", Some("p"), 0)],
+    })
+    .unwrap();
+    s.conn
+        .execute_batch("DROP TRIGGER sync_projects_insert; DROP TRIGGER sync_projects_update; DROP TRIGGER sync_tasks_insert; DROP TRIGGER sync_tasks_update; DELETE FROM sync_dirty; PRAGMA user_version=13;")
+        .unwrap();
+    drop(s);
+    let s = Store::open(dir.path()).unwrap();
+    assert_eq!(s.sync_status().unwrap().pending, 2);
+    s.conn.execute("UPDATE tasks SET title='Changed'", []).unwrap();
+    assert_eq!(s.sync_status().unwrap().pending, 2);
+}
+
+#[test]
+fn downloaded_tasks_apply_without_requeueing_and_bump_local_revisions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    let project = json!({"id":"p","name":"Remote project","description":"","status":"active","startDate":null,"endDate":null,"completedAt":null,"notebookId":null,"color":"#112233","sort":1.0,"deletedAt":null,"created":1,"updated":2,"revision":9});
+    let task = json!({"id":"t","title":"Remote task","description":"","status":"done","projectId":"p","priority":1,"startDate":null,"dueDate":null,"dueTime":null,"schedule":null,"dueLinked":false,"completedAt":5,"sort":1.0,"deletedAt":null,"created":1,"updated":2,"revision":9});
+    // Tasks arrive first in the inbox order; the project must still be applied first.
+    download(&mut s, vec![
+        Entity { kind: "project".into(), id: "p".into(), revision: 1, deleted: false, data: project.clone() },
+        Entity { kind: "task".into(), id: "t".into(), revision: 2, deleted: false, data: task.clone() },
+    ]);
+    let data = s.project_data().unwrap();
+    assert_eq!(data.tasks[0].title, "Remote task");
+    assert_eq!(data.tasks[0].completed_at, Some(5));
+    assert_eq!(data.tasks[0].revision, 1);
+    assert_eq!(s.sync_status().unwrap().pending, 0);
+    let mut renamed = task.clone();
+    renamed["title"] = json!("Renamed");
+    download(&mut s, vec![Entity { kind: "task".into(), id: "t".into(), revision: 3, deleted: false, data: renamed }]);
+    let saved = s.project_data().unwrap().tasks.remove(0);
+    assert_eq!((saved.title.as_str(), saved.revision), ("Renamed", 2));
+    // The next upload is based on the downloaded server revision.
+    s.save_project_changes(&projects::ProjectChanges {
+        projects: vec![],
+        tasks: vec![save_task("t", "Local", Some("p"), 2)],
+    })
+    .unwrap();
+    s.prepare_sync().unwrap();
+    assert_eq!(outbox(&s)[0].base_revision, 3);
+}
+
+#[test]
+fn offline_task_edits_survive_a_download_and_upload_with_the_old_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task("t", "Local", None, 0)] }).unwrap();
+    let mut remote = serde_json::to_value(&s.project_data().unwrap().tasks[0]).unwrap();
+    remote["title"] = json!("Remote");
+    s.prepare_sync().unwrap();
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task("t", "Edited offline", None, 1)] }).unwrap();
+    s.stage_page(Page {
+        library_id: "test".into(),
+        changes: vec![Entity { kind: "task".into(), id: "t".into(), revision: 1, deleted: false, data: remote }],
+        cursor: 1,
+        target: 1,
+    })
+    .unwrap();
+    s.finish_sync().unwrap();
+    assert_eq!(s.project_data().unwrap().tasks[0].title, "Edited offline");
+    assert_eq!(s.sync_status().unwrap().pending, 1);
+    s.prepare_sync().unwrap();
+    let ops = outbox(&s);
+    assert_eq!((ops[0].base_revision, ops[0].data["title"].as_str()), (0, Some("Edited offline")));
+}
+
+#[test]
+fn invalid_downloaded_tasks_do_not_advance_the_cursor() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.prepare_sync().unwrap();
+    let bad = json!({"id":"t","title":"Bad","description":"","status":"later","projectId":null,"priority":0,"completedAt":null,"sort":1.0,"deletedAt":null,"created":1,"updated":2,"revision":1});
+    s.stage_page(Page {
+        library_id: "test".into(),
+        changes: vec![Entity { kind: "task".into(), id: "t".into(), revision: 1, deleted: false, data: bad }],
+        cursor: 1,
+        target: 1,
+    })
+    .unwrap();
+    assert!(s.finish_sync().is_err());
+    assert!(s.project_data().unwrap().tasks.is_empty());
+    let cursor: i64 = s.conn.query_row("SELECT cursor FROM sync_state", [], |r| r.get(0)).unwrap();
+    assert_eq!(cursor, 0);
+}
+
+#[test]
+fn device_only_notebook_links_stay_local() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.conn.execute("INSERT INTO notebooks(id,name,color) VALUES('local','Local','blue')", []).unwrap();
+    s.conn.execute("INSERT INTO sync_local_notebooks VALUES('local')", []).unwrap();
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![save_project("p", "Project", Some("local"), 0)], tasks: vec![] }).unwrap();
+    s.prepare_sync().unwrap();
+    let op = outbox(&s).remove(0);
+    assert!(op.data["notebookId"].is_null());
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.stage_page(Page {
+        library_id: "test".into(),
+        changes: vec![Entity { kind: "project".into(), id: "p".into(), revision: 1, deleted: false, data: op.data }],
+        cursor: 1,
+        target: 1,
+    })
+    .unwrap();
+    s.finish_sync().unwrap();
+    assert_eq!(s.project_data().unwrap().projects[0].notebook_id.as_deref(), Some("local"));
+}
+
+#[test]
+#[ignore = "requires isolated HTTP service and STASH_SYNC_TEST_DEVICE_FILE"]
+fn two_clients_sync_tasks_through_real_http_service() {
+    let file = std::env::var("STASH_SYNC_TEST_DEVICE_FILE").expect("test device file");
+    let credentials = std::fs::read_to_string(file).unwrap();
+    let token = credentials.lines().nth(1).unwrap();
+    let url = std::env::var("STASH_SYNC_TEST_URL").unwrap_or("http://127.0.0.1:18089".into());
+    let info: Value = reqwest::blocking::Client::new()
+        .get(format!("{url}/v1/info"))
+        .bearer_auth(token)
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let (a_dir, b_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let mut a = Store::open(a_dir.path()).unwrap();
+    let mut b = Store::open(b_dir.path()).unwrap();
+    for s in [&a, &b] {
+        s.conn
+            .execute("UPDATE sync_state SET library_id=?", [info["libraryId"].as_str().unwrap()])
+            .unwrap();
+    }
+    let (project, task) = (uuid::Uuid::new_v4().to_string(), uuid::Uuid::new_v4().to_string());
+    let find = |s: &Store, title: &str| {
+        s.project_data().unwrap().tasks.into_iter().find(|t| t.title == title)
+    };
+    a.save_project_changes(&projects::ProjectChanges {
+        projects: vec![save_project(&project, "Shared", None, 0)],
+        tasks: vec![save_task(&task, "From A", Some(&project), 0)],
+    })
+    .unwrap();
+    a.sync_with(&url, token, |_| {}).unwrap();
+    b.sync_with(&url, token, |_| {}).unwrap();
+    let on_b = find(&b, "From A").expect("task reached B");
+    assert_eq!(on_b.project_id.as_deref(), Some(project.as_str()));
+    assert!(on_b.schedule.is_some());
+    assert_eq!(b.sync_status().unwrap().pending, 0);
+
+    // Both devices edit offline. Each edit must survive and the second device is told.
+    let revision = |s: &Store| s.project_data().unwrap().tasks.iter().find(|t| t.id == task).unwrap().revision;
+    let (a_rev, b_rev) = (revision(&a), revision(&b));
+    a.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task(&task, "A offline", Some(&project), a_rev)] }).unwrap();
+    b.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task(&task, "B offline", Some(&project), b_rev)] }).unwrap();
+    a.sync_with(&url, token, |_| {}).unwrap();
+    let result = b.sync_with(&url, token, |_| {}).unwrap();
+    assert_eq!(result.status.warnings.len(), 1);
+    assert!(result.status.warnings[0].contains("B offline"));
+    a.sync_with(&url, token, |_| {}).unwrap();
+    for s in [&a, &b] {
+        assert!(find(s, "A offline").is_some());
+        assert!(find(s, "B offline (conflict copy)").is_some());
+        assert_eq!(s.sync_status().unwrap().pending, 0);
+    }
+    // Another cycle has nothing left to do and raises no new warning.
+    let result = b.sync_with(&url, token, |_| {}).unwrap();
+    assert!(result.status.warnings.is_empty());
+
+    // A soft delete and its undo both reach the other device.
+    let mut deleted = save_task(&task, "A offline", Some(&project), revision(&a));
+    deleted.deleted = true;
+    a.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![deleted] }).unwrap();
+    a.sync_with(&url, token, |_| {}).unwrap();
+    b.sync_with(&url, token, |_| {}).unwrap();
+    assert!(find(&b, "A offline").unwrap().deleted_at.is_some());
+    a.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task(&task, "A offline", Some(&project), revision(&a))] }).unwrap();
+    a.sync_with(&url, token, |_| {}).unwrap();
+    b.sync_with(&url, token, |_| {}).unwrap();
+    assert!(find(&b, "A offline").unwrap().deleted_at.is_none());
+}
+
+#[test]
+fn a_server_without_project_sync_gets_notes_and_projects_stay_queued() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.save_note_record(&note("n", "Note", 0)).unwrap();
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task("t", "Task", None, 0)] }).unwrap();
+    s.prepare_cycle(false).unwrap();
+    let ops = outbox(&s);
+    assert_eq!(ops.iter().map(|op| op.kind.as_str()).collect::<Vec<_>>(), ["note"]);
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.stage_page(Page { library_id: "test".into(), changes: vec![], cursor: 0, target: 0 }).unwrap();
+    s.finish_sync().unwrap();
+    assert_eq!(s.sync_status().unwrap().pending, 1);
+    s.prepare_cycle(true).unwrap();
+    assert_eq!(outbox(&s).remove(0).kind, "task");
+}

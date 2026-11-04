@@ -53,6 +53,27 @@ pub struct Outcome {
     pub status: Status,
 }
 
+/// Servers at protocol 1 store notes and notebooks only, so projects and tasks wait for an update.
+const PROJECT_KINDS: [&str; 2] = ["project", "task"];
+fn is_project_kind(kind: &str) -> bool {
+    PROJECT_KINDS.contains(&kind)
+}
+fn supported_protocol(info: &Value) -> Option<i64> {
+    info["protocolVersion"].as_i64().filter(|version| matches!(version, 1 | 2))
+}
+fn add_warning(conn: &Connection, warning: String) -> Result<()> {
+    let raw: String = conn
+        .query_row("SELECT warnings FROM sync_state", [], |r| r.get(0))
+        .map_err(db_err)?;
+    let mut warnings: Vec<String> = serde_json::from_str(&raw).map_err(db_err)?;
+    warnings.push(warning);
+    conn.execute(
+        "UPDATE sync_state SET warnings=?",
+        [serde_json::to_string(&warnings).map_err(db_err)?],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
 fn client() -> Result<reqwest::blocking::Client> {
     #[cfg(all(feature = "sync-test-ca", not(debug_assertions)))]
     compile_error!("sync-test-ca is restricted to isolated debug builds");
@@ -116,7 +137,7 @@ impl Store {
         let pending = self
             .conn
             .query_row(
-                "SELECT (SELECT count(*) FROM sync_dirty d WHERE (d.kind='note' AND (d.id NOT IN(SELECT note_id FROM linked_notes) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR (d.kind='notebook' AND d.id NOT IN(SELECT id FROM sync_local_notebooks) AND (d.id NOT IN(SELECT id FROM notebooks WHERE root_id IS NOT NULL) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))))+(SELECT count(*) FROM sync_outbox)",
+                "SELECT (SELECT count(*) FROM sync_dirty d WHERE (d.kind='note' AND (d.id NOT IN(SELECT note_id FROM linked_notes) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR (d.kind='notebook' AND d.id NOT IN(SELECT id FROM sync_local_notebooks) AND (d.id NOT IN(SELECT id FROM notebooks WHERE root_id IS NOT NULL) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR d.kind IN('project','task'))+(SELECT count(*) FROM sync_outbox)",
                 [],
                 |r| r.get(0),
             )
@@ -160,7 +181,7 @@ impl Store {
             .as_str()
             .filter(|id| !id.is_empty())
             .ok_or("Invalid server identity.")?;
-        if info["protocolVersion"] != 1 {
+        if supported_protocol(&info).is_none() {
             return Err("This server requires a newer Stash version.".into());
         }
         let old: String = self
@@ -200,12 +221,14 @@ impl Store {
             .conn
             .query_row("SELECT library_id FROM sync_state", [], |r| r.get(0))
             .map_err(db_err)?;
-        if info["libraryId"].as_str() != Some(identity.as_str()) || info["protocolVersion"] != 1 {
+        let protocol = supported_protocol(&info);
+        if info["libraryId"].as_str() != Some(identity.as_str()) || protocol.is_none() {
             return Err(
                 "Sync server identity or protocol changed. Local notes were not uploaded.".into(),
             );
         }
-        self.prepare_sync()?;
+        let projects_supported = protocol == Some(2);
+        self.prepare_cycle(projects_supported)?;
         loop {
             let next: Option<(i64, String)> = self
                 .conn
@@ -229,24 +252,18 @@ impl Store {
             }
             let tx = self.conn.transaction().map_err(db_err)?;
             if receipt.conflict {
-                let raw: String = tx
-                    .query_row("SELECT warnings FROM sync_state", [], |r| r.get(0))
-                    .map_err(db_err)?;
-                let mut warnings: Vec<String> = serde_json::from_str(&raw).map_err(db_err)?;
-                warnings.push(format!(
-                    "{}: {}",
-                    op.data[if op.kind == "note" { "title" } else { "name" }]
-                        .as_str()
-                        .unwrap_or(&op.id),
-                    receipt
-                        .message
-                        .unwrap_or_else(|| "A conflicting change was preserved.".into())
-                ));
-                tx.execute(
-                    "UPDATE sync_state SET warnings=?",
-                    [serde_json::to_string(&warnings).map_err(db_err)?],
-                )
-                .map_err(db_err)?;
+                add_warning(
+                    &tx,
+                    format!(
+                        "{}: {}",
+                        op.data[if matches!(op.kind.as_str(), "note" | "task") { "title" } else { "name" }]
+                            .as_str()
+                            .unwrap_or(&op.id),
+                        receipt
+                            .message
+                            .unwrap_or_else(|| "A conflicting change was preserved.".into())
+                    ),
+                )?;
             }
             if let Some(e) = receipt.current {
                 tx.execute("INSERT INTO sync_inbox VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET record=excluded.record",params![e.kind,e.id,serde_json::to_string(&e).map_err(db_err)?]).map_err(db_err)?;
@@ -278,12 +295,25 @@ impl Store {
         }
         progress("Saving synced notes…");
         self.finish_sync()?;
+        let held: bool = self
+            .conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM sync_dirty WHERE kind IN('project','task'))", [], |r| r.get(0))
+            .map_err(db_err)?;
+        if !projects_supported && held {
+            add_warning(
+                &self.conn,
+                "Projects and tasks stay on this device until the sync server is updated.".into(),
+            )?;
+        }
         Ok(Outcome {
             library: self.library()?,
             status: self.sync_status()?,
         })
     }
     pub fn prepare_sync(&mut self) -> Result<()> {
+        self.prepare_cycle(true)
+    }
+    pub(super) fn prepare_cycle(&mut self, projects_supported: bool) -> Result<()> {
         let active: bool = self
             .conn
             .query_row("SELECT active FROM sync_state", [], |r| r.get(0))
@@ -300,6 +330,9 @@ impl Store {
                 .map_err(db_err)?;
             items
         };
+        if !projects_supported {
+            dirty.retain(|(kind, _)| !is_project_kind(kind));
+        }
         let mut books = self.notebooks()?;
         let local_only = {
             let mut q = self
@@ -336,6 +369,7 @@ impl Store {
         });
         let mut ops = Vec::new();
         for (kind, id) in dirty {
+            let project_kind = is_project_kind(&kind);
             let base_revision = self
                 .conn
                 .query_row(
@@ -346,7 +380,11 @@ impl Store {
                 .optional()
                 .map_err(db_err)?
                 .unwrap_or(0);
-            let data = if kind == "note" {
+            let data = if kind == "project" {
+                projects::synced_project(&self.conn, &id)?
+            } else if kind == "task" {
+                projects::synced_task(&self.conn, &id)?
+            } else if kind == "note" {
                 let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM notes WHERE id=? AND id NOT IN(SELECT note_id FROM linked_notes))",[&id],|r|r.get(0)).map_err(db_err)?;
                 if exists {
                     let mut note = self.note(&id, true)?;
@@ -371,7 +409,8 @@ impl Store {
                     })
                     .transpose()?
             };
-            if data.is_none() && base_revision == 0 {
+            // Projects and tasks delete softly, so they never send a tombstone.
+            if data.is_none() && (base_revision == 0 || project_kind) {
                 continue;
             }
             ops.push(Operation {
@@ -388,7 +427,7 @@ impl Store {
         ops.sort_by_key(|op| {
             if op.kind == "notebook" && op.deleted {
                 2
-            } else if op.kind == "note" {
+            } else if matches!(op.kind.as_str(), "note" | "task") {
                 1
             } else {
                 0
@@ -402,7 +441,14 @@ impl Store {
             )
             .map_err(db_err)?;
         }
-        tx.execute_batch("DELETE FROM sync_dirty; UPDATE sync_state SET active=1,target=NULL,page_cursor=cursor,warnings='[]';").map_err(db_err)?;
+        if projects_supported {
+            tx.execute("DELETE FROM sync_dirty", []).map_err(db_err)?;
+        } else {
+            tx.execute("DELETE FROM sync_dirty WHERE kind NOT IN('project','task')", [])
+                .map_err(db_err)?;
+        }
+        tx.execute("UPDATE sync_state SET active=1,target=NULL,page_cursor=cursor,warnings='[]'", [])
+            .map_err(db_err)?;
         tx.commit().map_err(db_err)
     }
     pub fn stage_page(&mut self, page: Page) -> Result<()> {
@@ -426,7 +472,7 @@ impl Store {
         for e in &page.changes {
             if e.revision != last + 1
                 || e.revision > page.target
-                || !matches!(e.kind.as_str(), "note" | "notebook")
+                || !matches!(e.kind.as_str(), "note" | "notebook" | "project" | "task")
             {
                 return Err("Incomplete or unsupported sync changes.".into());
             }
@@ -468,9 +514,14 @@ impl Store {
         }
         tx.execute_batch("UPDATE sync_state SET applying=1; PRAGMA defer_foreign_keys=ON;")
             .map_err(db_err)?;
-        // Notebook rows precede notes. Deferred foreign keys support parent ordering across pages.
+        // Notebook rows precede notes and projects precede tasks. Deferred foreign keys support
+        // parent ordering across pages.
         let mut records = records;
-        records.sort_by_key(|e| if e.kind == "notebook" { 0 } else { 1 });
+        records.sort_by_key(|e| match e.kind.as_str() {
+            "notebook" => 0,
+            "project" => 1,
+            _ => 2,
+        });
         for e in records {
             let dirty: bool = tx
                 .query_row(
@@ -484,7 +535,9 @@ impl Store {
             if dirty {
                 continue;
             }
-            let linked: bool = if e.kind == "note" {
+            let linked: bool = if is_project_kind(&e.kind) {
+                false
+            } else if e.kind == "note" {
                 tx.query_row(
                     "SELECT EXISTS(SELECT 1 FROM linked_notes WHERE note_id=?)",
                     [&e.id],
@@ -500,7 +553,16 @@ impl Store {
                 .map_err(db_err)?
             };
             if !linked {
-                if e.kind == "notebook" {
+                if is_project_kind(&e.kind) {
+                    if e.deleted {
+                        return Err("Unsupported synced project or task deletion.".into());
+                    }
+                    if e.kind == "project" {
+                        projects::apply_synced_project(&tx, &e.id, e.data)?;
+                    } else {
+                        projects::apply_synced_task(&tx, &e.id, e.data)?;
+                    }
+                } else if e.kind == "notebook" {
                     if e.deleted {
                         tx.execute("DELETE FROM note_notebooks WHERE notebook_id=? AND note_id NOT IN(SELECT note_id FROM linked_notes)",[&e.id]).map_err(db_err)?;
                         let needed:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM note_notebooks WHERE notebook_id=?) OR EXISTS(SELECT 1 FROM notebooks WHERE parent_id=? AND root_id IS NOT NULL)",[&e.id,&e.id],|r|r.get(0)).map_err(db_err)?;

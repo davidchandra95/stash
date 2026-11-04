@@ -137,3 +137,18 @@ it('deletes a project with its tasks', async () => {
   expect(tasks.length).toBeGreaterThan(0)
   expect(tasks.every((t) => t.deletedAt !== null)).toBe(true)
 })
+
+it('refresh waits for queued saves and keeps them', async () => {
+  const { projectStore, createTask } = await load()
+  const task = createTask(null, 'Queued')
+  await projectStore.settle()
+  expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.revision).toBe(1)
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(true)
+})
+
+it('refresh does nothing before the store opens', async () => {
+  const { projectStore } = await import('./store')
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(false)
+})

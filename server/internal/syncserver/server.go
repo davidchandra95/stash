@@ -104,7 +104,7 @@ func (s *Server) Handler() http.Handler {
 			s.fail(w, err)
 			return
 		}
-		writeJSON(w, map[string]any{"libraryId": id, "protocolVersion": 1})
+		writeJSON(w, map[string]any{"libraryId": id, "protocolVersion": 2})
 	}))
 	mux.HandleFunc("POST /v1/push", s.auth(s.push))
 	mux.HandleFunc("GET /v1/pull", s.auth(s.pull))
@@ -148,8 +148,15 @@ func validID(id string) bool {
 	return len(id) > 0 && len(id) <= 200 && !strings.ContainsAny(id, "\x00\r\n")
 }
 func validate(op Operation) error {
-	if !validID(op.ID) || !validID(op.OperationID) || op.BaseRevision < 0 || (op.Kind != "note" && op.Kind != "notebook") {
+	if !validID(op.ID) || !validID(op.OperationID) || op.BaseRevision < 0 || (op.Kind != "note" && op.Kind != "notebook" && !isProjectKind(op.Kind)) {
 		return errors.New("invalid operation")
+	}
+	if isProjectKind(op.Kind) {
+		// Projects and tasks delete softly, through deletedAt.
+		if op.Deleted {
+			return errors.New("invalid operation")
+		}
+		return validateProjectRecord(op)
 	}
 	if op.Deleted {
 		return nil
@@ -340,7 +347,11 @@ func (s *Server) Apply(ctx context.Context, device string, op Operation) (Receip
 	conflict := current != op.BaseRevision || (deleted && !op.Deleted)
 	result.Conflict = conflict
 	if conflict {
-		if op.Kind == "note" {
+		if isProjectKind(op.Kind) {
+			if err = s.resolveProjectConflict(ctx, tx, &revision, op, currentData, &result); err != nil {
+				return result, err
+			}
+		} else if op.Kind == "note" {
 			data := op.Data
 			if op.Deleted {
 				data = currentData
@@ -481,6 +492,12 @@ func (s *Server) put(ctx context.Context, tx pgx.Tx, revision *int64, e Entity) 
 		var err error
 		e.Data, err = json.Marshal(d)
 		if err != nil {
+			return err
+		}
+	}
+	if e.Kind == "task" {
+		var err error
+		if e.Data, err = detachFromRemovedProject(ctx, tx, e.Data); err != nil {
 			return err
 		}
 	}
