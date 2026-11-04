@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import AppTooltip from '../components/AppTooltip'
+import { LiveNoteInformation } from '../storage/libraryReaders'
 import NoteListNotebook from '../components/NoteListNotebook'
 import VirtualNoteRows from '../components/VirtualNoteRows'
 import {
@@ -1690,28 +1691,13 @@ export default function MobileApp() {
                   </>
                 )}
                 {overlayNote && overlay.kind === 'information' && (
-                  <dl className="mobile-info">
-                    <div>
-                      <dt>Updated</dt>
-                      <dd>{new Date(overlayNote.updated).toLocaleString()}</dd>
-                    </div>
-                    <div>
-                      <dt>Length</dt>
-                      <dd>
-                        {overlayNote.text.trim() ? overlayNote.text.trim().split(/\s+/).length : 0}{' '}
-                        words · {overlayNote.text.length} characters
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Notebooks</dt>
-                      <dd>
-                        {notebooks
-                          .filter((b) => overlayNote.notebookIds.includes(b.id))
-                          .map((b) => notebookPath(b, notebooks))
-                          .join(', ') || 'Uncategorized'}
-                      </dd>
-                    </div>
-                  </dl>
+                  <LiveNoteInformation
+                    noteId={overlayNote.id}
+                    open={(id) => {
+                      setOverlay(null)
+                      noteLinks.open(id)
+                    }}
+                  />
                 )}
               </div>
             )}

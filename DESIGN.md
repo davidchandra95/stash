@@ -355,6 +355,8 @@ Use the shared classes before writing new CSS:
   Discard, Copy, Dictate more and Insert (Return inserts, Shift+Return adds a line). Text goes in
   at the note's cursor. The microphone button or shortcut starts and stops; Escape cancels.
   Model and language choices live only in Settings › Editor › Dictation.
+- Note information is a dialog from Note actions (a sheet on Android) showing dates, length,
+  notebooks and backlinks. Backlinks are `--row` rows with the title and a `--text-3` notebook.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
   when the pane is narrow.
 

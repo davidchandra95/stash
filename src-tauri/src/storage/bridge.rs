@@ -54,6 +54,13 @@ pub async fn load_note(id: String, service: tauri::State<'_, Arc<Service>>) -> R
     work(service.inner().clone(), move |s| s.load_note(&id)).await
 }
 #[tauri::command]
+pub async fn note_backlink_candidates(
+    id: String,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<Vec<String>> {
+    work(service.inner().clone(), move |s| s.backlink_candidates(&id)).await
+}
+#[tauri::command]
 pub async fn save_note(
     input: SaveNote,
     service: tauri::State<'_, Arc<Service>>,

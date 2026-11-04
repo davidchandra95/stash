@@ -179,6 +179,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     'Add to Quick Access',
     'Duplicate',
     'Copy link to note',
+    'Note information',
     'Move to another notebook',
     'Add to notebooks',
     'Move to trash',
@@ -186,7 +187,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     'Move down',
   ])
   const items = [...document.querySelectorAll<HTMLElement>('.menu [role="menuitem"]')]
-  expect(items).toHaveLength(10)
+  expect(items).toHaveLength(11)
   expect(
     items.every(
       (item) =>
@@ -219,7 +220,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     [...document.querySelectorAll('[role="menuitem"]')].map(
       (el) => el.getAttribute('aria-label') ?? el.textContent,
     ),
-  ).toEqual(['Open in new tab', 'Restore note', 'Move up', 'Move down'])
+  ).toEqual(['Open in new tab', 'Note information', 'Restore note', 'Move up', 'Move down'])
   await click('Restore note', 'menuitem')
   expect(target().trashed).toBe(false)
 })
@@ -548,4 +549,33 @@ it.each(['context', 'toolbar'])('focuses Move search after the %s menu closes', 
   })
   expect(document.querySelector('.move-notebooks-popover')).toBeTruthy()
   expect(document.activeElement).toBe(document.querySelector('[aria-label="Search notebooks"]'))
+})
+
+it('lists backlinks in note information and opens the linking note', async () => {
+  await mount(true)
+  const title = () => document.querySelector<HTMLInputElement>('.note-title')?.value
+  await act(async () => document.querySelector<HTMLElement>('.note-row[data-note-id="b"]')!.click())
+  await vi.waitFor(() => expect(title()).toBe('b'))
+  await context('b')
+  await click('Note information', 'menuitem')
+  const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!
+  await vi.waitFor(() => expect(dialog().textContent).toContain('Backlinks'))
+  const row = await vi.waitFor(() => {
+    const button = dialog().querySelector<HTMLElement>('.note-info-links button')
+    expect(button).toBeTruthy()
+    return button!
+  })
+  expect(row.querySelector('.note-link-title')?.textContent).toBe('a')
+  await act(async () => row.click())
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  await vi.waitFor(() => expect(title()).toBe('a'))
+})
+
+it('says so when no note links here', async () => {
+  await mount()
+  await context('b')
+  await click('Note information', 'menuitem')
+  await vi.waitFor(() =>
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('No notes link here.'),
+  )
 })
