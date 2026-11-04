@@ -122,10 +122,11 @@ it('changes color mode and accent like desktop without touching other preference
   ]
   expect(modes.map((mode) => [mode.textContent, mode.getAttribute('aria-checked')])).toEqual([
     ['Light', 'false'],
+    ['Sepia', 'false'],
     ['Dark', 'false'],
     ['Auto', 'true'],
   ])
-  await act(() => modes[1].click())
+  await act(() => modes[2].click())
   expect(current).toEqual({ ...defaultAppearance, colorMode: 'dark' })
   // Android has no system accent, so the automatic choice shows as Blue.
   expect(control('Multicolor (follow macOS)')).toBeNull()

@@ -115,7 +115,7 @@ it('opens on Appearance with the search focused and switches between categories'
   expect(document.querySelector('[role="dialog"]')?.classList.contains('settings')).toBe(true)
   expect(document.activeElement).toBe(control('Search settings'))
   expect(document.querySelector('[aria-current="page"]')?.textContent).toBe('Appearance')
-  expect(radios('Appearance')).toHaveLength(3)
+  expect(radios('Appearance')).toHaveLength(4)
 
   await category('Typography')
   expect(title()).toBe('Typography')
@@ -136,9 +136,9 @@ it('opens on Appearance with the search focused and switches between categories'
   expect(control('Edit New note shortcut')).not.toBeNull()
 })
 
-it('offers Light, Dark and Auto as one radio group and changes only the color mode', async () => {
+it('offers Light, Sepia, Dark and Auto as one radio group and changes only the color mode', async () => {
   await render()
-  expect(radios('Appearance').map(radioName)).toEqual(['Light', 'Dark', 'Auto'])
+  expect(radios('Appearance').map(radioName)).toEqual(['Light', 'Sepia', 'Dark', 'Auto'])
   expect(checkedRadios('Appearance')).toEqual(['Auto'])
   await act(() => radio('Appearance', 'Dark').click())
   expect(current).toEqual({ ...defaultAppearance, colorMode: 'dark' })
@@ -146,6 +146,9 @@ it('offers Light, Dark and Auto as one radio group and changes only the color mo
   await act(() => radio('Appearance', 'Light').click())
   expect(current).toEqual({ ...defaultAppearance, colorMode: 'light' })
   expect(checkedRadios('Appearance')).toEqual(['Light'])
+  await act(() => radio('Appearance', 'Sepia').click())
+  expect(current).toEqual({ ...defaultAppearance, colorMode: 'sepia' })
+  expect(checkedRadios('Appearance')).toEqual(['Sepia'])
   expect(document.querySelector('[role="dialog"]')).not.toBeNull()
 })
 
