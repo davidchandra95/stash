@@ -5,6 +5,8 @@ import type { LibraryState } from './library'
 import type { View } from '../model'
 import NoteEditor from '../components/NoteEditor'
 import NoteTools from '../components/NoteTools'
+import NoteInformation from '../components/NoteInformation'
+import { useBacklinks } from './backlinks'
 import AddToNotebooksPopover from '../components/AddToNotebooksPopover'
 import MoveNoteDialog from '../components/MoveNoteDialog'
 import NoteOrganization from '../components/NoteOrganization'
@@ -108,6 +110,20 @@ export function LiveNoteTools({
     props.searchNavigation ? state.notes : undefined,
   )
   return note ? <NoteTools {...props} note={note} searchNotes={searchNotes} /> : null
+}
+export function LiveNoteInformation({
+  noteId,
+  open,
+}: {
+  noteId: string
+  open: ComponentProps<typeof NoteInformation>['open']
+}) {
+  const note = useNote(noteId)
+  const notebooks = useLibrarySelector((state) => state.notebooks)
+  const backlinks = useBacklinks(noteId)
+  return note ? (
+    <NoteInformation note={note} notebooks={notebooks} backlinks={backlinks} open={open} />
+  ) : null
 }
 export function LiveNoteRow({
   noteId,

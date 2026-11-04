@@ -56,6 +56,7 @@ import {
   ExternalLink,
   Star,
   StarOff,
+  Info,
   Link2,
   FolderPlus,
   RotateCcw,
@@ -199,6 +200,7 @@ export function useAppController() {
     anchor: PopoverAnchor
     launcher: HTMLElement | null
   } | null>(null)
+  const [informationId, setInformationId] = useState<string | null>(null)
   const organizationOpen = !!organization
   const setOrganization = (
     next: { id: string; destination?: string; launcher?: HTMLElement } | null,
@@ -971,9 +973,15 @@ export function useAppController() {
       icon: ExternalLink,
       run: () => workspace.open(note.id, true),
     }
+    const information = {
+      label: 'Note information',
+      icon: Info,
+      run: () => setInformationId(note.id),
+    }
     if (note.trashed)
       return [
         open,
+        information,
         {
           label: 'Restore note',
           icon: RotateCcw,
@@ -1020,6 +1028,7 @@ export function useAppController() {
             else await navigator.clipboard.writeText(text)
           }),
       },
+      information,
       {
         label: note.source ? 'Move file to notebook' : 'Move to another notebook',
         icon: FolderInput,
@@ -1314,6 +1323,8 @@ export function useAppController() {
     setNoteList,
     noteMenuOpen,
     setNoteMenuOpen,
+    informationId,
+    setInformationId,
     organization,
     storeOrganization,
     addOrganization,
