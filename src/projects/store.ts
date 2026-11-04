@@ -183,6 +183,15 @@ export const projectStore = {
     queue = result.catch(() => {})
     return result
   },
+  /** Waits for queued saves, so a sync uploads them. Save failures surface through the snapshot. */
+  settle: () => queue,
+  /** Reloads after a sync. Queued, so saves made after it use the downloaded revisions. */
+  refresh(): Promise<void> {
+    if (!snapshot.ready && !opening) return Promise.resolve()
+    const result = queue.then(load)
+    queue = result.catch(() => {})
+    return result
+  },
   /** Waits for queued saves, for quit. */
   flush: async () => {
     await queue

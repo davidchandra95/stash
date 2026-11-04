@@ -6,7 +6,7 @@ The desktop app connects only to the HTTPS API. It never connects directly to Po
 
 ## What syncs
 
-Ordinary notes, embedded data-URL images, notebooks and their hierarchy, body-derived tag indexes, notebook memberships, pin and Quick Access state, and Trash state sync. Folder-linked notes, local assets and paths, appearance, shortcuts, workspace tabs, and editor undo history stay on each device.
+Ordinary notes, embedded data-URL images, notebooks and their hierarchy, body-derived tag indexes, notebook memberships, pin and Quick Access state, Trash state, projects and tasks sync. Folder-linked notes, local assets and paths, appearance, shortcuts, workspace tabs, and editor undo history stay on each device.
 
 Excalidraw drawings in ordinary notes sync as part of the note JSON, including editable scene data, embedded images, and cached previews. Existing whole-note conflict copies retain each drawing version. Android displays previews; desktop can reopen and edit scenes. Older clients cannot open notes containing the new drawing node, so update editing clients first. The existing 64 MiB server request limit still applies to complete note operations, including embedded files and previews; an oversized upload fails visibly and leaves local data available.
 
@@ -102,6 +102,17 @@ The Go server provides `GET /healthz`, authenticated `GET /v1/info`, `POST /v1/p
 Push accepts one note or notebook operation with a stable operation ID, base revision, deletion state, and record data. Reusing an operation ID with different content fails. Entity changes, operation receipts, change-log entries, and the library cursor commit in one PostgreSQL transaction.
 
 Concurrent note changes keep the accepted server record and create one visible conflict copy of the incoming record. Concurrent notebook metadata changes retain the server version and produce a warning. Pull pages and checkpoints are durable, and downloaded records apply atomically only after the bounded cycle is complete.
+
+Projects and tasks are whole records, and deleting one sets `deletedAt` rather than sending a tombstone, so undo syncs too. Edits made offline wait in the same durable queue as notes. When two devices change the same record:
+
+- Different content keeps the accepted record and adds a visible conflict copy of the incoming one, named "(conflict copy)", with a warning in Sync settings. A project's copy has no tasks; they stay with the original.
+- A deletion from a device that had not seen a newer edit does not apply. The edited record stays and the device gets a warning.
+- Changes that differ only in order or timestamps, or that delete the same record twice, keep the accepted record with no copy or warning.
+- A live task saved into a project that was deleted moves to the Inbox.
+
+A project's link to a folder-linked or device-only notebook stays on that device.
+
+Protocol version 2 adds projects and tasks. Update clients before the server: an updated client still syncs notes with a version 1 server, keeps its projects and tasks queued, and warns about it. An older client refuses a version 2 server with a protocol error and keeps its local data.
 
 ## Verification
 

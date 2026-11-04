@@ -641,7 +641,7 @@ fn version_one_migration_preserves_documents_and_restores_workspace() {
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        13
+        14
     );
 }
 
@@ -1111,7 +1111,7 @@ fn version_three_upgrade_is_backed_up_and_rolls_back_on_failure() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                13
+                14
             );
         }
         let backup = fs::read_dir(dir.path().join("backups"))
