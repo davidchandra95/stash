@@ -22,6 +22,8 @@ import {
   isOpenProject,
   progress,
   today,
+  nextSevenDaysGroups,
+  taskTags,
   todayGroups,
   type Task,
 } from '../projects/model'
@@ -37,6 +39,8 @@ import {
   Briefcase,
   Calendar,
   CalendarClock,
+  CircleCheck,
+  Trash2,
   ListTodo,
   Pin,
   Plus,
@@ -372,14 +376,16 @@ function ProjectsNavigation() {
     (task) => task.status === 'todo' || task.status === 'doing',
   ).length
   const others = live.filter((project) => !isOpenProject(project))
+  const tags = taskTags(tasks)
   const current = today()
   const dueTodayGroups = todayGroups(tasks, current)
   const overdueCount = dueTodayGroups.find((g) => g.id === 'overdue')?.tasks.length ?? 0
-  const dueToday = dueTodayGroups.reduce(
-    (sum, group) =>
-      sum + group.tasks.filter((t) => t.status === 'todo' || t.status === 'doing').length,
-    0,
-  )
+  const openIn = (groups: { tasks: Task[] }[]) =>
+    groups.reduce(
+      (sum, group) =>
+        sum + group.tasks.filter((t) => t.status === 'todo' || t.status === 'doing').length,
+      0,
+    )
   /** `tone` colors the view icon like the notes views; `countClass` marks late or attention counts. */
   const pageRow = (
     id: string,
@@ -436,14 +442,22 @@ function ProjectsNavigation() {
         {pageRow(
           'tasks:today',
           <Calendar aria-hidden="true" />,
-          'Due today',
+          'Today',
           'orange',
-          dueToday,
+          openIn(dueTodayGroups),
           overdueCount > 0 ? 'is-late' : '',
         )}
-        {pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
-        {pageRow('tasks:upcoming', <CalendarClock aria-hidden="true" />, 'Upcoming', 'purple', 0)}
+        {pageRow(
+          'tasks:next7',
+          <CalendarClock aria-hidden="true" />,
+          'Next 7 Days',
+          'purple',
+          openIn(nextSevenDaysGroups(tasks, current)),
+          overdueCount > 0 ? 'is-late' : '',
+        )}
         {pageRow('inbox', <Inbox aria-hidden="true" />, 'Inbox', 'indigo', inboxOpen)}
+        {pageRow('tasks:summary', <FileText aria-hidden="true" />, 'Summary', 'teal', 0)}
+        {pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
         {pageRow(
           'all',
           <Briefcase aria-hidden="true" />,
@@ -492,6 +506,31 @@ function ProjectsNavigation() {
           </p>
         )}
       </Section>
+      {tags.length > 0 && (
+        <Section title="Tags">
+          <div className="side-tags">
+            {tags.map((tag) => {
+              const selected = app.projectView === `tag:${tag}`
+              return (
+                <button
+                  className={`chip ${selected ? 'is-selected' : ''}`}
+                  data-tone={tagTone(tag)}
+                  aria-current={selected ? 'page' : undefined}
+                  disabled={blocked}
+                  key={tag}
+                  onClick={() => app.openProject(`tag:${tag}`)}
+                >
+                  #{tag}
+                </button>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+      <nav aria-label="Finished tasks" className="side-group side-group-end">
+        {pageRow('tasks:completed', <CircleCheck aria-hidden="true" />, 'Completed', 'green', 0)}
+        {pageRow('tasks:trash', <Trash2 aria-hidden="true" />, 'Trash', 'slate', 0)}
+      </nav>
     </>
   )
 }

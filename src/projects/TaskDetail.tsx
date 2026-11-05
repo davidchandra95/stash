@@ -2,6 +2,7 @@ import DateField from '../components/DateField'
 import RepeatEditor from './RepeatEditor'
 import ScheduleEditor from './ScheduleEditor'
 import TaskReminders from './TaskReminders'
+import TaskTagsEditor from './TaskTags'
 import { displayZone, effectiveDueDate, schedulePatch, subscribeDisplayZone } from './schedule'
 import { projectStore } from './store'
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -218,6 +219,8 @@ export default function TaskDetail({ task }: { task: Task }) {
               </option>
             ))}
           </select>
+          <label htmlFor="task-tags">Tags</label>
+          <TaskTagsEditor id="task-tags" task={task} disabled={blocked} />
           {date('startDate', 'Start')}
           {date('dueDate', 'Due')}
           {task.dueTime && <>

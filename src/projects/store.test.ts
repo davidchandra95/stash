@@ -77,6 +77,26 @@ it('deletes a task with undo', async () => {
   expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.deletedAt).toBeNull()
 })
 
+it('restores a task from Trash, to the Inbox when its project is gone', async () => {
+  const { projectStore, deleteProject, deleteTask, restoreTask } = await load()
+  const find = (id: string) => projectStore.getSnapshot().tasks.find((t) => t.id === id)!
+  const task = live(projectStore.getSnapshot().tasks).find((t) => t.projectId)!
+  const projectId = task.projectId
+  deleteTask(task, vi.fn())
+  await projectStore.flush()
+  restoreTask(find(task.id))
+  await projectStore.flush()
+  expect(find(task.id)).toMatchObject({ deletedAt: null, projectId })
+
+  const project = projectStore.getSnapshot().projects.find((p) => p.id === projectId)!
+  deleteProject(project, true, vi.fn())
+  await projectStore.flush()
+  expect(find(task.id).deletedAt).not.toBeNull()
+  restoreTask(find(task.id))
+  await projectStore.flush()
+  expect(find(task.id)).toMatchObject({ deletedAt: null, projectId: null })
+})
+
 it('undoes only scheduling fields and preserves a later title or status edit', async () => {
   const { projectStore, createTask, saveTaskSchedule, updateTask } = await load()
   const task = createTask(null, 'Plan work')

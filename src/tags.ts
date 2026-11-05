@@ -109,6 +109,12 @@ export function tagFooterContent(tags: string[]): import('@tiptap/core').JSONCon
   }
 }
 
+/** A task tag from what someone typed: lowercase, no leading #, no spaces, at most 50 characters. */
+export function taskTagName(value: string): string | undefined {
+  const name = value.trim().replace(/^#+/, '').trim().toLowerCase().replace(/\s+/g, '-')
+  return [...name].slice(0, 50).join('') || undefined
+}
+
 /** Color tones for tags; themes that color tags define `--tone-<name>` for each. */
 export const tagTones = ['indigo', 'blue', 'teal', 'green', 'gold', 'orange', 'pink', 'purple']
 

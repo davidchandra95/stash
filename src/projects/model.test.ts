@@ -133,8 +133,9 @@ it('sorts overview rows with missing values last', async () => {
   expect(names('status')).toEqual(['Calm', 'Late', 'Risky', 'Someday'])
 })
 
-it('groups tasks for Today and Upcoming', async () => {
-  const { todayGroups, upcomingGroups } = await import('./model')
+it('groups tasks for the smart lists', async () => {
+  const { completedGroups, nextSevenDaysGroups, summaryGroups, todayGroups, trashGroups } =
+    await import('./model')
   const at = (date: string) => new Date(`${date}T12:00:00`).getTime()
   const t = (id: string, dueDate: string | null, fields: Record<string, unknown> = {}) =>
     ({
@@ -176,12 +177,69 @@ it('groups tasks for Today and Upcoming', async () => {
     'Overdue: late',
     'Today: now,lateDoneToday,doneNow',
   ])
-  expect(ids(upcomingGroups(tasks, '2026-10-30'))).toEqual([
+  expect(ids(nextSevenDaysGroups(tasks, '2026-10-30'))).toEqual([
+    'Overdue: late',
+    'Today: now,lateDoneToday,doneNow',
     'Tomorrow: tomorrow',
     'Sunday, Nov 1: sunday,sundayLow',
-    'Later in November: later',
-    'January 2027: nextYear',
   ])
+  // The sixth day ahead is the last one in; a task on the seventh waits.
+  const edge = [t('sixth', '2026-11-05'), t('seventh', '2026-11-06')]
+  expect(ids(nextSevenDaysGroups(edge, '2026-10-30'))).toEqual(['Thursday, Nov 5: sixth'])
+  expect(ids(completedGroups(tasks, '2026-10-30'))).toEqual([
+    'Today: doneNow,lateDoneToday',
+    'Yesterday: doneBefore',
+  ])
+  expect(
+    ids(completedGroups([t('old', null, { status: 'done', completedAt: at('2025-03-02') })], '2026-10-30')),
+  ).toEqual(['March 2025: old'])
+  expect(ids(summaryGroups(tasks, 7, '2026-10-30'))).toEqual([
+    'Completed: doneNow,lateDoneToday,doneBefore',
+    'Not finished: late,now',
+  ])
+  expect(ids(summaryGroups([t('early', '2026-10-23')], 7, '2026-10-30'))).toEqual([])
+  expect(ids(summaryGroups([t('early', '2026-10-23')], 30, '2026-10-30'))).toEqual([
+    'Not finished: early',
+  ])
+  expect(ids(trashGroups(tasks))).toEqual(['Deleted: deleted'])
+  expect(trashGroups([])).toEqual([])
+})
+
+it('lists tags and groups the tasks that have one', async () => {
+  const { taskTags, tagGroups, taskViewMeta } = await import('./model')
+  const t = (id: string, fields: Record<string, unknown> = {}) =>
+    ({
+      id,
+      title: id,
+      status: 'todo',
+      projectId: null,
+      priority: 0,
+      dueDate: null,
+      completedAt: null,
+      sort: 1,
+      deletedAt: null,
+      created: 1,
+      updated: 1,
+      tags: ['work'],
+      ...fields,
+    }) as import('./model').Task
+  const tasks = [
+    t('someday'),
+    t('soon', { dueDate: '2026-11-07' }),
+    t('late', { dueDate: '2026-11-01' }),
+    t('done', { status: 'done', completedAt: 5 }),
+    t('cancelled', { status: 'cancelled' }),
+    t('other', { tags: ['home'] }),
+    t('none', { tags: undefined }),
+    t('gone', { tags: ['trashed'], deletedAt: 1 }),
+  ]
+  expect(taskTags(tasks)).toEqual(['home', 'work'])
+  expect(
+    tagGroups(tasks, 'work', '2026-11-05').map((g) => `${g.label}: ${g.tasks.map((x) => x.id)}`),
+  ).toEqual(['Overdue: late', 'To do: soon,someday', 'Completed: done'])
+  expect(tagGroups(tasks, 'trashed', '2026-11-05')).toEqual([])
+  expect(taskViewMeta('tag:work').label).toBe('#work')
+  expect(taskViewMeta('today').label).toBe('Today')
 })
 
 it('lays out a timeline by month', async () => {

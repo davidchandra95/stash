@@ -174,7 +174,7 @@ Settings › Appearance › Theme. Native is the default.
 - Focus mode hides the activity rail, sidebar and notes list. Hiding the sidebar keeps the rail. A PDF tab hides the notes list.
 - The app has two areas, Notes and Projects. The activity rail picks one, as do Show Notes (⌘1)
   and Show Projects (⌘2). The sidebar belongs to the active area. Switching to Projects reopens the
-  project page last open there (Due today by default).
+  project page last open there (Today by default).
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
 - The bottom of the activity rail holds sync status, Recent reminders, Trash and Settings. There is no account menu.
@@ -248,6 +248,17 @@ Use the shared classes before writing new CSS:
 
 ## Projects and tasks
 
+- The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,
+  Inbox, Summary and Calendar, then All projects, the Projects section, Tags, then Completed and Trash.
+  The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
+  ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
+  over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
+- Task tags are separate from note tags, but share `.chip` and `tagTone()`. Only tags in use are
+  listed, in the `.side-tags` chips on desktop and a "Task tags" drawer section on Android; each opens
+  a page grouped Overdue, To do, Completed, and a task added there starts with that tag. Task rows
+  show two tag chips and "+N"; Board cards and calendar blocks show none. The inspector's Tags row
+  edits them in place: Return, comma or space adds, Backspace on an empty field removes the last, and
+  matching tags appear below while focused.
 - Sidebar projects show a 17px progress ring in the project color (dashed while planned) and a
   6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
   collapsed "Other projects" row.
@@ -427,7 +438,8 @@ surfaces. Don't add colors there; use the tokens.
   after Notebooks. Task rows are at least 56px with a 22px checkbox that takes taps across the
   48px target, as does the small checkbox in a task mention. Project pills and task property rows
   open bottom sheets. Undo for a delete is a `.notice` above the keyboard.
-  The drawer also opens Due today and Upcoming, which use the same task rows with the project name.
+  The drawer also opens Today, Next 7 Days, Summary, Completed and Trash, which use the same task
+  rows with the project name; Trash rows have only Restore.
   The project list switches to a Timeline that scrolls sideways with names pinned, and a project
   to Board: snap-scrolling status columns of task rows. Moving a task between columns uses the
   Status sheet rather than a drag, which would fight scrolling. The new-task row is the shared

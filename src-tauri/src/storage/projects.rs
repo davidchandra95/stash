@@ -38,6 +38,9 @@ pub struct Task {
     /// Minutes before the task's moment. `None` is the default; empty turns reminders off.
     #[serde(default)]
     pub reminders: Option<Vec<i64>>,
+    /// Omitted when empty, so an untagged task reads the same as one from before tags.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     #[serde(default)]
     pub repeat: Option<TaskRepeat>,
     pub completed_at: Option<i64>,
@@ -111,6 +114,8 @@ pub struct SaveTask {
     pub due_linked: bool,
     #[serde(default)]
     pub reminders: Option<Vec<i64>>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub repeat: Option<TaskRepeat>,
     pub sort: f64,
     pub deleted: bool,
@@ -126,7 +131,7 @@ pub struct ProjectChanges {
 }
 
 const PROJECT_COLUMNS: &str = "id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision";
-const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders";
+const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags";
 
 fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -162,6 +167,8 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         due_linked: r.get(16)?,
         repeat: r.get::<_, Option<String>>(17)?.map(|json| serde_json::from_str(&json)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(17, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
+        tags: serde_json::from_str(&r.get::<_, String>(19)?)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, Box::new(error)))?,
         reminders: r.get::<_, Option<String>>(18)?.map(|json| serde_json::from_str(&json)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(18, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         completed_at: r.get(8)?,
@@ -312,6 +319,15 @@ fn validate_task(t: &SaveTask) -> Result<()> {
             && repeat.month_day.is_none_or(|day| (1..=31).contains(&day) && matches!(repeat.unit.as_str(), "month" | "year"));
         if !valid { return Err("Invalid task repeat. Check the interval and weekdays.".into()); }
     }
+    let unique: std::collections::HashSet<_> = t.tags.iter().collect();
+    if t.tags.len() > 20
+        || unique.len() != t.tags.len()
+        || t.tags.iter().any(|tag| {
+            tag.is_empty() || tag.chars().count() > 50 || tag.starts_with('#') || tag.chars().any(char::is_whitespace)
+        })
+    {
+        return Err("A task can have up to 20 different tags of up to 50 characters, without spaces.".into());
+    }
     if t.project_id.as_deref().is_some_and(|id| !valid_record_id(id)) {
         return Err("Invalid project ID.".into());
     }
@@ -430,6 +446,7 @@ pub(super) fn apply_synced_task(conn: &Connection, id: &str, data: Value) -> Res
         due_linked: t.due_linked,
         repeat: t.repeat.clone(),
         reminders: t.reminders.clone(),
+        tags: t.tags.clone(),
         sort: t.sort,
         deleted: t.deleted_at.is_some(),
         expected_revision: 0,
@@ -438,13 +455,13 @@ pub(super) fn apply_synced_task(conn: &Connection, id: &str, data: Value) -> Res
         return Err("Invalid synced task.".into());
     }
     conn.execute(
-        "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
+        "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
          project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,
          completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,created=excluded.created,
-         updated=excluded.updated,revision=tasks.revision+1,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders",
-        params![t.id, t.title, t.description, t.status, t.project_id, t.priority, t.start_date, t.due_date, t.completed_at, t.sort, t.deleted_at, t.created, t.updated, t.due_time, t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.due_linked, t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?],
+         updated=excluded.updated,revision=tasks.revision+1,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags",
+        params![t.id, t.title, t.description, t.status, t.project_id, t.priority, t.start_date, t.due_date, t.completed_at, t.sort, t.deleted_at, t.created, t.updated, t.due_time, t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.due_linked, t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, serde_json::to_string(&t.tags).map_err(db_err)?],
     )
     .map_err(db_err)?;
     Ok(())
@@ -572,10 +589,10 @@ impl Store {
                 .deleted
                 .then(|| current.as_ref().and_then(|c| c.4).unwrap_or(at));
             tx.execute(
-                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
-                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,
+                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags,
                  completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,
                  updated=excluded.updated,revision=excluded.revision",
                 params![
@@ -597,7 +614,8 @@ impl Store {
                     t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
                     t.due_linked,
                     t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
-                    t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?
+                    t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
+                    serde_json::to_string(&t.tags).map_err(db_err)?
                 ],
             )
             .map_err(db_err)?;

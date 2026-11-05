@@ -1,6 +1,6 @@
 # Task smart input
 
-Task creation in Inbox, project List and Board, and Due today recognizes English calendar dates and times as you type or paste. The input keeps the original text editable, highlights accepted phrases in the current accent, and previews the deadline or work schedule beside the calendar button. Press Enter to add the task and continue typing the next one. Escape clears the draft.
+Task creation in Inbox, project List and Board, Today, Next 7 Days and tag pages recognizes English calendar dates and times, and `#tags`, as you type or paste. A tag leaves the title even when date words are kept. A bare number such as `#123`, or a `#` inside a word or URL, stays text, and `#today` is a tag rather than a date. The input keeps the original text editable, highlights accepted phrases in the current accent, and previews the deadline or work schedule beside the calendar button. Press Enter to add the task and continue typing the next one. Escape clears the draft.
 
 This builds on [the TickTick research](TICKTICK_SMART_INPUT_RESEARCH.md) and uses the same [schedule model as Calendar](PROJECTS_AND_TASKS.md#calendar). Hour/minute delays, date ranges, repeats and reminder instructions stay in the title. Task title editing and the note editor's `@` mention picker are unchanged.
 

@@ -216,6 +216,22 @@ func TestConflictCopyOfRepeatingTaskDoesNotRepeat(t *testing.T) {
 	}
 }
 
+func TestValidateTags(t *testing.T) {
+	for _, value := range []string{``, `null`, `[]`, `["work"]`, `["深度","a-b"]`} {
+		if !validateTags(json.RawMessage(value)) {
+			t.Errorf("rejected %s", value)
+		}
+	}
+	for _, value := range []string{`"work"`, `{}`, `[1]`, `[""]`, `["two words"]`, `["#hash"]`, `["a","a"]`} {
+		if validateTags(json.RawMessage(value)) {
+			t.Errorf("accepted %s", value)
+		}
+	}
+	if validateProjectRecord(taskOp("t", "T", 0, map[string]any{"tags": []string{"a b"}})) == nil {
+		t.Error("accepted a task with invalid tags")
+	}
+}
+
 func TestValidateReminders(t *testing.T) {
 	for _, value := range []string{``, `null`, `[]`, `[0]`, `[0,15,60,1440,40320]`} {
 		if !validateReminders(json.RawMessage(value)) {

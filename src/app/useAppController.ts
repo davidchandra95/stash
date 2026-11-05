@@ -1461,7 +1461,16 @@ export function useAppController() {
 export type AppController = ReturnType<typeof useAppController>
 export type Domain = 'notes' | 'projects'
 
-const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming', 'tasks:calendar']
+const fixedProjectPages = [
+  'inbox',
+  'all',
+  'tasks:today',
+  'tasks:next7',
+  'tasks:summary',
+  'tasks:completed',
+  'tasks:trash',
+  'tasks:calendar',
+]
 /** Where the app is right now, as a stop on the Back/Forward timeline. */
 function currentPlace(
   projectView: string | null,
@@ -1481,4 +1490,4 @@ function currentPlace(
   }
 }
 const projectPageExists = (id: string, projects: Project[]) =>
-  fixedProjectPages.includes(id) || projects.some((p) => p.id === id && p.deletedAt === null)
+  fixedProjectPages.includes(id) || id.startsWith('tag:') || projects.some((p) => p.id === id && p.deletedAt === null)

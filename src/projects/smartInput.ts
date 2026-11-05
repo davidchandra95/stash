@@ -1,3 +1,5 @@
+import { tagMatches, taskTagName } from '../tags'
+
 /** Local calendar dates and wall-clock times. No repeats or reminders. */
 export interface InputSpan {
   start: number
@@ -213,6 +215,19 @@ export function recognizeDates(text: string, reference: string): DateMatch[] {
     if (date) matches.push({ start, end, text: match[0], date })
   }
   return matches
+}
+
+export interface TagInputMatch extends InputSpan {
+  tag: string
+}
+/** `#tag` words. A bare number stays text, so "Fix bug #123" isn't tagged, as does a URL fragment. */
+export function recognizeTags(text: string): TagInputMatch[] {
+  return tagMatches(text).flatMap(({ from, to }) => {
+    const raw = text.slice(from, to)
+    const tag = taskTagName(raw)
+    if (!tag || /^\d+$/.test(tag) || (from > 0 && !/\s/u.test(text[from - 1]))) return []
+    return [{ start: from, end: to, text: raw, tag }]
+  })
 }
 
 /** Remove only accepted spans; a schedule-only draft still makes a useful task title. */

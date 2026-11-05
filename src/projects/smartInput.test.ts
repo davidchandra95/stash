@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { moveDismissedDates, recognizeDates, recognizeTimes, taskTitle } from './smartInput'
+import { moveDismissedDates, recognizeDates, recognizeTags, recognizeTimes, taskTitle } from './smartInput'
 
 const reference = '2026-11-03' // Tuesday, independent of the machine's time zone.
 const dates = (text: string, day = reference) =>
@@ -174,4 +174,14 @@ it.each([
 ])('recognizes a time range in %s', (text, time, endTime) => {
   expect(recognizeTimes(text)).toEqual([expect.objectContaining({ time, endTime })])
   expect(taskTitle(text, recognizeTimes(text))).toMatch(/^(Meet|Work)$/)
+})
+
+it('recognizes #tags, leaving numbers and URL fragments as text', () => {
+  const names = (text: string) => recognizeTags(text).map((match) => match.tag)
+  expect(names('Call vendor #Work tomorrow #home.')).toEqual(['work', 'home'])
+  expect(names('Fix bug #123')).toEqual([])
+  expect(names('See example.com/#intro')).toEqual([])
+  expect(names('No tags here')).toEqual([])
+  const [match] = recognizeTags('Call #work now')
+  expect(taskTitle('Call #work now', match)).toBe('Call now')
 })

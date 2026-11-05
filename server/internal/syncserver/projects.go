@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -193,6 +194,7 @@ func validateProjectRecord(op Operation) error {
 		DueLinked                      *bool           `json:"dueLinked"`
 		Repeat                         json.RawMessage `json:"repeat"`
 		Reminders                      json.RawMessage `json:"reminders"`
+		Tags                           json.RawMessage `json:"tags"`
 		CompletedAt                    *int64          `json:"completedAt"`
 		Sort                           *float64        `json:"sort"`
 		DeletedAt                      *int64          `json:"deletedAt"`
@@ -230,11 +232,33 @@ func validateProjectRecord(op Operation) error {
 	if !validateReminders(t.Reminders) {
 		return errors.New("invalid task reminders")
 	}
+	if !validateTags(t.Tags) {
+		return errors.New("invalid task tags")
+	}
 	hasSchedule := len(t.Schedule) != 0 && string(t.Schedule) != "null"
 	if t.DueLinked != nil && *t.DueLinked && (!hasSchedule || t.DueDate != nil || t.DueTime != nil) {
 		return errors.New("invalid linked deadline")
 	}
 	return nil
+}
+
+// validateTags mirrors the client's rule, for the same reason.
+func validateTags(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var tags []string
+	if json.Unmarshal(raw, &tags) != nil || tags == nil || len(tags) > 20 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, tag := range tags {
+		if tag == "" || utf8.RuneCountInString(tag) > 50 || strings.HasPrefix(tag, "#") || strings.ContainsFunc(tag, unicode.IsSpace) || seen[tag] {
+			return false
+		}
+		seen[tag] = true
+	}
+	return true
 }
 
 // sameProjectContent ignores ordering and bookkeeping, which never justify a visible conflict.

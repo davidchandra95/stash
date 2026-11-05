@@ -112,7 +112,7 @@ export function buildTask(
   projectId: string | null,
   title: string,
   fields: Partial<
-    Pick<Task, 'status' | 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked' | 'repeat'>
+    Pick<Task, 'status' | 'dueDate' | 'dueTime' | 'schedule' | 'dueLinked' | 'repeat' | 'tags'>
   > = {},
 ): Task {
   const siblings = live().tasks.filter((t) => t.projectId === projectId && t.status === 'todo')
@@ -180,6 +180,15 @@ export function deleteTask(task: Task, notify: Notify) {
     message: `Deleted “${original.title}”`,
     undo: () => save({ tasks: [{ ...original, deletedAt: null }] }),
   })
+}
+
+/** Brings a task back from Trash. Its project may have gone since, which leaves the Inbox. */
+export function restoreTask(task: Task) {
+  const original = latest(task)
+  const project = live().projects.some((p) => p.id === original.projectId)
+    ? original.projectId
+    : null
+  save({ tasks: [{ ...original, projectId: project, deletedAt: null }] })
 }
 
 export type ProjectFields = Pick<

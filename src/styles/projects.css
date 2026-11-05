@@ -1059,7 +1059,7 @@ h3.task-detail-heading {
   color: var(--warning);
 }
 
-/* ───────── Due today and Upcoming ───────── */
+/* ───────── Smart lists ───────── */
 
 .task-group-header.is-static {
   cursor: default;
@@ -1476,4 +1476,70 @@ h3.task-detail-heading {
 .repeat-day:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
+}
+
+/* ───────── Task tags ───────── */
+
+.task-tags {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.task-tags .chip {
+  max-width: 96px;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+}
+.task-tags-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control);
+  min-width: 0;
+}
+.task-tags-editor > .chip {
+  padding-right: 2px;
+}
+.task-tag-remove {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  color: inherit;
+}
+.task-tag-remove:hover:not(:disabled) {
+  background: var(--fill-2);
+}
+.task-tag-remove .ui-icon {
+  width: 11px;
+  height: 11px;
+}
+.task-tag-input {
+  flex: 1;
+  min-width: 72px;
+  height: var(--control);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  outline: 0;
+}
+.task-tag-input:hover:not(:disabled),
+.task-tag-input:focus {
+  background: var(--fill-1);
+}
+.task-tag-input::placeholder {
+  color: var(--text-4);
+}
+.task-tag-suggestions {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

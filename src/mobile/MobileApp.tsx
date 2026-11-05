@@ -31,6 +31,7 @@ import {
   FileText,
   Bell,
   CalendarClock,
+  CircleCheck,
   Calendar,
   ArrowDownWideNarrow,
   ArrowLeft,
@@ -95,13 +96,14 @@ import {
   mobileNavigation,
   projectRoute,
   type MobileRoute,
+  type TaskDateView,
   type SettingsCategory,
 } from './navigation'
 import RecentReminders, { useRecentReminders } from '../projects/RecentReminders'
 import { useTaskReminders } from '../projects/reminderService'
 import { projectStore, useProjects } from '../projects/store'
 import { setRepeatNotify, type Notify } from '../projects/actions'
-import { bySort, health, isOpenProject, progress, type Project } from '../projects/model'
+import { bySort, health, isOpenProject, progress, taskTags, taskViewMeta, type Project } from '../projects/model'
 import ProjectRing from '../projects/ProjectRing'
 import ProjectDialog from '../projects/ProjectDialog'
 import DeleteProjectDialog from '../projects/DeleteProjectDialog'
@@ -386,11 +388,25 @@ export default function MobileApp() {
       dispatch({ type: 'projects', project })
       setSearchOpen(false)
     })
-  const openTaskDates = (tasks: 'today' | 'upcoming') =>
+  const openTaskDates = (tasks: TaskDateView) =>
     void perform(() => {
       dispatch({ type: 'projects', tasks })
       setSearchOpen(false)
     })
+  const taskViewRow = (view: TaskDateView, icon: ReactNode, label = taskViewMeta(view).label) => {
+    const selected = route.kind === 'tasks' && route.view === view
+    return (
+      <button
+        key={view}
+        className={selected ? 'selected' : ''}
+        aria-current={selected ? 'page' : undefined}
+        onClick={() => openTaskDates(view)}
+      >
+        {icon}
+        <span>{label}</span>
+      </button>
+    )
+  }
   const importPdf = async (file?: File) => {
     setPdfImporting(true)
     try {
@@ -579,9 +595,7 @@ export default function MobileApp() {
           : route.kind === 'projects'
             ? 'Projects'
             : route.kind === 'tasks'
-              ? route.view === 'today'
-                ? 'Due today'
-                : 'Upcoming'
+              ? taskViewMeta(route.view).label
               : route.kind === 'pdf'
                 ? (routePdf?.name ?? 'PDF')
                 : ''
@@ -1314,28 +1328,22 @@ export default function MobileApp() {
                     </button>
                   </div>
                   <nav aria-label="Projects">
+                    {taskViewRow('today', <Calendar aria-hidden="true" />)}
+                    {taskViewRow('next7', <CalendarClock aria-hidden="true" />)}
                     <button
-                      className={route.kind === 'tasks' && route.view === 'today' ? 'selected' : ''}
+                      className={route.kind === 'project' && route.id === 'inbox' ? 'selected' : ''}
                       aria-current={
-                        route.kind === 'tasks' && route.view === 'today' ? 'page' : undefined
+                        route.kind === 'project' && route.id === 'inbox' ? 'page' : undefined
                       }
-                      onClick={() => openTaskDates('today')}
+                      onClick={() => openProjects('inbox')}
                     >
-                      <Calendar aria-hidden="true" />
-                      <span>Due today</span>
+                      <Inbox aria-hidden="true" />
+                      <span>Inbox</span>
+                      <small className="count">
+                        {(appearance.sidebarCounts && openCount(projectData.tasks, null)) || ''}
+                      </small>
                     </button>
-                    <button
-                      className={
-                        route.kind === 'tasks' && route.view === 'upcoming' ? 'selected' : ''
-                      }
-                      aria-current={
-                        route.kind === 'tasks' && route.view === 'upcoming' ? 'page' : undefined
-                      }
-                      onClick={() => openTaskDates('upcoming')}
-                    >
-                      <CalendarClock aria-hidden="true" />
-                      <span>Upcoming</span>
-                    </button>
+                    {taskViewRow('summary', <FileText aria-hidden="true" />)}
                     <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
                       <CalendarDays aria-hidden="true" />
                       <span>Calendar</span>
@@ -1357,23 +1365,30 @@ export default function MobileApp() {
                       <ListChecks aria-hidden="true" />
                       <span>All projects</span>
                     </button>
-                    <button
-                      className={route.kind === 'project' && route.id === 'inbox' ? 'selected' : ''}
-                      aria-current={
-                        route.kind === 'project' && route.id === 'inbox' ? 'page' : undefined
-                      }
-                      onClick={() => openProjects('inbox')}
-                    >
-                      <Inbox aria-hidden="true" />
-                      <span>Inbox</span>
-                      <small className="count">
-                        {(appearance.sidebarCounts && openCount(projectData.tasks, null)) || ''}
-                      </small>
-                    </button>
                     {projectData.projects
                       .filter((p) => p.deletedAt === null && isOpenProject(p))
                       .sort(bySort)
                       .map(projectRow)}
+                  </nav>
+                  {taskTags(projectData.tasks).length > 0 && (
+                    <>
+                      <div className="mobile-section-label">Task tags</div>
+                      <nav aria-label="Task tags">
+                        {taskTags(projectData.tasks).map((tag) =>
+                          taskViewRow(
+                            `tag:${tag}`,
+                            <span className="mobile-tag-icon" aria-hidden="true">
+                              #
+                            </span>,
+                            tag,
+                          ),
+                        )}
+                      </nav>
+                    </>
+                  )}
+                  <nav aria-label="Finished tasks">
+                    {taskViewRow('completed', <CircleCheck aria-hidden="true" />)}
+                    {taskViewRow('trash', <Trash2 aria-hidden="true" />)}
                   </nav>
                   <div className="mobile-section-label">
                     <span>PDFs</span>

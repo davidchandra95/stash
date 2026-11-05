@@ -33,7 +33,8 @@ import ResizableTaskDetail from './ResizableTaskDetail'
 import TaskCalendar from './TaskCalendar'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
-import TaskDateView, { isDateView } from './TaskDateView'
+import TaskDateView, { isDateView, taskViewOf } from './TaskDateView'
+import { TaskTagChips } from './TaskTags'
 import NewTask from './NewTask'
 import {
   bySort,
@@ -49,6 +50,7 @@ import {
   type Project,
   type Task,
   type TaskGroup,
+  taskViewMeta,
 } from './model'
 import {
   deleteTask,
@@ -150,7 +152,7 @@ export default trackApp(function ProjectPane() {
     return (
       <section
         className={`project-pane ${selected ? 'has-detail' : ''}`}
-        aria-label={dateView === 'tasks:today' ? 'Due today' : 'Upcoming'}
+        aria-label={taskViewMeta(taskViewOf(dateView)).label}
         data-pane="project"
       >
         <div className="project-main">
@@ -477,6 +479,7 @@ function TaskList({
                 </span>
               </AppTooltip>
             )}
+            <TaskTagChips task={task} />
           </span>
         </div>
       </TaskMenu>

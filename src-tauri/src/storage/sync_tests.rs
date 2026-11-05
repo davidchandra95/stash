@@ -413,6 +413,7 @@ fn save_task(id: &str, title: &str, project: Option<&str>, revision: i64) -> pro
         due_linked: true,
         repeat: None,
         reminders: None,
+        tags: vec![],
         sort: 1.0,
         deleted: false,
         expected_revision: revision,
@@ -486,13 +487,30 @@ fn existing_projects_queue_on_upgrade() {
     })
     .unwrap();
     s.conn
-        .execute_batch("DROP TRIGGER sync_projects_insert; DROP TRIGGER sync_projects_update; DROP TRIGGER sync_tasks_insert; DROP TRIGGER sync_tasks_update; DELETE FROM sync_dirty; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=13;")
+        .execute_batch("DROP TRIGGER sync_projects_insert; DROP TRIGGER sync_projects_update; DROP TRIGGER sync_tasks_insert; DROP TRIGGER sync_tasks_update; DELETE FROM sync_dirty; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=13;")
         .unwrap();
     drop(s);
     let s = Store::open(dir.path()).unwrap();
     assert_eq!(s.sync_status().unwrap().pending, 2);
     s.conn.execute("UPDATE tasks SET title='Changed'", []).unwrap();
     assert_eq!(s.sync_status().unwrap().pending, 2);
+}
+
+#[test]
+fn tags_upload_and_apply_from_other_devices() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    let mut local = save_task("local", "Local", None, 0);
+    local.tags = vec!["work".into()];
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![local] }).unwrap();
+    s.prepare_sync().unwrap();
+    assert_eq!(outbox(&s)[0].data["tags"], json!(["work"]));
+
+    let remote = json!({"id":"remote","title":"Remote","description":"","status":"todo","projectId":null,"priority":0,"startDate":null,"dueDate":null,"dueTime":null,"tags":["home"],"completedAt":null,"sort":1.0,"deletedAt":null,"created":1,"updated":2,"revision":9});
+    download(&mut s, vec![Entity { kind: "task".into(), id: "remote".into(), revision: 1, deleted: false, data: remote }]);
+    let tasks = s.project_data().unwrap().tasks;
+    assert_eq!(tasks.iter().find(|t| t.id == "remote").unwrap().tags, vec!["home"]);
 }
 
 #[test]

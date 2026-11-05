@@ -404,23 +404,23 @@ it('seeds the project stack from the drawer so Back walks to the project list', 
   expect(mobileNavigation(task, { type: 'library', view: 'all' }).routes).toHaveLength(1)
 })
 
-it('seeds Due today and Upcoming above the project list so Back walks to it', () => {
-  const state = mobileNavigation(initialNavigation(), { type: 'projects', tasks: 'upcoming' })
+it('seeds the smart lists above the project list so Back walks to it', () => {
+  const state = mobileNavigation(initialNavigation(), { type: 'projects', tasks: 'next7' })
   expect(state.routes.map((route) => route.kind)).toEqual(['projects', 'tasks'])
   expect(mobileNavigation(state, { type: 'back' }).routes.map((route) => route.kind)).toEqual([
     'projects',
   ])
 })
 
-it('schedules a task from smart input and lists it under Upcoming with its project', async () => {
+it('schedules a task from smart input and lists it under Next 7 Days with its project', async () => {
   await drawerProject('Inbox')
   const input = page().querySelector<HTMLInputElement>('.new-task-input')!
   await setText(input, 'Call vendor tomorrow @2pm')
   expect(page().querySelector('.new-task [role="status"]')!.textContent).toContain('Tomorrow, 14:00')
   await act(async () => input.form!.requestSubmit())
   await vi.waitFor(() => expect(storedTask('Call vendor').schedule?.kind).toBe('point'))
-  await drawerProject('Upcoming')
-  expect(page().querySelector('.mobile-heading-title')!.textContent).toBe('Upcoming')
+  await drawerProject('Next 7 Days')
+  expect(page().querySelector('.mobile-heading-title')!.textContent).toBe('Next 7 Days')
   expect(taskRow('Call vendor').textContent).toContain('Inbox')
 })
 

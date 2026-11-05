@@ -1699,6 +1699,9 @@ select {
 .mobile-project-empty {
   padding-inline: var(--space-7);
 }
+.mobile-summary-period {
+  margin: var(--space-4) var(--space-6);
+}
 .mobile-task-group {
   display: flex;
   align-items: center;

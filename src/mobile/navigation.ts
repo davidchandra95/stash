@@ -1,7 +1,7 @@
 import type { View } from '../model'
 import type { PdfNavigation } from '../pdf/model'
-import type { TaskGroup } from '../projects/model'
-export type TaskDateView = 'today' | 'upcoming'
+import type { TaskGroup, TaskListView } from '../projects/model'
+export type TaskDateView = TaskListView
 export type SettingsCategory = 'appearance' | 'typography' | 'editor' | 'notifications' | 'sync'
 export type MobileRoute =
   | { kind: 'list'; view: View; query: string; scroll: number; sortTitle: boolean }

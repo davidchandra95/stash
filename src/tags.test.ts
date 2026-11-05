@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { legacyTagName, tagMatches, tagsFromText, tagTone, tagTones } from './tags'
+import { legacyTagName, tagMatches, tagsFromText, tagTone, tagTones, taskTagName } from './tags'
 
 describe('body hashtags', () => {
   it('finds body tags, trims closing sentence punctuation, and preserves non-space names', () => {
@@ -29,4 +29,12 @@ describe('body hashtags', () => {
 it('gives each tag one stable tone regardless of case', () => {
   expect(tagTones).toContain(tagTone('ideas'))
   expect(tagTone('Ideas')).toBe(tagTone('ideas'))
+})
+
+it('normalizes a typed task tag', () => {
+  expect(taskTagName('  #Deep Work ')).toBe('deep-work')
+  expect(taskTagName('深度')).toBe('深度')
+  expect(taskTagName('##')).toBeUndefined()
+  expect(taskTagName('   ')).toBeUndefined()
+  expect([...taskTagName('x'.repeat(60))!]).toHaveLength(50)
 })

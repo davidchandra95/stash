@@ -265,7 +265,7 @@ test('all task creation surfaces use recognition and Due today can be overridden
   await input(page).press('Enter')
   await saved(page, 'List task', '2026-11-06')
 
-  await page.getByRole('button', { name: /^Due today/ }).click()
+  await page.getByRole('navigation', { name: 'Task views' }).getByRole('button', { name: /^Today/ }).click()
   const dueToday = page.getByRole('textbox', { name: 'New task due today' })
   await dueToday.fill('Handle invoice')
   await dueToday.press('Enter')

@@ -78,7 +78,7 @@ test('click creates a time point, Escape cancels a draft, and completion updates
   await expect(page.getByRole('dialog', { name: 'View options' })).toBeHidden()
   await expect(page.getByRole('button', { name: 'View options' })).toBeFocused()
   await expect(taskOpen(page, 'Morning call')).toHaveCount(0)
-  await page.getByRole('button', { name: /^Due today/ }).click()
+  await page.getByRole('navigation', { name: 'Task views' }).getByRole('button', { name: /^Today/ }).click()
   await expect(page.getByRole('option', { name: /Morning call/ })).toBeVisible()
 })
 

@@ -19,8 +19,10 @@ import { daysBetween, formatDate, today } from './model'
 import {
   moveDismissedDates,
   recognizeDates,
+  recognizeTags,
   recognizeTimes,
   taskTitle,
+  type InputSpan,
   type ScheduleMatch,
 } from './smartInput'
 
@@ -51,6 +53,7 @@ export default function NewTask(props: {
   projectId: string | null
   disabled: boolean
   dueToday?: boolean
+  tags?: string[]
 }) {
   const app = useApp()
   return <NewTaskForm {...props} appearance={app.appearance} onAppearance={app.setAppearance} />
@@ -60,17 +63,20 @@ export function NewTaskForm({
   projectId,
   disabled,
   dueToday = false,
+  tags = [],
   appearance,
   onAppearance,
 }: {
   projectId: string | null
   disabled: boolean
   dueToday?: boolean
+  /** Tags every new task starts with, so a task added from a tag's page stays on it. */
+  tags?: string[]
   appearance: Appearance
   onAppearance: (appearance: Appearance) => void
 }) {
   const [draft, setDraft] = useState('')
-  const [dismissed, setDismissed] = useState<ScheduleMatch[]>([])
+  const [dismissed, setDismissed] = useState<InputSpan[]>([])
   const [explicit, setExplicit] = useState<{
     date: string | null
     time: string | null
@@ -90,14 +96,22 @@ export function NewTaskForm({
   const id = useId()
   const current = useToday()
   const tomorrow = addDays(current, 1)
-  const eligible = (candidate: ScheduleMatch) =>
+  const eligible = (candidate: InputSpan) =>
     !dismissed.some((item) => item.start === candidate.start && item.text === candidate.text)
   const automatic = enabled && explicit === null
-  const dateMatch = automatic ? recognizeDates(draft, current).filter(eligible).at(-1) : undefined
-  const timeMatch = automatic ? recognizeTimes(draft).filter(eligible).at(-1) : undefined
-  const matches = [dateMatch, timeMatch]
-    .filter((match): match is ScheduleMatch => !!match)
-    .sort((a, b) => a.start - b.start)
+  const allTags = enabled ? recognizeTags(draft) : []
+  const tagMatches = allTags.filter(eligible)
+  // "#today" is a tag, not a date.
+  const outsideTags = (candidate: InputSpan) =>
+    !allTags.some((tag) => candidate.start < tag.end && tag.start < candidate.end)
+  const dateMatch = automatic
+    ? recognizeDates(draft, current).filter(eligible).filter(outsideTags).at(-1)
+    : undefined
+  const timeMatch = automatic
+    ? recognizeTimes(draft).filter(eligible).filter(outsideTags).at(-1)
+    : undefined
+  const scheduleMatches = [dateMatch, timeMatch].filter((match): match is ScheduleMatch => !!match)
+  const matches: InputSpan[] = [...scheduleMatches, ...tagMatches].sort((a, b) => a.start - b.start)
   const dueDate = explicit
     ? explicit.date
     : (dateMatch?.date ?? (timeMatch || dueToday ? current : null))
@@ -128,7 +142,7 @@ export function NewTaskForm({
     setOffset('')
     setError('')
   }
-  const cancelMatch = (match?: ScheduleMatch) => {
+  const cancelMatch = (match?: InputSpan) => {
     setDismissed((items) => [...items, ...(match ? [match] : matches)])
     input.current?.focus()
   }
@@ -160,7 +174,10 @@ export function NewTaskForm({
               : { kind: 'point', start, timeZone: zone }
           }
           setSaving(true)
-          await createTaskConfirmed(projectId, taskTitle(draft, matches, keepDateWords), {
+          // Keeping date words never keeps a tag: the tag is on the task instead.
+          const title = taskTitle(draft, keepDateWords ? tagMatches : matches)
+          await createTaskConfirmed(projectId, title, {
+            tags: [...new Set([...tags, ...tagMatches.map((match) => match.tag)])].slice(0, 20),
             dueDate: schedule ? null : dueDate,
             dueTime: null,
             schedule,
