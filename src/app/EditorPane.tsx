@@ -1,4 +1,5 @@
 import { supported as dictationSupported } from '../dictation/client'
+import { useDragCursor } from '../dragCursor'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import {
   lazy,
@@ -677,6 +678,7 @@ export default trackApp(function EditorPane() {
   const app = useApp()
   const { workspace } = app
   const { drop, attachGhost, ghostTitle, outside } = useTabSplitDrag()
+  useDragCursor(ghostTitle !== null)
   return (
     <main className="editor-pane" data-pane="editor">
       <div className="editor-groups">

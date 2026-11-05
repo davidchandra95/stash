@@ -147,7 +147,8 @@ Settings › Appearance › Theme. Native is the default.
 - Cursors: clickable controls (buttons, tabs, menu items, options, links) show `pointer`;
   disabled ones fall back to `default`. Text stays `text`; body tags only switch to `pointer`
   while Command is held. During an active note or tab drag the whole window shows `grabbing`
-  (`base.css`, keyed off `.note-drag-ghost` / `.tabs.is-reordering`). Splitters keep `col-resize`.
+  (`dragCursor.ts` sets `data-drag-cursor` on the root; avoid window-wide `:has()`, which WebKit
+  rechecks while typing). Splitters keep `col-resize`.
 - Keyboard focus: a 2px `--focus-ring` outline. Text fields show focus with an accent border and
   a soft accent ring instead.
 - A row whose context menu is open gets an inset accent outline.

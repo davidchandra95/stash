@@ -1,3 +1,4 @@
+import { useDragCursor } from '../dragCursor'
 import { useTabDrag, type TabDragOutside } from './useTabDrag'
 import { useReorderMotion } from './useReorderMotion'
 import AppTooltip from './AppTooltip'
@@ -72,6 +73,7 @@ export default function NoteTabs({
     reorderMotion,
     dragOutside,
   )
+  useDragCursor(!!drag.visual)
   const shortcutLabel = useShortcutLabel()
   const close = (id: string) => {
     onCloseTab(id)
