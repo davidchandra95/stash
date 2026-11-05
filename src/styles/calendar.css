@@ -244,6 +244,7 @@
   color: var(--text);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
+  text-align: center;
   cursor: pointer;
 }
 .calendar-year-days button:hover {
@@ -252,10 +253,11 @@
 .calendar-year-days .has-tasks::after {
   content: '';
   position: absolute;
-  left: calc(50% - 2px);
-  bottom: 1px;
-  width: 3px;
-  height: 3px;
+  left: 50%;
+  bottom: 0;
+  width: clamp(4px, 20%, 5px);
+  aspect-ratio: 1;
+  translate: -50%;
   border-radius: 50%;
   background: var(--accent);
 }
