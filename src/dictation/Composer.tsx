@@ -351,7 +351,11 @@ export default function DictationComposer({
                   .catch((e) => setError(String(e)))
               }
             >
-              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+              {copied ? (
+                <Check className="dictation-copied" aria-hidden="true" />
+              ) : (
+                <Copy aria-hidden="true" />
+              )}
             </IconButton>
             <IconButton
               label="Dictate more"

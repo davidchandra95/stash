@@ -5,6 +5,7 @@ import MobileApp from './mobile/MobileApp'
 import { AppTooltipProvider } from './components/AppTooltip'
 import { initializePlatform, platform } from './platform'
 import { useDesktopWindowAppearance } from './useDesktopWindowAppearance'
+import { installSegmentedMotion } from './motion'
 
 function StartupFailure() {
   const surface = React.useRef<HTMLDivElement>(null)
@@ -27,6 +28,7 @@ const loadStyles = async () => {
   else await import('./styles/index.css')
 }
 
+installSegmentedMotion()
 void initializePlatform()
   .then(loadStyles)
   .then(() =>

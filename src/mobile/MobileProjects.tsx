@@ -1,4 +1,5 @@
 import RepeatEditor from '../projects/RepeatEditor'
+import { useTaskToggle } from '../projects/useTaskToggle'
 import { formatRepeat } from '../projects/repeat'
 import ScheduleEditor from '../projects/ScheduleEditor'
 import TaskReminders, { ReminderMark } from '../projects/TaskReminders'
@@ -74,7 +75,10 @@ import {
 
 /** The sheets a project or task screen asks the app to open. */
 export type ProjectSheet =
-  | { kind: 'project-actions' | 'project-status' | 'project-dates' | 'project-notebook'; id: string }
+  | {
+      kind: 'project-actions' | 'project-status' | 'project-dates' | 'project-notebook'
+      id: string
+    }
   | {
       kind: 'task-actions' | 'task-status' | 'task-priority' | 'task-project' | 'task-dates'
       id: string
@@ -90,16 +94,17 @@ export const openCount = (tasks: Task[], projectId: string | null) =>
   ).length
 
 function TaskCheck({ task, disabled }: { task: Task; disabled: boolean }) {
-  const done = task.status === 'done'
+  const { status, ticking, toggle } = useTaskToggle(task)
+  const done = status === 'done'
   return (
     <button
       type="button"
-      className={`task-check is-${task.status}`}
+      className={`task-check is-${status}${ticking ? ' is-ticking' : ''}`}
       role="checkbox"
       aria-checked={done}
       aria-label={done ? `Reopen “${task.title}”` : `Complete “${task.title}”`}
       disabled={disabled}
-      onClick={() => toggleTask(task)}
+      onClick={toggle}
     >
       {done && <Check aria-hidden="true" />}
     </button>
@@ -184,39 +189,48 @@ export function ProjectList({
         <ProjectsTimeline rows={[...open, ...other]} current={today()} onOpen={onOpen} />
       ) : (
         <>
-      <button className="mobile-project-row" onClick={() => onOpen('inbox')}>
-        <Inbox aria-hidden="true" />
-        <span className="mobile-row-copy">
-          <span className="mobile-row-title">Inbox</span>
-        </span>
-        {showCounts && inbox > 0 && <small className="count">{inbox}</small>}
-      </button>
-      {open.map((row) => (
-        <ProjectRow key={row.project.id} row={row} onOpen={onOpen} showCounts={showCounts} />
-      ))}
-      {ready && !rows.length && (
-        <div className="mobile-empty">
-          <ListTodo aria-hidden="true" className="mobile-empty-icon" />
-          <h2>No projects yet</h2>
-          <p>Tap the plus to start one. Tasks without a project go in the Inbox.</p>
-        </div>
-      )}
-      {other.length > 0 && (
-        <>
-          <button
-            className="mobile-task-group"
-            aria-expanded={otherOpen}
-            onClick={() => setOtherOpen((value) => !value)}
-          >
-            {otherOpen ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-            Other projects · {other.length}
+          <button className="mobile-project-row" onClick={() => onOpen('inbox')}>
+            <Inbox aria-hidden="true" />
+            <span className="mobile-row-copy">
+              <span className="mobile-row-title">Inbox</span>
+            </span>
+            {showCounts && inbox > 0 && <small className="count">{inbox}</small>}
           </button>
-          {otherOpen &&
-            other.map((row) => (
-              <ProjectRow key={row.project.id} row={row} onOpen={onOpen} showCounts={showCounts} />
-            ))}
-        </>
-      )}
+          {open.map((row) => (
+            <ProjectRow key={row.project.id} row={row} onOpen={onOpen} showCounts={showCounts} />
+          ))}
+          {ready && !rows.length && (
+            <div className="mobile-empty">
+              <ListTodo aria-hidden="true" className="mobile-empty-icon" />
+              <h2>No projects yet</h2>
+              <p>Tap the plus to start one. Tasks without a project go in the Inbox.</p>
+            </div>
+          )}
+          {other.length > 0 && (
+            <>
+              <button
+                className="mobile-task-group"
+                aria-expanded={otherOpen}
+                onClick={() => setOtherOpen((value) => !value)}
+              >
+                {otherOpen ? (
+                  <ChevronDown aria-hidden="true" />
+                ) : (
+                  <ChevronRight aria-hidden="true" />
+                )}
+                Other projects · {other.length}
+              </button>
+              {otherOpen &&
+                other.map((row) => (
+                  <ProjectRow
+                    key={row.project.id}
+                    row={row}
+                    onOpen={onOpen}
+                    showCounts={showCounts}
+                  />
+                ))}
+            </>
+          )}
         </>
       )}
     </div>
@@ -274,7 +288,12 @@ function TaskRow({
       <TaskCheck task={task} disabled={disabled} />
       <button className="mobile-task-label" onClick={() => onOpen(task.id)}>
         <span className={`mobile-row-title is-${task.status}`}>{task.title}</span>
-        {(effectiveDueDate(task) || task.schedule || task.repeat || task.priority > 0 || task.tags?.length || project) && (
+        {(effectiveDueDate(task) ||
+          task.schedule ||
+          task.repeat ||
+          task.priority > 0 ||
+          task.tags?.length ||
+          project) && (
           <span className="mobile-row-meta">
             {(effectiveDueDate(task) || task.schedule) && (
               <span className={`is-${dueState(task)}`}>
@@ -284,7 +303,9 @@ function TaskRow({
             )}
             {task.repeat && <span>{formatRepeat(task.repeat)}</span>}
             {task.priority > 0 && <span>{priority?.label}</span>}
-            {task.tags?.map((tag) => <span key={tag}>#{tag}</span>)}
+            {task.tags?.map((tag) => (
+              <span key={tag}>#{tag}</span>
+            ))}
             {project && <span>{project}</span>}
           </span>
         )}
@@ -489,35 +510,36 @@ export function ProjectPage({
           })}
         </div>
       )}
-      {layout === 'list' && groups.map((group) => {
-        const closed = collapsed.includes(group.id)
-        return (
-          <section key={group.id} aria-label={group.label}>
-            <button
-              className="mobile-task-group"
-              aria-expanded={!closed}
-              onClick={() =>
-                onCollapsed(
-                  closed ? collapsed.filter((c) => c !== group.id) : [...collapsed, group.id],
-                )
-              }
-            >
-              {closed ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-              {group.label} · {group.tasks.length}
-            </button>
-            {!closed &&
-              group.tasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  disabled={disabled}
-                  onOpen={onOpenTask}
-                  onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
-                />
-              ))}
-          </section>
-        )
-      })}
+      {layout === 'list' &&
+        groups.map((group) => {
+          const closed = collapsed.includes(group.id)
+          return (
+            <section key={group.id} aria-label={group.label}>
+              <button
+                className="mobile-task-group"
+                aria-expanded={!closed}
+                onClick={() =>
+                  onCollapsed(
+                    closed ? collapsed.filter((c) => c !== group.id) : [...collapsed, group.id],
+                  )
+                }
+              >
+                {closed ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+                {group.label} · {group.tasks.length}
+              </button>
+              {!closed &&
+                group.tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    disabled={disabled}
+                    onOpen={onOpenTask}
+                    onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
+                  />
+                ))}
+            </section>
+          )
+        })}
       {ready && !own.length && (
         <p className="mobile-sheet-note mobile-project-empty">No tasks yet.</p>
       )}
@@ -594,7 +616,11 @@ export function TaskDateList({
                     <span>{projectName(task.projectId, projects)}</span>
                   </span>
                 </span>
-                <button className="btn btn-sm" disabled={disabled} onClick={() => restoreTask(task)}>
+                <button
+                  className="btn btn-sm"
+                  disabled={disabled}
+                  onClick={() => restoreTask(task)}
+                >
                   Restore
                 </button>
               </div>
@@ -612,9 +638,7 @@ export function TaskDateList({
         </section>
       ))}
       {!groups.length && (
-        <p className="mobile-sheet-note mobile-project-empty">
-          {taskViewMeta(view).empty}
-        </p>
+        <p className="mobile-sheet-note mobile-project-empty">{taskViewMeta(view).empty}</p>
       )}
     </div>
   )
@@ -701,7 +725,9 @@ function MentionedIn({
     .filter((note) => !!note)
   return (
     <>
-      <h2 className="mobile-task-heading">Mentioned in{found.length > 0 && ` · ${found.length}`}</h2>
+      <h2 className="mobile-task-heading">
+        Mentioned in{found.length > 0 && ` · ${found.length}`}
+      </h2>
       {error ? (
         <p role="alert" className="field-error">
           {error}
@@ -838,16 +864,38 @@ function TaskFields({
       <h3 className="mobile-task-heading">Tags</h3>
       <TaskTagsEditor id="mobile-task-tags" task={task} disabled={disabled} />
       <h3 className="mobile-task-heading">Repeat</h3>
-      <RepeatEditor task={task} disabled={disabled || task.status === 'done' || task.status === 'cancelled'} />
+      <RepeatEditor
+        task={task}
+        disabled={disabled || task.status === 'done' || task.status === 'cancelled'}
+      />
       <h3 className="mobile-task-heading">Work schedule</h3>
-      <ScheduleEditor schedule={task.schedule} disabled={disabled} onSave={async (schedule) => {
-        const current = projectStore.getSnapshot().tasks.find((entry) => entry.id === task.id) ?? task
-        await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
-      }} />
-      {task.schedule && <label className="schedule-link"><input type="checkbox" checked={!!task.dueLinked} disabled={disabled}
-        onChange={(event) => updateTask(task, event.target.checked
-          ? { dueLinked: true, dueDate: null, dueTime: null }
-          : { dueLinked: false, dueDate: effectiveDueDate(task) })} />Due day follows schedule</label>}
+      <ScheduleEditor
+        schedule={task.schedule}
+        disabled={disabled}
+        onSave={async (schedule) => {
+          const current =
+            projectStore.getSnapshot().tasks.find((entry) => entry.id === task.id) ?? task
+          await projectStore.save({ tasks: [{ ...current, ...schedulePatch(current, schedule) }] })
+        }}
+      />
+      {task.schedule && (
+        <label className="schedule-link">
+          <input
+            type="checkbox"
+            checked={!!task.dueLinked}
+            disabled={disabled}
+            onChange={(event) =>
+              updateTask(
+                task,
+                event.target.checked
+                  ? { dueLinked: true, dueDate: null, dueTime: null }
+                  : { dueLinked: false, dueDate: effectiveDueDate(task) },
+              )
+            }
+          />
+          Due day follows schedule
+        </label>
+      )}
       <h3 className="mobile-task-heading">Reminders</h3>
       <TaskReminders task={task} disabled={disabled} />
       <label className="mobile-task-heading" htmlFor="mobile-task-description">
@@ -895,12 +943,7 @@ function Choice({
   children: ReactNode
 }) {
   return (
-    <button
-      aria-pressed={selected}
-      className="mobile-choice"
-      disabled={disabled}
-      onClick={onClick}
-    >
+    <button aria-pressed={selected} className="mobile-choice" disabled={disabled} onClick={onClick}>
       {children}
       {selected && <Check aria-hidden="true" className="mobile-choice-check" />}
     </button>
