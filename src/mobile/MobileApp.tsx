@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import AppTooltip from '../components/AppTooltip'
+import { LiveNoteInformation } from '../storage/libraryReaders'
 import NoteListNotebook from '../components/NoteListNotebook'
 import VirtualNoteRows from '../components/VirtualNoteRows'
 import {
@@ -28,7 +29,9 @@ import { onBackButtonPress } from '@tauri-apps/api/app'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import {
   FileText,
+  Bell,
   CalendarClock,
+  CircleCheck,
   Calendar,
   ArrowDownWideNarrow,
   ArrowLeft,
@@ -93,11 +96,14 @@ import {
   mobileNavigation,
   projectRoute,
   type MobileRoute,
+  type TaskDateView,
   type SettingsCategory,
 } from './navigation'
+import RecentReminders, { useRecentReminders } from '../projects/RecentReminders'
+import { useTaskReminders } from '../projects/reminderService'
 import { projectStore, useProjects } from '../projects/store'
-import type { Notify } from '../projects/actions'
-import { bySort, health, isOpenProject, progress, type Project } from '../projects/model'
+import { setRepeatNotify, type Notify } from '../projects/actions'
+import { bySort, health, isOpenProject, progress, taskTags, taskViewMeta, type Project } from '../projects/model'
 import ProjectRing from '../projects/ProjectRing'
 import ProjectDialog from '../projects/ProjectDialog'
 import DeleteProjectDialog from '../projects/DeleteProjectDialog'
@@ -138,6 +144,7 @@ const categoryNames = {
   appearance: 'Appearance',
   typography: 'Typography',
   editor: 'Editor',
+  notifications: 'Notifications',
   sync: 'Sync',
 }
 type Overlay =
@@ -169,6 +176,7 @@ export default function MobileApp() {
   const [projectDialog, setProjectDialog] = useState<{ project?: Project } | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
   const [projectNotice, setProjectNotice] = useState<Parameters<Notify>[0]>(null)
+  useEffect(() => setRepeatNotify(setProjectNotice), [])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [findOpen, setFindOpen] = useState(false)
   const [contentsOpen, setContentsOpen] = useState(false)
@@ -269,8 +277,8 @@ export default function MobileApp() {
         ? `list:${route.view}`
         : route.kind === 'settings'
           ? `settings:${route.category ?? ''}`
-          : route.kind === 'calendar'
-            ? 'calendar'
+          : route.kind === 'calendar' || route.kind === 'reminders'
+            ? route.kind
             : route.kind === 'projects'
               ? 'projects'
             : route.kind === 'tasks'
@@ -373,16 +381,32 @@ export default function MobileApp() {
     })
   const openNote = (id: string) => push({ kind: 'note', id, scroll: 0 })
   const openTask = (id: string) => push({ kind: 'task', id, scroll: 0 })
+  useTaskReminders(projectData.ready, openTask)
+  const { unread: recentUnread } = useRecentReminders()
   const openProjects = (project?: string) =>
     void perform(() => {
       dispatch({ type: 'projects', project })
       setSearchOpen(false)
     })
-  const openTaskDates = (tasks: 'today' | 'upcoming') =>
+  const openTaskDates = (tasks: TaskDateView) =>
     void perform(() => {
       dispatch({ type: 'projects', tasks })
       setSearchOpen(false)
     })
+  const taskViewRow = (view: TaskDateView, icon: ReactNode, label = taskViewMeta(view).label) => {
+    const selected = route.kind === 'tasks' && route.view === view
+    return (
+      <button
+        key={view}
+        className={selected ? 'selected' : ''}
+        aria-current={selected ? 'page' : undefined}
+        onClick={() => openTaskDates(view)}
+      >
+        {icon}
+        <span>{label}</span>
+      </button>
+    )
+  }
   const importPdf = async (file?: File) => {
     setPdfImporting(true)
     try {
@@ -566,12 +590,12 @@ export default function MobileApp() {
           : 'Settings'
         : route.kind === 'calendar'
           ? 'Calendar'
+          : route.kind === 'reminders'
+            ? 'Recent reminders'
           : route.kind === 'projects'
             ? 'Projects'
             : route.kind === 'tasks'
-              ? route.view === 'today'
-                ? 'Due today'
-                : 'Upcoming'
+              ? taskViewMeta(route.view).label
               : route.kind === 'pdf'
                 ? (routePdf?.name ?? 'PDF')
                 : ''
@@ -1104,6 +1128,7 @@ export default function MobileApp() {
             onCategory={(category) => push({ kind: 'settings', category })}
           />
         )}
+        {route.kind === 'reminders' && <RecentReminders onOpen={openTask} />}
         {route.kind === 'calendar' && (
           <TaskCalendar
             tasks={projectData.tasks}
@@ -1303,40 +1328,8 @@ export default function MobileApp() {
                     </button>
                   </div>
                   <nav aria-label="Projects">
-                    <button
-                      className={route.kind === 'tasks' && route.view === 'today' ? 'selected' : ''}
-                      aria-current={
-                        route.kind === 'tasks' && route.view === 'today' ? 'page' : undefined
-                      }
-                      onClick={() => openTaskDates('today')}
-                    >
-                      <Calendar aria-hidden="true" />
-                      <span>Due today</span>
-                    </button>
-                    <button
-                      className={
-                        route.kind === 'tasks' && route.view === 'upcoming' ? 'selected' : ''
-                      }
-                      aria-current={
-                        route.kind === 'tasks' && route.view === 'upcoming' ? 'page' : undefined
-                      }
-                      onClick={() => openTaskDates('upcoming')}
-                    >
-                      <CalendarClock aria-hidden="true" />
-                      <span>Upcoming</span>
-                    </button>
-                    <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
-                      <CalendarDays aria-hidden="true" />
-                      <span>Calendar</span>
-                    </button>
-                    <button
-                      className={route.kind === 'projects' ? 'selected' : ''}
-                      aria-current={route.kind === 'projects' ? 'page' : undefined}
-                      onClick={() => openProjects()}
-                    >
-                      <ListChecks aria-hidden="true" />
-                      <span>All projects</span>
-                    </button>
+                    {taskViewRow('today', <Calendar aria-hidden="true" />)}
+                    {taskViewRow('next7', <CalendarClock aria-hidden="true" />)}
                     <button
                       className={route.kind === 'project' && route.id === 'inbox' ? 'selected' : ''}
                       aria-current={
@@ -1350,10 +1343,52 @@ export default function MobileApp() {
                         {(appearance.sidebarCounts && openCount(projectData.tasks, null)) || ''}
                       </small>
                     </button>
+                    {taskViewRow('summary', <FileText aria-hidden="true" />)}
+                    <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
+                      <CalendarDays aria-hidden="true" />
+                      <span>Calendar</span>
+                    </button>
+                    <button
+                      className={route.kind === 'reminders' ? 'selected' : ''}
+                      aria-current={route.kind === 'reminders' ? 'page' : undefined}
+                      onClick={() => { setOverlay(null); push({ kind: 'reminders' }) }}
+                    >
+                      <Bell aria-hidden="true" />
+                      <span>Recent reminders</span>
+                      {recentUnread > 0 && <span className="mobile-reminder-dot" role="img" aria-label={`${recentUnread} new`} />}
+                    </button>
+                    <button
+                      className={route.kind === 'projects' ? 'selected' : ''}
+                      aria-current={route.kind === 'projects' ? 'page' : undefined}
+                      onClick={() => openProjects()}
+                    >
+                      <ListChecks aria-hidden="true" />
+                      <span>All projects</span>
+                    </button>
                     {projectData.projects
                       .filter((p) => p.deletedAt === null && isOpenProject(p))
                       .sort(bySort)
                       .map(projectRow)}
+                  </nav>
+                  {taskTags(projectData.tasks).length > 0 && (
+                    <>
+                      <div className="mobile-section-label">Task tags</div>
+                      <nav aria-label="Task tags">
+                        {taskTags(projectData.tasks).map((tag) =>
+                          taskViewRow(
+                            `tag:${tag}`,
+                            <span className="mobile-tag-icon" aria-hidden="true">
+                              #
+                            </span>,
+                            tag,
+                          ),
+                        )}
+                      </nav>
+                    </>
+                  )}
+                  <nav aria-label="Finished tasks">
+                    {taskViewRow('completed', <CircleCheck aria-hidden="true" />)}
+                    {taskViewRow('trash', <Trash2 aria-hidden="true" />)}
                   </nav>
                   <div className="mobile-section-label">
                     <span>PDFs</span>
@@ -1690,28 +1725,13 @@ export default function MobileApp() {
                   </>
                 )}
                 {overlayNote && overlay.kind === 'information' && (
-                  <dl className="mobile-info">
-                    <div>
-                      <dt>Updated</dt>
-                      <dd>{new Date(overlayNote.updated).toLocaleString()}</dd>
-                    </div>
-                    <div>
-                      <dt>Length</dt>
-                      <dd>
-                        {overlayNote.text.trim() ? overlayNote.text.trim().split(/\s+/).length : 0}{' '}
-                        words · {overlayNote.text.length} characters
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Notebooks</dt>
-                      <dd>
-                        {notebooks
-                          .filter((b) => overlayNote.notebookIds.includes(b.id))
-                          .map((b) => notebookPath(b, notebooks))
-                          .join(', ') || 'Uncategorized'}
-                      </dd>
-                    </div>
-                  </dl>
+                  <LiveNoteInformation
+                    noteId={overlayNote.id}
+                    open={(id) => {
+                      setOverlay(null)
+                      noteLinks.open(id)
+                    }}
+                  />
                 )}
               </div>
             )}

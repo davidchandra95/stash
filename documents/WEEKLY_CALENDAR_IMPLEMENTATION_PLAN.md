@@ -8,7 +8,7 @@ Verification on 3 November 2026: 958 frontend tests, 14 focused Playwright tests
 
 Add a task calendar to Stash that lets a user see and plan a week like the [TickTick Week View](https://help.ticktick.com/articles/7055782149730861056). It should show tasks from the Inbox and projects, including dated tasks without a time, timed tasks, and tasks that span several days. Creating, moving, resizing, opening and completing a calendar item must update the same task used elsewhere in Stash.
 
-The initial target is the linked week-view workflow, not an entire replacement for TickTick. The phases below cover the desktop week view and the mobile work needed for a usable calendar. Day, month, year, agenda and configurable multi-day or multi-week views are separate extensions. External calendars, habits, focus records, reminders, and recurring tasks require their own data models and are not implied by a visual calendar. They remain possible follow-up work, not capabilities claimed for this plan.
+The initial target is the linked week-view workflow, not an entire replacement for TickTick. The phases below cover the desktop week view and the mobile work needed for a usable calendar. Day, month, year, agenda and configurable multi-day or multi-week views are separate extensions. External calendars, habits, focus records, and recurring tasks require their own data models and are not implied by a visual calendar. They remain possible follow-up work, not capabilities claimed for this plan.
 
 ## Reference: what was checked
 
@@ -24,7 +24,7 @@ These are observations of the current working tree, which includes uncommitted w
 
 - [Task model](../src/projects/model.ts) stores `startDate` and `dueDate` as date-only strings. The [SQLite schema](../src-tauri/src/storage/projects_schema.sql) and [Rust storage](../src-tauri/src/storage/projects.rs) have no task time, duration, time zone, recurrence or reminder. Existing date-only values should remain calendar dates, not be converted to midnight timestamps.
 - [Task actions](../src/projects/actions.ts), [project store](../src/projects/store.ts) and [task details](../src/projects/TaskDetail.tsx) already create, edit, complete and persist the same task records. Saves replace whole records using revision checks; the frontend store applies changes optimistically, saves in order, and reloads stored data on failure. The calendar must use these paths and handle their failures visibly.
-- [ProjectPane](../src/projects/ProjectPane.tsx), [sidebar](../src/app/Sidebar.tsx) and [app controller](../src/app/useAppController.ts) provide project navigation, a shared task detail panel, and selected-task state. A calendar can be a Projects page alongside Due today and Upcoming. Include it in the controller's fixed-page and workspace-restore logic.
+- [ProjectPane](../src/projects/ProjectPane.tsx), [sidebar](../src/app/Sidebar.tsx) and [app controller](../src/app/useAppController.ts) provide project navigation, a shared task detail panel, and selected-task state. A calendar can be a Projects page alongside Today and Next 7 Days. Include it in the controller's fixed-page and workspace-restore logic.
 - The working tree currently contains [NewTask](../src/projects/NewTask.tsx) and [smartInput](../src/projects/smartInput.ts), an in-progress English date-only parser. It explicitly leaves times and repeats as text. Recheck this work before implementation; do not assume it is committed or complete.
 - Projects and tasks are local to the device today. [Projects and tasks](PROJECTS_AND_TASKS.md) describes task sync as future work, and Android project/task screens as proposals. A calendar cannot honestly be called cross-device merely because note sync exists.
 - [DESIGN.md](../DESIGN.md) defines Stash's compact native-style controls, shared tokens, themes, mobile boundaries and visual review checklist. TickTick is a behavioral reference; the calendar should look like Stash.
@@ -53,7 +53,7 @@ A due date is a deadline; a scheduled block is when the user plans to work. Stas
 | Situation | Calendar and due-date behavior |
 | --- | --- |
 | Existing task with only a due date | Render one all-day due marker. Moving that marker changes the due date. Keep its existing `startDate` unchanged. |
-| New task created in the calendar, or an unscheduled task dropped onto it | Create a schedule and link its due day to the schedule by default, so it appears in Due today/Upcoming. A time point uses its local day; a range uses its last included local day. |
+| New task created in the calendar, or an unscheduled task dropped onto it | Create a schedule and link its due day to the schedule by default, so it appears in Today/Next 7 Days. A time point uses its local day; a range uses its last included local day. |
 | User explicitly sets a separate due date | Unlink the deadline from the schedule. Moving or resizing the schedule leaves that deadline unchanged. Show both values in task details; show a separate due marker when it falls on a different day. Avoid drawing two items for the same task on the same day without a clear reason. |
 | Clear a linked schedule | Preserve the current effective due day as a date-only deadline unless the user explicitly clears the deadline too. |
 

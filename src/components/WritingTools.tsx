@@ -12,6 +12,7 @@ import {
   Subscript,
   Superscript,
   SquareCheck,
+  CircleCheck,
 } from '../icons'
 import { platform } from '../platform'
 import { MotionPresence, motion } from '../motion'
@@ -19,6 +20,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { TextSelection, type SelectionBookmark, type Transaction } from '@tiptap/pm/state'
 import { commands, runCommand } from '../editor/commands'
+import { afterComposition } from '../editor/taskReferences'
 import {
   applyLink,
   captureLinkTarget,
@@ -183,6 +185,7 @@ export default function WritingTools({
             { id: 'subscript', label: 'Subscript', Icon: Subscript },
             { id: 'superscript', label: 'Superscript', Icon: Superscript },
             { id: 'checkbox', label: 'Insert checkbox', Icon: SquareCheck },
+            { id: 'create-task', label: 'Create task', Icon: CircleCheck },
           ].map(({ id, label, Icon }) => (
             <AppTooltip instant label={label} disabled={readOnly} key={id}>
               <button
@@ -191,7 +194,11 @@ export default function WritingTools({
 
                 onMouseDown={(e) => e.preventDefault()}
                 disabled={readOnly}
-                onClick={() => !blocked.current && editor.isEditable && runCommand(editor, id)}
+                onClick={() => {
+                  if (blocked.current || !editor.isEditable) return
+                  if (id === 'create-task') afterComposition(editor, () => runCommand(editor, id))
+                  else runCommand(editor, id)
+                }}
               >
                 <Icon />
               </button>

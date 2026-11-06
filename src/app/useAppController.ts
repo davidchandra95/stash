@@ -23,6 +23,8 @@ import type { PdfNavigation } from '../pdf/model'
 import { focusDocument } from '../useShortcuts'
 import { captureLayout } from '../layoutMotion'
 import { pdfStore, usePdfs } from '../pdf/store'
+import { useTaskReminders } from '../projects/reminderService'
+import { setRepeatNotify } from '../projects/actions'
 import { projectStore, useProjects } from '../projects/store'
 import type { Project } from '../projects/model'
 import { taskLink } from '../editor/taskReferences'
@@ -56,6 +58,7 @@ import {
   ExternalLink,
   Star,
   StarOff,
+  Info,
   Link2,
   FolderPlus,
   RotateCcw,
@@ -199,6 +202,7 @@ export function useAppController() {
     anchor: PopoverAnchor
     launcher: HTMLElement | null
   } | null>(null)
+  const [informationId, setInformationId] = useState<string | null>(null)
   const organizationOpen = !!organization
   const setOrganization = (
     next: { id: string; destination?: string; launcher?: HTMLElement } | null,
@@ -296,6 +300,7 @@ export function useAppController() {
   const [projectNotice, setProjectNotice] = useState<{ message: string; undo?: () => void } | null>(
     null,
   )
+  useEffect(() => setRepeatNotify(setProjectNotice), [])
   const openProject = (id: string) => {
     setProjectView(id)
     setSelectedTaskId(null)
@@ -309,6 +314,7 @@ export function useAppController() {
     setSelectedTaskId(task.id)
     setFocus(false)
   }
+  useTaskReminders(projects.ready, openTask)
   const copyTaskLink = (id: string) => {
     const text = taskLink(id)
     void (isTauri() ? writeText(text) : navigator.clipboard.writeText(text)).catch((error) =>
@@ -971,9 +977,15 @@ export function useAppController() {
       icon: ExternalLink,
       run: () => workspace.open(note.id, true),
     }
+    const information = {
+      label: 'Note information',
+      icon: Info,
+      run: () => setInformationId(note.id),
+    }
     if (note.trashed)
       return [
         open,
+        information,
         {
           label: 'Restore note',
           icon: RotateCcw,
@@ -1020,6 +1032,7 @@ export function useAppController() {
             else await navigator.clipboard.writeText(text)
           }),
       },
+      information,
       {
         label: note.source ? 'Move file to notebook' : 'Move to another notebook',
         icon: FolderInput,
@@ -1314,6 +1327,8 @@ export function useAppController() {
     setNoteList,
     noteMenuOpen,
     setNoteMenuOpen,
+    informationId,
+    setInformationId,
     organization,
     storeOrganization,
     addOrganization,
@@ -1446,7 +1461,16 @@ export function useAppController() {
 export type AppController = ReturnType<typeof useAppController>
 export type Domain = 'notes' | 'projects'
 
-const fixedProjectPages = ['inbox', 'all', 'tasks:today', 'tasks:upcoming', 'tasks:calendar']
+const fixedProjectPages = [
+  'inbox',
+  'all',
+  'tasks:today',
+  'tasks:next7',
+  'tasks:summary',
+  'tasks:completed',
+  'tasks:trash',
+  'tasks:calendar',
+]
 /** Where the app is right now, as a stop on the Back/Forward timeline. */
 function currentPlace(
   projectView: string | null,
@@ -1466,4 +1490,4 @@ function currentPlace(
   }
 }
 const projectPageExists = (id: string, projects: Project[]) =>
-  fixedProjectPages.includes(id) || projects.some((p) => p.id === id && p.deletedAt === null)
+  fixedProjectPages.includes(id) || id.startsWith('tag:') || projects.some((p) => p.id === id && p.deletedAt === null)

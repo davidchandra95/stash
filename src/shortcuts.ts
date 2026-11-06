@@ -85,6 +85,12 @@ export const shortcutCommands: ShortcutCommand[] = [
     ['bullet', 'Bullet list', 'Change the current list to bullets.', 'Mod+7'],
     ['number', 'Numbered list', 'Change the current list to numbers.', 'Mod+8'],
     ['task', 'Checklist', 'Change the current list to a checklist.', 'Mod+9'],
+    [
+      'create-task',
+      'Create task',
+      'Turn the selected text or checklist item into a task.',
+      'Mod+Shift+t',
+    ],
     ['strike', 'Strikethrough', 'Toggle struck-through text.', null],
     ['highlight', 'Highlight', 'Toggle highlighting on selected text.', null],
     ['inline-code', 'Inline code', 'Toggle inline code formatting.', null],

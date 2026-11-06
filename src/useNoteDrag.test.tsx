@@ -119,6 +119,7 @@ it('starts after the hold, previews a move, commits on drop and suppresses openi
   await h.down()
   await h.move(80)
   expect(h.host.querySelector('.note-drag-ghost')).not.toBeNull()
+  expect(document.documentElement.hasAttribute('data-drag-cursor')).toBe(true)
   expect([...h.host.querySelectorAll('[data-note-id]')].map((el) => el.textContent)).toEqual([
     'b',
     'a',
@@ -126,6 +127,7 @@ it('starts after the hold, previews a move, commits on drop and suppresses openi
   ])
   expect(h.commit).not.toHaveBeenCalled()
   await h.up(80)
+  expect(document.documentElement.hasAttribute('data-drag-cursor')).toBe(false)
   expect(h.commit.mock.calls[0][0].map((n: Note) => n.id)).toEqual(['b', 'a', 'c'])
   await act(() => h.host.querySelector<HTMLButtonElement>('[data-note-id="a"]')!.click())
   expect(h.open).not.toHaveBeenCalled()

@@ -652,16 +652,16 @@
   align-items: center;
   color: var(--text-3);
 }
-.task-detail :is(.task-props, .schedule-fields) .field {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field {
   height: var(--control);
   background-color: transparent;
   box-shadow: none;
   font-size: var(--text-sm);
 }
-.task-detail :is(.task-props, .schedule-fields) .field:hover:not(:disabled, :focus) {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:hover:not(:disabled, :focus) {
   background-color: var(--fill-1);
 }
-.task-detail :is(.task-props, .schedule-fields) .field:is(:focus, [aria-expanded='true']) {
+.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:is(:focus, [aria-expanded='true']) {
   box-shadow:
     inset 0 0 0 1px var(--accent),
     0 0 0 3px var(--accent-soft);
@@ -1059,7 +1059,7 @@ h3.task-detail-heading {
   color: var(--warning);
 }
 
-/* ───────── Due today and Upcoming ───────── */
+/* ───────── Smart lists ───────── */
 
 .task-group-header.is-static {
   cursor: default;
@@ -1305,4 +1305,241 @@ h3.task-detail-heading {
   justify-items: start;
   gap: var(--space-1);
   margin-top: var(--space-7);
+}
+
+/* Reminders: inspector rows, with a quiet line only when notifications won't appear. */
+.task-reminder-mark {
+  display: inline-flex;
+  margin-inline-start: var(--space-1);
+  color: var(--text-3);
+}
+.task-reminder-mark .ui-icon {
+  width: 12px;
+  height: 12px;
+}
+.task-reminder-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-reminder-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.task-reminder-list li.is-past {
+  color: var(--text-4);
+}
+.task-reminder-list .truncate {
+  flex: 1;
+  min-width: 0;
+}
+.task-reminder-time {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.task-reminder-list li.is-past .task-reminder-time {
+  color: var(--text-4);
+}
+.task-reminder-add {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+.reminder-permission {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.reminder-permission .btn {
+  flex: none;
+}
+.reminder-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.reminder-status [data-status='denied'] {
+  color: var(--danger);
+}
+.task-detail .task-reminder-add {
+  width: calc(100% + var(--space-8));
+  margin-inline: calc(var(--space-4) * -1);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Recent reminders: the rail popover on desktop, a page on Android. */
+.recent-reminders-popover {
+  width: 320px;
+  max-height: min(var(--radix-popover-content-available-height, 70vh), 480px);
+}
+.recent-reminders ul {
+  margin: 0 calc(var(--space-3) * -1);
+  padding: 0;
+  list-style: none;
+}
+.recent-reminders li button {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-reminders li button:hover {
+  background: var(--fill-1);
+}
+.recent-reminder-title {
+  font-size: var(--text-sm);
+}
+.recent-reminder-meta {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.recent-reminders-empty {
+  padding: var(--space-5) 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.recent-reminders-empty p {
+  margin: 0 0 var(--space-1);
+}
+.recent-reminders-empty small {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.repeat-editor {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+.repeat-editor > label,
+.repeat-label {
+  color: var(--text-3);
+}
+.repeat-editor .field {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.repeat-editor .field-help {
+  grid-column: 1 / -1;
+}
+.repeat-interval {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.repeat-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.repeat-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-sm);
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.repeat-day:hover:not(:disabled, [aria-pressed='true']) {
+  background-color: var(--fill-1);
+}
+.repeat-day[aria-pressed='true'] {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+.repeat-day:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* ───────── Task tags ───────── */
+
+.task-tags {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.task-tags .chip {
+  max-width: 96px;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+}
+.task-tags-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control);
+  min-width: 0;
+}
+.task-tags-editor > .chip {
+  padding-right: 2px;
+}
+.task-tag-remove {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  color: inherit;
+}
+.task-tag-remove:hover:not(:disabled) {
+  background: var(--fill-2);
+}
+.task-tag-remove .ui-icon {
+  width: 11px;
+  height: 11px;
+}
+.task-tag-input {
+  flex: 1;
+  min-width: 72px;
+  height: var(--control);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  outline: 0;
+}
+.task-tag-input:hover:not(:disabled),
+.task-tag-input:focus {
+  background: var(--fill-1);
+}
+.task-tag-input::placeholder {
+  color: var(--text-4);
+}
+.task-tag-suggestions {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

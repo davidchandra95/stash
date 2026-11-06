@@ -6,8 +6,10 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
+import * as Popover from '@radix-ui/react-popover'
 import AppTooltip from '../components/AppTooltip'
 import {
+  Bell,
   CircleAlert,
   CircleCheck,
   Cloud,
@@ -19,6 +21,7 @@ import {
   Trash2,
 } from '../icons'
 import { today, todayGroups } from '../projects/model'
+import RecentReminders, { useRecentReminders } from '../projects/RecentReminders'
 import { displayZone, subscribeDisplayZone } from '../projects/schedule'
 import { libraryProjection } from '../storage/librarySelectors'
 import { library as libraryStore, useLibrarySelector } from '../storage/useLibrary'
@@ -153,7 +156,47 @@ function SyncButton() {
   )
 }
 
-/** The far-left strip: areas at the top; sync, Trash and Settings at the bottom. */
+function RemindersButton() {
+  const app = useApp()
+  const blocked = useBlocked()
+  const [open, setOpen] = useState(false)
+  const { unread } = useRecentReminders()
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <AppTooltip instant side="right" label="Recent reminders" disabled={open}>
+        <Popover.Trigger asChild>
+          <button
+            className="rail-btn"
+            aria-label={unread ? `Recent reminders, ${unread} new` : 'Recent reminders'}
+            disabled={blocked || !app.projects.ready}
+          >
+            <Bell aria-hidden="true" />
+            {unread > 0 && <span className="rail-dot" aria-hidden="true" />}
+          </button>
+        </Popover.Trigger>
+      </AppTooltip>
+      <Popover.Portal>
+        <Popover.Content
+          className="popover recent-reminders-popover"
+          side="right"
+          align="end"
+          sideOffset={8}
+          collisionPadding={8}
+        >
+          <div className="popover-title">Recent reminders</div>
+          <RecentReminders
+            onOpen={(id) => {
+              setOpen(false)
+              app.openTask(id)
+            }}
+          />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+/** The far-left strip: areas at the top; sync, reminders, Trash and Settings at the bottom. */
 export default trackApp(function ActivityRail({
   ...presence
 }: {
@@ -168,6 +211,7 @@ export default trackApp(function ActivityRail({
       <DomainButtons />
       <span className="activity-rail-fill" data-tauri-drag-region />
       <SyncButton />
+      <RemindersButton />
       <AppTooltip instant side="right" label={trashCount ? `Trash (${trashCount})` : 'Trash'}>
         <button
           className="rail-btn"

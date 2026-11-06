@@ -224,8 +224,16 @@ export const initialNotes: Note[] = [
     4,
   ),
 ]
+// Runs on every keystroke once an edit clears the saved flag. Matches has_tasks in storage/mod.rs.
+function containsTask(node: JSONContent): boolean {
+  return (
+    node.type === 'inlineCheckbox' ||
+    node.attrs?.kind === 'task' ||
+    (node.content?.some(containsTask) ?? false)
+  )
+}
 export function hasTasks(note: Pick<Note, 'hasTasks'> & Partial<Pick<Note, 'content'>>): boolean {
-  return note.hasTasks ?? /"kind":"task"|"type":"inlineCheckbox"/.test(JSON.stringify(note.content))
+  return note.hasTasks ?? (note.content ? containsTask(note.content) : false)
 }
 export type NoteViewFields = Pick<
   Note,

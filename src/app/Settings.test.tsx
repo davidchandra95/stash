@@ -110,7 +110,7 @@ const setLibraryState = (patch: Partial<LibraryState>) =>
 
 it('opens on Appearance with the search focused and switches between categories', async () => {
   await render()
-  expect(categories()).toEqual(['Appearance', 'Typography', 'Editor', 'Shortcuts'])
+  expect(categories()).toEqual(['Appearance', 'Typography', 'Editor', 'Notifications', 'Shortcuts'])
   expect(title()).toBe('Appearance')
   expect(document.querySelector('[role="dialog"]')?.classList.contains('settings')).toBe(true)
   expect(document.activeElement).toBe(control('Search settings'))
@@ -331,7 +331,7 @@ it('shows the Sync category only when sync settings are provided', async () => {
   root = createRoot(host)
 
   await render({ syncSettings: <p>Sync form</p>, initialCategory: 'sync' })
-  expect(categories()).toEqual(['Appearance', 'Typography', 'Editor', 'Shortcuts', 'Sync'])
+  expect(categories()).toEqual(['Appearance', 'Typography', 'Editor', 'Notifications', 'Shortcuts', 'Sync'])
   expect(title()).toBe('Sync')
   expect(document.querySelector('[aria-current="page"]')?.textContent).toBe('Sync')
   expect(document.body.textContent).toContain('Sync form')

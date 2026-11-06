@@ -1,3 +1,4 @@
+import { documentLinksTo } from '../editor/fileNavigation'
 import { normalizeAppearance } from '../appearance'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { pdfCitationHref } from '../pdf/citations'
@@ -29,6 +30,7 @@ import { tagsFromContent } from '../tags'
 import { defaultHeadingStyles, normalizeHeadingStyles } from '../headingStyles'
 import { documentSchema } from '../editor/documentSchema'
 import { defaultNotebookColor } from '../notebookColors'
+import { projectStore } from '../projects/store'
 
 // Documents are immutable snapshots. Metadata edits can reuse their confirmed tags.
 const bodyTagCache = new WeakMap<JSONContent, string[]>()
@@ -230,6 +232,7 @@ export class LibraryStore {
     try {
       await Promise.all(this.loading.values())
       await this.flush()
+      await projectStore.settle()
       const result = await this.command<{ library: LibraryData; status: SyncStatus }>(
         'sync_library',
         {},
@@ -278,6 +281,7 @@ export class LibraryStore {
         syncGeneration: this.state.syncGeneration + 1,
       })
       this.reconcileBodyCache()
+      await projectStore.refresh()
       if (reloadFailures.length)
         throw Error(
           `Sync completed, but ${reloadFailures.length === 1 ? 'one note could' : `${reloadFailures.length} notes could`} not be reloaded. Retry the note before editing.`,
@@ -583,6 +587,31 @@ export class LibraryStore {
     )
       throw Error('This note changed while searching. Search again.')
     return { ...latest, content, source: saved.source ?? latest.source }
+  }
+  /** Notes that link to a note, newest first, and how many could not be read to check. */
+  backlinks = async (id: string): Promise<{ ids: string[]; unreadable: number }> => {
+    const candidates = this.transport?.command
+      ? await this.transport.command<string[]>('note_backlink_candidates', { id })
+      : []
+    const { notes, roots, loaded, conflicts } = this.state
+    // In-memory content can have links the saved text doesn't, so it is always checked.
+    const sources = new Set(candidates)
+    for (const note of notes)
+      if (loaded.has(note.id) || this.pendingNotes.has(note.id) || conflicts[note.id])
+        sources.add(note.id)
+    const linking: Note[] = []
+    let unreadable = 0
+    for (const source of notes) {
+      if (source.id === id || source.trashed || !sources.has(source.id)) continue
+      try {
+        const note = await this.readSearchNote(source.id)
+        if (documentLinksTo(note.content, id, note, notes, roots)) linking.push(note)
+      } catch {
+        unreadable++
+      }
+    }
+    linking.sort((a, b) => b.updated - a.updated || a.id.localeCompare(b.id))
+    return { ids: linking.map((note) => note.id), unreadable }
   }
   activate = async (id: string) => {
     if (this.state.converting) return

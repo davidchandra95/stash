@@ -8,6 +8,66 @@
 > methods, but retain the limitations described below. See the follow-up below
 > for a corrected, narrower typing comparison.
 
+## Follow-up - 5 November 2026
+
+Two costs found by profiling were fixed: the per-keystroke `JSON.stringify` task
+check (`cf49afd`) and a window-wide `:has()` drag-cursor rule that WebKit
+evaluated during style recalculation (`6752f88`). The recommendation stays: do
+not migrate to native for typing performance now. On the notes that make up most
+of this library, the gap is about one captured frame. This library had 66 notes
+when checked, with a median of 734 characters and a 90th percentile near 17,000.
+
+All runs used the middle of the note at 1800 x 1129 points, 100 ms between keys,
+and three trials per condition. The two smaller notes are the opening blocks of
+the same large note.
+
+### Typing response
+
+Measured on `6752f88`. Each cell shows the median of the three trial medians,
+with their range in brackets. All 54 characters were detected in every trial.
+
+| Note size | Native | Stash, saving paused | Stash, autosave |
+|---|---:|---:|---:|
+| 975 characters | 12.1 ms (10.8-19.6) | 25.1 ms (22.6-27.1) | 26.9 ms (24.5-28.8) |
+| 17,185 characters | 11.2 ms (10.7-20.1) | 22.9 ms (19.7-28.9) | 28.9 ms (21.7-29.7) |
+| 149,481 characters | 13.7 ms (13.6-20.2) | 32.4 ms (30.7-41.0) | 38.0 ms (33.6-39.9) |
+
+The range of per-trial p95 values was:
+
+| Note size | Native | Stash, saving paused | Stash, autosave |
+|---|---:|---:|---:|
+| 975 characters | 15.3-23.7 ms | 25.2-29.5 ms | 27.1-30.0 ms |
+| 17,185 characters | 22.6-26.4 ms | 27.1-34.4 ms | 24.9-33.4 ms |
+| 149,481 characters | 18.9-27.9 ms | 47.3-47.5 ms | 45.5-49.1 ms |
+
+Capture frames were about 16.6 ms apart, and single trials moved by up to a full
+frame. The machine had a load average near 4 from other work. Large-note p95 did
+not improve from the 4 November 46.5 ms. Those earlier figures came from an older
+build, so this does not show that the fixes reduced response time.
+
+### CPU while typing
+
+Total CPU across the app's processes while typing at 10 keys per second, as the
+median of three trials per run. The final rule was measured twice, at the start
+and end of the sequence, to catch drift. Each column added the task fix to the
+older 4 November source snapshot, then changed only the cursor CSS. The drag
+wiring from `6752f88` did not apply to that snapshot; it does not run while
+typing. Native is the range across the four sets of runs.
+
+| Note size | Old `:has()` rule | No rule | Final attribute rule | Native |
+|---|---:|---:|---:|---:|
+| 975 characters | 12.7% | 11.7% | 11.6%, 13.6% | 3.7-4.1% |
+| 17,185 characters | 15.2% | 14.6% | 14.3%, 14.1% | 5.1-5.2% |
+| 149,481 characters | 35.9% | 29.6% | 29.6%, 31.3% | 6.5-6.9% |
+
+The attribute rule costs about the same as no rule. Only the large-note saving is
+clearly above run-to-run noise.
+
+The remaining large-note cost has not been fully explained. A trace of the build
+with the task fix attributed 693 ms of a 1,543 ms WebContent main-thread sample to
+style recalculation, 276 ms of it in `:has()`. In a later trace with the rule
+removed, about 480 ms of style work remained unexplained.
+
 ## Follow-up - 4 November 2026
 
 The earlier detector could count moving caret pixels or wait until a later

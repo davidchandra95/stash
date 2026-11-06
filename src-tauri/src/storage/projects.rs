@@ -1,5 +1,4 @@
-//! Projects and tasks are local-only for now; they have no sync triggers. See
-//! documents/PROJECTS_AND_TASKS.md for the planned sync design.
+//! Projects and tasks. Triggers queue every change for sync; see documents/SYNC.md.
 use super::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -36,6 +35,14 @@ pub struct Task {
     pub schedule: Option<TaskSchedule>,
     #[serde(default)]
     pub due_linked: bool,
+    /// Minutes before the task's moment. `None` is the default; empty turns reminders off.
+    #[serde(default)]
+    pub reminders: Option<Vec<i64>>,
+    /// Omitted when empty, so an untagged task reads the same as one from before tags.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub repeat: Option<TaskRepeat>,
     pub completed_at: Option<i64>,
     pub sort: f64,
     pub deleted_at: Option<i64>,
@@ -50,6 +57,20 @@ pub enum TaskSchedule {
     AllDay { start: String, end: String },
     Point { start: i64, time_zone: String },
     Range { start: i64, end: i64, time_zone: String },
+}
+
+/// How a task comes back once completed. `weekdays` are ISO numbers (Monday is 1); `month_day`
+/// remembers a day that a shorter month clamped, such as the 31st.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskRepeat {
+    pub unit: String,
+    pub interval: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weekdays: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub month_day: Option<i64>,
+    pub from: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -91,6 +112,11 @@ pub struct SaveTask {
     pub schedule: Option<TaskSchedule>,
     #[serde(default)]
     pub due_linked: bool,
+    #[serde(default)]
+    pub reminders: Option<Vec<i64>>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub repeat: Option<TaskRepeat>,
     pub sort: f64,
     pub deleted: bool,
     pub expected_revision: i64,
@@ -105,7 +131,7 @@ pub struct ProjectChanges {
 }
 
 const PROJECT_COLUMNS: &str = "id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision";
-const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked";
+const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags";
 
 fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -139,6 +165,12 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         schedule: r.get::<_, Option<String>>(15)?.map(|json| serde_json::from_str(&json)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(15, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         due_linked: r.get(16)?,
+        repeat: r.get::<_, Option<String>>(17)?.map(|json| serde_json::from_str(&json)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(17, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
+        tags: serde_json::from_str(&r.get::<_, String>(19)?)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, Box::new(error)))?,
+        reminders: r.get::<_, Option<String>>(18)?.map(|json| serde_json::from_str(&json)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(18, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         completed_at: r.get(8)?,
         sort: r.get(9)?,
         deleted_at: r.get(10)?,
@@ -265,6 +297,37 @@ fn validate_task(t: &SaveTask) -> Result<()> {
         };
         if !valid { return Err("Invalid task schedule. Check the dates, duration and named time zone.".into()); }
     }
+    if let Some(reminders) = &t.reminders {
+        let unique: std::collections::HashSet<_> = reminders.iter().collect();
+        if reminders.len() > 5
+            || unique.len() != reminders.len()
+            || reminders.iter().any(|minutes| !(0..=40_320).contains(minutes))
+        {
+            return Err("A task can have up to 5 different reminders, up to 4 weeks ahead.".into());
+        }
+    }
+    if let Some(repeat) = &t.repeat {
+        let mut weekdays = repeat.weekdays.clone();
+        weekdays.sort_unstable();
+        weekdays.dedup();
+        let valid = matches!(repeat.unit.as_str(), "day" | "week" | "month" | "year")
+            && matches!(repeat.from.as_str(), "schedule" | "completion")
+            && (1..=99).contains(&repeat.interval)
+            && weekdays.len() == repeat.weekdays.len()
+            && weekdays.iter().all(|day| (1..=7).contains(day))
+            && (weekdays.is_empty() || (repeat.unit == "week" && repeat.from == "schedule"))
+            && repeat.month_day.is_none_or(|day| (1..=31).contains(&day) && matches!(repeat.unit.as_str(), "month" | "year"));
+        if !valid { return Err("Invalid task repeat. Check the interval and weekdays.".into()); }
+    }
+    let unique: std::collections::HashSet<_> = t.tags.iter().collect();
+    if t.tags.len() > 20
+        || unique.len() != t.tags.len()
+        || t.tags.iter().any(|tag| {
+            tag.is_empty() || tag.chars().count() > 50 || tag.starts_with('#') || tag.chars().any(char::is_whitespace)
+        })
+    {
+        return Err("A task can have up to 20 different tags of up to 50 characters, without spaces.".into());
+    }
     if t.project_id.as_deref().is_some_and(|id| !valid_record_id(id)) {
         return Err("Invalid project ID.".into());
     }
@@ -297,6 +360,111 @@ fn completion(
         Some(("done", Some(completed))) => Some(completed),
         _ => Some(at),
     }
+}
+
+/// What a device uploads for a project. A notebook that stays on this device is left out.
+pub(super) fn synced_project(conn: &Connection, id: &str) -> Result<Option<Value>> {
+    let project = conn
+        .query_row(&format!("SELECT {PROJECT_COLUMNS} FROM projects WHERE id=?"), [id], project_row)
+        .optional()
+        .map_err(db_err)?;
+    let Some(mut project) = project else { return Ok(None) };
+    if local_notebook(conn, project.notebook_id.as_deref())? {
+        project.notebook_id = None;
+    }
+    serde_json::to_value(project).map(Some).map_err(db_err)
+}
+pub(super) fn synced_task(conn: &Connection, id: &str) -> Result<Option<Value>> {
+    conn.query_row(&format!("SELECT {TASK_COLUMNS} FROM tasks WHERE id=?"), [id], task_row)
+        .optional()
+        .map_err(db_err)?
+        .map(|task| serde_json::to_value(task).map_err(db_err))
+        .transpose()
+}
+fn local_notebook(conn: &Connection, id: Option<&str>) -> Result<bool> {
+    let Some(id) = id else { return Ok(false) };
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sync_local_notebooks WHERE id=?1) OR EXISTS(SELECT 1 FROM notebooks WHERE id=?1 AND root_id IS NOT NULL)",
+        [id],
+        |r| r.get(0),
+    )
+    .map_err(db_err)
+}
+/// Applies a downloaded project. A device-only notebook link survives, because uploads omit it.
+pub(super) fn apply_synced_project(conn: &Connection, id: &str, data: Value) -> Result<()> {
+    let p: Project = serde_json::from_value(data).map_err(db_err)?;
+    validate_project(&SaveProject {
+        id: p.id.clone(),
+        name: p.name.clone(),
+        description: p.description.clone(),
+        status: p.status.clone(),
+        start_date: p.start_date.clone(),
+        end_date: p.end_date.clone(),
+        notebook_id: p.notebook_id.clone(),
+        color: p.color.clone(),
+        sort: p.sort,
+        deleted: p.deleted_at.is_some(),
+        expected_revision: 0,
+    })?;
+    if p.id != id {
+        return Err("Invalid synced project.".into());
+    }
+    let local: Option<Option<String>> = conn
+        .query_row("SELECT notebook_id FROM projects WHERE id=?", [id], |r| r.get(0))
+        .optional()
+        .map_err(db_err)?;
+    let local = local.flatten();
+    let notebook_id = match p.notebook_id {
+        None if local_notebook(conn, local.as_deref())? => local,
+        incoming => incoming,
+    };
+    conn.execute(
+        "INSERT INTO projects(id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+         ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,status=excluded.status,
+         start_date=excluded.start_date,end_date=excluded.end_date,completed_at=excluded.completed_at,
+         notebook_id=excluded.notebook_id,color=excluded.color,sort=excluded.sort,deleted_at=excluded.deleted_at,
+         created=excluded.created,updated=excluded.updated,revision=projects.revision+1",
+        params![p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.completed_at, notebook_id, p.color, p.sort, p.deleted_at, p.created, p.updated],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+pub(super) fn apply_synced_task(conn: &Connection, id: &str, data: Value) -> Result<()> {
+    let t: Task = serde_json::from_value(data).map_err(db_err)?;
+    validate_task(&SaveTask {
+        id: t.id.clone(),
+        title: t.title.clone(),
+        description: t.description.clone(),
+        status: t.status.clone(),
+        project_id: t.project_id.clone(),
+        priority: t.priority,
+        start_date: t.start_date.clone(),
+        due_date: t.due_date.clone(),
+        due_time: t.due_time.clone(),
+        schedule: t.schedule.clone(),
+        due_linked: t.due_linked,
+        repeat: t.repeat.clone(),
+        reminders: t.reminders.clone(),
+        tags: t.tags.clone(),
+        sort: t.sort,
+        deleted: t.deleted_at.is_some(),
+        expected_revision: 0,
+    })?;
+    if t.id != id {
+        return Err("Invalid synced task.".into());
+    }
+    conn.execute(
+        "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)
+         ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
+         project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,
+         completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,created=excluded.created,
+         updated=excluded.updated,revision=tasks.revision+1,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags",
+        params![t.id, t.title, t.description, t.status, t.project_id, t.priority, t.start_date, t.due_date, t.completed_at, t.sort, t.deleted_at, t.created, t.updated, t.due_time, t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.due_linked, t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, serde_json::to_string(&t.tags).map_err(db_err)?],
+    )
+    .map_err(db_err)?;
+    Ok(())
 }
 
 impl Store {
@@ -421,10 +589,10 @@ impl Store {
                 .deleted
                 .then(|| current.as_ref().and_then(|c| c.4).unwrap_or(at));
             tx.execute(
-                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
-                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,
+                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags,
                  completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,
                  updated=excluded.updated,revision=excluded.revision",
                 params![
@@ -444,7 +612,10 @@ impl Store {
                     revision + 1,
                     t.due_time,
                     t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
-                    t.due_linked
+                    t.due_linked,
+                    t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
+                    t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
+                    serde_json::to_string(&t.tags).map_err(db_err)?
                 ],
             )
             .map_err(db_err)?;

@@ -23,7 +23,7 @@ import {
   type TaskSchedule,
 } from './schedule'
 import { scheduleDraft, scheduleFromDraft } from './ScheduleEditor'
-import { dueState, todayGroups, upcomingGroups } from './model'
+import { dueState, nextSevenDaysGroups, todayGroups } from './model'
 
 const task = (schedule: TaskSchedule | null = null) => ({
   ...previewProjectData().tasks[0],
@@ -116,7 +116,7 @@ it('keeps independent deadlines and task start dates when scheduling', () => {
 it('uses effective due dates in grouped task views and urgency', () => {
   const record = task({ kind: 'allDay', start: '2026-11-02', end: '2026-11-04' })
   expect(todayGroups([record], '2026-11-03')[0].tasks).toEqual([record])
-  expect(upcomingGroups([record], '2026-11-02')[0].tasks).toEqual([record])
+  expect(nextSevenDaysGroups([record], '2026-11-02')[0].tasks).toEqual([record])
   expect(dueState(record, '2026-11-04')).toBe('late')
 })
 

@@ -147,7 +147,8 @@ Settings › Appearance › Theme. Native is the default.
 - Cursors: clickable controls (buttons, tabs, menu items, options, links) show `pointer`;
   disabled ones fall back to `default`. Text stays `text`; body tags only switch to `pointer`
   while Command is held. During an active note or tab drag the whole window shows `grabbing`
-  (`base.css`, keyed off `.note-drag-ghost` / `.tabs.is-reordering`). Splitters keep `col-resize`.
+  (`dragCursor.ts` sets `data-drag-cursor` on the root; avoid window-wide `:has()`, which WebKit
+  rechecks while typing). Splitters keep `col-resize`.
 - Keyboard focus: a 2px `--focus-ring` outline. Text fields show focus with an accent border and
   a soft accent ring instead.
 - A row whose context menu is open gets an inset accent outline.
@@ -174,10 +175,10 @@ Settings › Appearance › Theme. Native is the default.
 - Focus mode hides the activity rail, sidebar and notes list. Hiding the sidebar keeps the rail. A PDF tab hides the notes list.
 - The app has two areas, Notes and Projects. The activity rail picks one, as do Show Notes (⌘1)
   and Show Projects (⌘2). The sidebar belongs to the active area. Switching to Projects reopens the
-  project page last open there (Due today by default).
+  project page last open there (Today by default).
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
-- The bottom of the activity rail holds sync status, Trash and Settings. There is no account menu.
+- The bottom of the activity rail holds sync status, Recent reminders, Trash and Settings. There is no account menu.
 - Settings opens centered and can be dragged by its title bars, staying inside the window; it
   re-centers each time it opens.
 
@@ -236,7 +237,7 @@ Use the shared classes before writing new CSS:
 
 - It is app-level navigation on the window frame, never on a card: 32px `.rail-btn` icon buttons
   (Lucide outline icons, 19px for areas and 17px below) in `--text-2`, areas at the top; sync status,
-  Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
+  Recent reminders, Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
 - The current area is `--fill-2` with an `--accent` icon. Hover is `--fill-frame` on themes that
   define it, else `--fill-1`.
 - Area buttons are `aria-pressed`; their tooltip shows the area's shortcut. Clicking the current
@@ -248,6 +249,17 @@ Use the shared classes before writing new CSS:
 
 ## Projects and tasks
 
+- The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,
+  Inbox, Summary and Calendar, then All projects, the Projects section, Tags, then Completed and Trash.
+  The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
+  ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
+  over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
+- Task tags are separate from note tags, but share `.chip` and `tagTone()`. Only tags in use are
+  listed, in the `.side-tags` chips on desktop and a "Task tags" drawer section on Android; each opens
+  a page grouped Overdue, To do, Completed, and a task added there starts with that tag. Task rows
+  show two tag chips and "+N"; Board cards and calendar blocks show none. The inspector's Tags row
+  edits them in place: Return, comma or space adds, Backspace on an empty field removes the last, and
+  matching tags appear below while focused.
 - Sidebar projects show a 17px progress ring in the project color (dashed while planned) and a
   6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
   collapsed "Other projects" row.
@@ -269,6 +281,11 @@ Use the shared classes before writing new CSS:
   date. A missing or deleted task uses a dashed outline and muted text. Typing `@` at the start
   of a word opens a task picker built from the note-link menu rows; it shows nothing, rather than
   an empty state, when no task matches.
+- Create task (formatting toolbar, Android formatting bar, ⌘⇧T) replaces selected text with a new
+  Inbox task's mention, one task per selected line. A caret in a checklist item takes the whole
+  item, which becomes a bullet so it doesn't show two checkboxes, and a ticked item starts done.
+  Lines with images, mentions or inline checkboxes are left alone. The mention is the link back:
+  the task's "Mentioned in" lists the note. Success is silent, as with autosave.
 - The task detail panel is an inspector: every field is one 28px row with a 72px label column,
   and values read as plain text until hovered (`--fill-1`, select chevrons appear) or focused.
   Hairlines separate properties, schedule, description and mentions. Boolean options use
@@ -281,6 +298,14 @@ Use the shared classes before writing new CSS:
   calendar button. Clicking the mark cancels recognition without deleting text. The popover
   embeds the shared calendar and uses shared fields, buttons and surface tokens; manual dates and times override recognition.
   See `documents/TASK_SMART_INPUT.md` for parsing, title and preference rules.
+
+- Reminders are rows in the task inspector and task page: label, time in `--text-3`, and a remove
+  button, with an "Add reminder" select below. Passed reminders use `--text-4`. Open tasks with a
+  reminder still ahead show a 12px `--text-3` bell after their date; calendar blocks don't.
+  Permission text appears only when notifications won't reach the person, and offers the one action
+  that helps. Settings › Notifications always shows the status. See `documents/TASK_REMINDERS.md`.
+  Recent reminders is a rail popover on desktop and a drawer page on Android: title, then time and
+  offset in `--text-3`. Its unread mark is an `--accent` dot, because red means a missed deadline.
 
 - Calendar is a Projects pane with a sticky date header, scrollable all-day area and time grid.
   Today uses the accent, and the current time uses `--danger`. Hour lines are full `--line`,
@@ -350,6 +375,8 @@ Use the shared classes before writing new CSS:
   Discard, Copy, Dictate more and Insert (Return inserts, Shift+Return adds a line). Text goes in
   at the note's cursor. The microphone button or shortcut starts and stops; Escape cancels.
   Model and language choices live only in Settings › Editor › Dictation.
+- Note information is a dialog from Note actions (a sheet on Android) showing dates, length,
+  notebooks and backlinks. Backlinks are `--row` rows with the title and a `--text-3` notebook.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
   when the pane is narrow.
 
@@ -412,7 +439,8 @@ surfaces. Don't add colors there; use the tokens.
   after Notebooks. Task rows are at least 56px with a 22px checkbox that takes taps across the
   48px target, as does the small checkbox in a task mention. Project pills and task property rows
   open bottom sheets. Undo for a delete is a `.notice` above the keyboard.
-  The drawer also opens Due today and Upcoming, which use the same task rows with the project name.
+  The drawer also opens Today, Next 7 Days, Summary, Completed and Trash, which use the same task
+  rows with the project name; Trash rows have only Restore.
   The project list switches to a Timeline that scrolls sideways with names pinned, and a project
   to Board: snap-scrolling status columns of task rows. Moving a task between columns uses the
   Status sheet rather than a drag, which would fight scrolling. The new-task row is the shared

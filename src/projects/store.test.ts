@@ -77,6 +77,26 @@ it('deletes a task with undo', async () => {
   expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.deletedAt).toBeNull()
 })
 
+it('restores a task from Trash, to the Inbox when its project is gone', async () => {
+  const { projectStore, deleteProject, deleteTask, restoreTask } = await load()
+  const find = (id: string) => projectStore.getSnapshot().tasks.find((t) => t.id === id)!
+  const task = live(projectStore.getSnapshot().tasks).find((t) => t.projectId)!
+  const projectId = task.projectId
+  deleteTask(task, vi.fn())
+  await projectStore.flush()
+  restoreTask(find(task.id))
+  await projectStore.flush()
+  expect(find(task.id)).toMatchObject({ deletedAt: null, projectId })
+
+  const project = projectStore.getSnapshot().projects.find((p) => p.id === projectId)!
+  deleteProject(project, true, vi.fn())
+  await projectStore.flush()
+  expect(find(task.id).deletedAt).not.toBeNull()
+  restoreTask(find(task.id))
+  await projectStore.flush()
+  expect(find(task.id)).toMatchObject({ deletedAt: null, projectId: null })
+})
+
 it('undoes only scheduling fields and preserves a later title or status edit', async () => {
   const { projectStore, createTask, saveTaskSchedule, updateTask } = await load()
   const task = createTask(null, 'Plan work')
@@ -136,4 +156,102 @@ it('deletes a project with its tasks', async () => {
   const tasks = projectStore.getSnapshot().tasks.filter((t) => t.projectId === project.id)
   expect(tasks.length).toBeGreaterThan(0)
   expect(tasks.every((t) => t.deletedAt !== null)).toBe(true)
+})
+
+it('completing a repeating task moves it forward and leaves a done occurrence', async () => {
+  vi.useFakeTimers({ now: new Date('2026-11-04T12:00:00'), toFake: ['Date'] })
+  try {
+    const { projectStore, createTask, toggleTask, setRepeatNotify } = await load()
+    const notices: Parameters<Parameters<typeof setRepeatNotify>[0]>[0][] = []
+    setRepeatNotify((notice) => notices.push(notice))
+    const task = createTask(null, 'Weekly review', {
+      dueDate: '2026-11-04',
+      repeat: { unit: 'week', interval: 1, weekdays: [3], from: 'schedule' },
+    })
+    await projectStore.flush()
+    toggleTask(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)!)
+    await projectStore.flush()
+
+    const tasks = projectStore.getSnapshot().tasks.filter((t) => t.title === 'Weekly review')
+    expect(tasks).toHaveLength(2)
+    expect(tasks.find((t) => t.id === task.id)).toMatchObject({
+      status: 'todo',
+      dueDate: '2026-11-11',
+      completedAt: null,
+    })
+    const history = tasks.find((t) => t.id !== task.id)!
+    expect(history).toMatchObject({ status: 'done', dueDate: '2026-11-04', repeat: null })
+    expect(history.completedAt).toEqual(expect.any(Number))
+    expect(notices[0]?.message).toContain('Next: Nov 11')
+
+    notices[0]!.undo!()
+    await projectStore.flush()
+    expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)).toMatchObject({
+      status: 'todo',
+      dueDate: '2026-11-04',
+    })
+    expect(projectStore.getSnapshot().tasks.find((t) => t.id === history.id)?.deletedAt).toEqual(
+      expect.any(Number),
+    )
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('moves linked schedules and start dates, and dates a dateless repeat on completion', async () => {
+  vi.useFakeTimers({ now: new Date('2026-11-04T12:00:00'), toFake: ['Date'] })
+  try {
+    const { projectStore, createTask, setTaskStatus } = await load()
+    const scheduled = createTask(null, 'Pay rent', {
+      schedule: { kind: 'allDay', start: '2026-11-01', end: '2026-11-02' },
+      dueLinked: true,
+      repeat: { unit: 'month', interval: 1, from: 'schedule' },
+    })
+    const dateless = createTask(null, 'Water plants', {
+      repeat: { unit: 'day', interval: 3, from: 'completion' },
+    })
+    await projectStore.flush()
+    const get = (id: string) => projectStore.getSnapshot().tasks.find((t) => t.id === id)!
+    setTaskStatus(get(scheduled.id), 'done')
+    setTaskStatus(get(dateless.id), 'done')
+    await projectStore.flush()
+    expect(get(scheduled.id)).toMatchObject({
+      status: 'todo',
+      dueDate: null,
+      dueLinked: true,
+      schedule: { kind: 'allDay', start: '2026-12-01', end: '2026-12-02' },
+    })
+    expect(get(dateless.id)).toMatchObject({ status: 'todo', dueDate: '2026-11-07' })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('cancelling or reopening a repeating task does not create an occurrence', async () => {
+  const { projectStore, createTask, setTaskStatus } = await load()
+  const task = createTask(null, 'Stretch', {
+    dueDate: '2026-11-04',
+    repeat: { unit: 'day', interval: 1, from: 'schedule' },
+  })
+  await projectStore.flush()
+  setTaskStatus(task, 'cancelled')
+  await projectStore.flush()
+  const tasks = projectStore.getSnapshot().tasks.filter((t) => t.title === 'Stretch')
+  expect(tasks).toHaveLength(1)
+  expect(tasks[0]).toMatchObject({ status: 'cancelled', dueDate: '2026-11-04' })
+})
+
+it('refresh waits for queued saves and keeps them', async () => {
+  const { projectStore, createTask } = await load()
+  const task = createTask(null, 'Queued')
+  await projectStore.settle()
+  expect(projectStore.getSnapshot().tasks.find((t) => t.id === task.id)?.revision).toBe(1)
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(true)
+})
+
+it('refresh does nothing before the store opens', async () => {
+  const { projectStore } = await import('./store')
+  await projectStore.refresh()
+  expect(projectStore.getSnapshot().ready).toBe(false)
 })

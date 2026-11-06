@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react'
+import { holdDragCursor } from './dragCursor'
 import type { Note } from './model'
 import { moveNote } from './noteOrder'
 import type { MoveTarget } from './notebookMove'
@@ -22,6 +23,7 @@ type Session<T extends DragNote> = {
   active: boolean
   element: HTMLElement
   ghost?: HTMLElement
+  releaseCursor?: () => void
   hint?: HTMLElement
   target?: MoveTarget
   offsetX: number
@@ -65,6 +67,7 @@ export function useNoteDrag<T extends DragNote>({
       session.current = null
       cancelAnimationFrame(s.frame)
       s.ghost?.remove()
+      s.releaseCursor?.()
       if (s.element.hasPointerCapture?.(s.pointerId)) s.element.releasePointerCapture(s.pointerId)
       if (s.active) {
         suppressClick.current = true
@@ -163,6 +166,7 @@ export function useNoteDrag<T extends DragNote>({
           return
         }
         s.active = true
+        s.releaseCursor = holdDragCursor()
         s.element.setPointerCapture?.(s.pointerId)
         s.ghost = card.cloneNode(true) as HTMLElement
         s.ghost.removeAttribute('data-note-id')

@@ -1,37 +1,57 @@
 import { effectiveDueDate } from './schedule'
-import { useRef, type KeyboardEvent } from 'react'
+import { ReminderMark } from './TaskReminders'
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useApp, useBlocked } from '../app/context'
-import { Calendar, CalendarClock } from '../icons'
+import { Calendar, CalendarClock, CircleCheck, FileText, Hash, Trash2 } from '../icons'
+import { TaskTagChips } from './TaskTags'
 import AppTooltip from '../components/AppTooltip'
 import ProjectRing from './ProjectRing'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
-import { deleteTask, toggleTask } from './actions'
+import { RepeatMark } from './RepeatEditor'
+import { deleteTask, restoreTask, toggleTask } from './actions'
 import NewTask from './NewTask'
 import {
   dueState,
   formatDate,
   formatTaskTiming,
   priorities,
+  taskViewGroups,
+  taskViewMeta,
+  taskViews,
   today,
-  todayGroups,
-  upcomingGroups,
+  type SummaryPeriod,
   type Task,
+  type TaskListView,
+  type TaskView,
 } from './model'
 
-export type DateView = 'tasks:today' | 'tasks:upcoming'
+export type DateView = `tasks:${TaskView}` | `tag:${string}`
+export const taskViewOf = (view: DateView): TaskListView =>
+  view.startsWith('tasks:') ? (view.slice('tasks:'.length) as TaskView) : (view as `tag:${string}`)
 export const isDateView = (view: string | null): view is DateView =>
-  view === 'tasks:today' || view === 'tasks:upcoming'
+  !!view?.startsWith('tag:') ||
+  (!!view?.startsWith('tasks:') && view.slice('tasks:'.length) in taskViews)
 
-/** Tasks from every project and the Inbox, grouped by when they're due. */
+const viewIcons: Record<TaskView, ReactNode> = {
+  today: <Calendar aria-hidden="true" />,
+  next7: <CalendarClock aria-hidden="true" />,
+  summary: <FileText aria-hidden="true" />,
+  completed: <CircleCheck aria-hidden="true" />,
+  trash: <Trash2 aria-hidden="true" />,
+}
+
+/** The smart lists: tasks from every project and the Inbox, grouped by when they matter. */
 export default function TaskDateView({ view }: { view: DateView }) {
   const app = useApp()
   const blocked = useBlocked()
   const listRef = useRef<HTMLDivElement>(null)
   const current = today()
-  const isToday = view === 'tasks:today'
-  const groups = isToday
-    ? todayGroups(app.projects.tasks, current)
-    : upcomingGroups(app.projects.tasks, current)
+  const [period, setPeriod] = useState<SummaryPeriod>(7)
+  const name = taskViewOf(view)
+  const meta = taskViewMeta(name)
+  const tag = name.startsWith('tag:') ? name.slice(4) : null
+  const isToday = name === 'today'
+  const groups = taskViewGroups(name, app.projects.tasks, period, current)
   const visible = groups.flatMap((group) => group.tasks)
   const projects = new Map(
     app.projects.projects.filter((p) => p.deletedAt === null).map((p) => [p.id, p]),
@@ -73,17 +93,28 @@ export default function TaskDateView({ view }: { view: DateView }) {
     <>
       <header className="project-header">
         <div className="project-title">
-          {isToday ? <Calendar aria-hidden="true" /> : <CalendarClock aria-hidden="true" />}
-          <h1>{isToday ? 'Due today' : 'Upcoming'}</h1>
+          {tag ? <Hash aria-hidden="true" /> : viewIcons[name as TaskView]}
+          <h1>{tag ?? meta.label}</h1>
+          {name === 'summary' && (
+            <div className="project-actions">
+              <div className="segmented" role="group" aria-label="Summary period">
+                <button aria-pressed={period === 7} onClick={() => setPeriod(7)}>
+                  Last 7 days
+                </button>
+                <button aria-pressed={period === 30} onClick={() => setPeriod(30)}>
+                  Last 30 days
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <p className="project-description">
-          {isToday
-            ? `${formatDate(current, current)} · Overdue and due-today tasks from every project.`
-            : 'Open tasks with a due date after today, from every project.'}
+          {isToday ? `${formatDate(current, current)} · ${meta.description}` : meta.description}
         </p>
       </header>
       <div className="task-scroll">
-        {isToday && <NewTask projectId={null} disabled={blocked} dueToday />}
+        {(isToday || name === 'next7') && <NewTask projectId={null} disabled={blocked} dueToday />}
+        {tag && <NewTask key={tag} projectId={null} disabled={blocked} tags={[tag]} />}
         <div className="task-list" ref={listRef} role="listbox" aria-label="Tasks">
           {groups.map((group) => (
             <div role="group" aria-label={group.label} key={group.id} className="task-group">
@@ -92,6 +123,24 @@ export default function TaskDateView({ view }: { view: DateView }) {
                 <span className="count">{group.tasks.length}</span>
               </div>
               {group.tasks.map((task, position) => {
+                if (name === 'trash')
+                  return (
+                    <div className="task-row" role="option" aria-selected={false} key={task.id}>
+                      <span className="task-title">{task.title}</span>
+                      <span className="task-meta">
+                        <span className="task-project">
+                          {(task.projectId && projects.get(task.projectId)?.name) || 'Inbox'}
+                        </span>
+                        <button
+                          className="btn btn-sm"
+                          disabled={blocked}
+                          onClick={() => restoreTask(task)}
+                        >
+                          Restore
+                        </button>
+                      </span>
+                    </div>
+                  )
                 const project = task.projectId ? projects.get(task.projectId) : undefined
                 const due = dueState(task, current)
                 return (
@@ -116,8 +165,11 @@ export default function TaskDateView({ view }: { view: DateView }) {
                           <span className={`task-due is-${due}`}>
                             <Calendar aria-hidden="true" />
                             {formatTaskTiming(task, current)}
+                            <ReminderMark task={task} />
                           </span>
                         )}
+                        {task.repeat && <RepeatMark repeat={task.repeat} />}
+                        <TaskTagChips task={task} />
                         {task.priority > 0 && (
                           <AppTooltip label={`${priorities[task.priority].label} priority`}>
                             <span className="task-priority">
@@ -143,9 +195,7 @@ export default function TaskDateView({ view }: { view: DateView }) {
             </div>
           ))}
           {!groups.length && (
-            <p className="task-empty">
-              {isToday ? 'Nothing due today.' : 'No upcoming due dates.'}
-            </p>
+            <p className="task-empty">{meta.empty}</p>
           )}
         </div>
       </div>

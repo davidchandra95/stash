@@ -311,13 +311,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 13 {
+        if version > 17 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 13 {
+        if version > 0 && version < 17 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -428,6 +428,26 @@ impl Store {
                 tx.execute_batch(include_str!("task_due_time_schema.sql")).map_err(db_err)?;
             }
             tx.execute_batch(include_str!("task_schedule_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 14 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("project_sync_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 15 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_repeat_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 16 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_reminders_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 17 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_tags_schema.sql")).map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
         store.recover_pdf_imports()?;
@@ -665,6 +685,36 @@ impl Store {
             .map_err(db_err)?;
         note.source = self.file_source(id, body)?;
         Ok(note)
+    }
+    /// Live notes whose saved text may link to `id`. This only narrows the search; callers
+    /// confirm each candidate, because file links are relative to the note that holds them.
+    pub fn backlink_candidates(&self, id: &str) -> Result<Vec<String>> {
+        let file_name = self
+            .conn
+            .query_row(
+                "SELECT relative_path FROM linked_notes WHERE note_id=?",
+                [id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(db_err)?
+            .and_then(|path| path.rsplit('/').next().map(str::to_string));
+        let encoded = file_name.as_deref().map(encode_uri_component);
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT n.id FROM notes n LEFT JOIN linked_notes l ON l.note_id=n.id
+                 WHERE n.trashed_at IS NULL AND n.id<>?1 AND (
+                   instr(coalesce(l.markdown,n.body),?1)>0
+                   OR instr(l.markdown,?2)>0 OR instr(l.markdown,?3)>0)",
+            )
+            .map_err(db_err)?;
+        let ids = stmt
+            .query_map(params![id, file_name, encoded], |row| row.get(0))
+            .map_err(db_err)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(ids)
     }
     pub fn save_note_record(&mut self, input: &SaveNote) -> Result<Saved> {
         let tx = self.conn.transaction().map_err(db_err)?;
@@ -984,6 +1034,17 @@ fn has_tasks(value: &Value) -> bool {
             .get("content")
             .and_then(Value::as_array)
             .is_some_and(|children| children.iter().any(has_tasks))
+}
+/// Matches JavaScript's encodeURIComponent, which writes relative file links.
+fn encode_uri_component(text: &str) -> String {
+    text.bytes().fold(String::new(), |mut out, byte| {
+        if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+        out
+    })
 }
 fn validate_document(value: &Value) -> Result<()> {
     if value.get("type").and_then(Value::as_str) != Some("doc")

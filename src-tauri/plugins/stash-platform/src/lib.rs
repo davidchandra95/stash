@@ -57,6 +57,57 @@ impl<R: Runtime> Platform<R> {
             .map(|v| v.path)
             .map_err(|_| "Could not read that file. Try choosing it again.".into())
     }
+    pub fn reminder_status(&self) -> Result<String, String> {
+        #[derive(serde::Deserialize)]
+        struct Status {
+            status: String,
+        }
+        self.0
+            .run_mobile_plugin::<Status>("reminderStatus", ())
+            .map(|v| v.status)
+            .map_err(|_| "Could not read the notification permission.".into())
+    }
+    /// Waits on the system's permission dialog.
+    pub fn reminder_request_permission(&self) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin("reminderRequestPermission", ())
+            .map_err(|_| "Could not ask for notification permission.".into())
+    }
+    pub fn reminder_pending(&self) -> Result<Vec<String>, String> {
+        #[derive(serde::Deserialize)]
+        struct Pending {
+            ids: Vec<String>,
+        }
+        self.0
+            .run_mobile_plugin::<Pending>("reminderPending", ())
+            .map(|v| v.ids)
+            .map_err(|_| "Could not read scheduled reminders.".into())
+    }
+    pub fn reminder_sync(&self, entries: serde_json::Value, drop: &[String]) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin("reminderSync", serde_json::json!({"entries":entries,"drop":drop}))
+            .map_err(|_| "Could not schedule reminders.".into())
+    }
+    pub fn reminder_cancel(&self, ids: &[String]) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin("reminderCancel", serde_json::json!({"ids":ids}))
+            .map_err(|_| "Could not cancel the snooze.".into())
+    }
+    pub fn reminder_take_open(&self) -> Result<Option<String>, String> {
+        #[derive(serde::Deserialize)]
+        struct Open {
+            task: Option<String>,
+        }
+        self.0
+            .run_mobile_plugin::<Open>("reminderTakeOpen", ())
+            .map(|v| v.task)
+            .map_err(|_| "Could not open that reminder's task.".into())
+    }
+    pub fn reminder_open_settings(&self) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin("reminderOpenSettings", ())
+            .map_err(|_| "Could not open notification settings.".into())
+    }
     pub fn open_url(&self, url: &str) -> Result<(), String> {
         self.0
             .run_mobile_plugin("openUrl", serde_json::json!({"url":url}))

@@ -1,4 +1,5 @@
 import { effectiveDueDate, clockAt, displayZone, calendarDate, dayAt, type TaskSchedule } from './schedule'
+import type { TaskRepeat } from './repeat'
 export { effectiveDueDate } from './schedule'
 export type ProjectStatus = 'planned' | 'active' | 'on_hold' | 'done' | 'cancelled'
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'cancelled'
@@ -31,10 +32,15 @@ export interface Task {
   priority: Priority
   startDate: string | null
   dueDate: string | null
-  /** Local wall-clock time as HH:mm; requires a dueDate. No notification is implied. */
+  /** Local wall-clock time as HH:mm; requires a dueDate. */
   dueTime: string | null
   schedule?: TaskSchedule | null
   dueLinked?: boolean
+  /** Minutes before the task's moment. `null` is the default; empty turns reminders off. */
+  reminders?: number[] | null
+  repeat?: TaskRepeat | null
+  /** Normalized names (see `taskTagName`); separate from the tags in note bodies. */
+  tags?: string[]
   completedAt: number | null
   sort: number
   deletedAt: number | null
@@ -282,34 +288,176 @@ export function todayGroups(tasks: Task[], current = today()): DateGroup[] {
 }
 
 const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' })
-/** Open tasks due after today: one group per day for the next week, then one per month. */
-export function upcomingGroups(tasks: Task[], current = today()): DateGroup[] {
+const dayLabel = (date: string, current: string) =>
+  `${weekday.format(new Date(dayNumber(date) * 86_400_000))}, ${formatDate(date, current)}`
+
+/** Overdue and today, as in `todayGroups`, then one group per day through the sixth day ahead. */
+export function nextSevenDaysGroups(tasks: Task[], current = today()): DateGroup[] {
   const groups = new Map<string, DateGroup>()
-  const weekEnd = addDays(current, 7)
+  const end = addDays(current, 6)
+  const tomorrow = addDays(current, 1)
   const sorted = tasks
-    .filter((t) => t.deletedAt === null && isOpen(t) && effectiveDueDate(t) && effectiveDueDate(t)! > current)
+    .filter((t) => {
+      const due = effectiveDueDate(t)
+      return t.deletedAt === null && isOpen(t) && due && due > current && due <= end
+    })
     .sort(byDue)
   for (const task of sorted) {
     const due = effectiveDueDate(task)!
-    const withinWeek = due <= weekEnd
-    const id = withinWeek ? due : due.slice(0, 7)
-    const label = withinWeek
-      ? due === addDays(current, 1)
-        ? 'Tomorrow'
-        : `${weekday.format(new Date(dayNumber(due) * 86_400_000))}, ${formatDate(due, current)}`
-      : `${due.slice(0, 7) === weekEnd.slice(0, 7) ? 'Later in ' : ''}${new Intl.DateTimeFormat(
-          'en-US',
-          {
-            month: 'long',
-            ...(due.slice(0, 4) === current.slice(0, 4) ? {} : { year: 'numeric' }),
-            timeZone: 'UTC',
-          },
-        ).format(new Date(dayNumber(`${due.slice(0, 7)}-01`) * 86_400_000))}`
+    const label = due === tomorrow ? 'Tomorrow' : dayLabel(due, current)
+    const group = groups.get(due) ?? { id: due, label, tasks: [] }
+    group.tasks.push(task)
+    groups.set(due, group)
+  }
+  return [...todayGroups(tasks, current), ...groups.values()]
+}
+
+const finishedOn = (task: Task) => dateOf(task.completedAt ?? task.updated)
+const byFinished = (a: Task, b: Task) =>
+  (b.completedAt ?? b.updated) - (a.completedAt ?? a.updated) || bySort(a, b)
+
+/** Finished tasks, newest first: one group per day for the past week, then one per month. */
+export function completedGroups(tasks: Task[], current = today()): DateGroup[] {
+  const groups = new Map<string, DateGroup>()
+  const weekStart = addDays(current, -6)
+  const finished = tasks.filter((t) => t.deletedAt === null && t.status === 'done').sort(byFinished)
+  for (const task of finished) {
+    const date = finishedOn(task)
+    const recent = date >= weekStart
+    const id = recent ? date : date.slice(0, 7)
+    const label = recent
+      ? date === current
+        ? 'Today'
+        : date === addDays(current, -1)
+          ? 'Yesterday'
+          : dayLabel(date, current)
+      : new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          ...(date.slice(0, 4) === current.slice(0, 4) ? {} : { year: 'numeric' }),
+          timeZone: 'UTC',
+        }).format(new Date(dayNumber(`${id}-01`) * 86_400_000))
     const group = groups.get(id) ?? { id, label, tasks: [] }
     group.tasks.push(task)
     groups.set(id, group)
   }
   return [...groups.values()]
+}
+
+export type SummaryPeriod = 7 | 30
+/** What the last `days` days came to: tasks finished in them, and tasks due in them still open. */
+export function summaryGroups(tasks: Task[], days: SummaryPeriod, current = today()): DateGroup[] {
+  const start = addDays(current, 1 - days)
+  const within = (date: string) => date >= start && date <= current
+  const live = tasks.filter((t) => t.deletedAt === null)
+  return [
+    {
+      id: 'completed',
+      label: 'Completed',
+      tasks: live.filter((t) => t.status === 'done' && within(finishedOn(t))).sort(byFinished),
+    },
+    {
+      id: 'overdue',
+      label: 'Not finished',
+      tasks: live
+        .filter((t) => {
+          const due = effectiveDueDate(t)
+          return isOpen(t) && due && within(due)
+        })
+        .sort(byDue),
+    },
+  ].filter((group) => group.tasks.length)
+}
+
+/** Deleted tasks, most recently deleted first. */
+export const trashGroups = (tasks: Task[]): DateGroup[] => {
+  const deleted = tasks
+    .filter((t) => t.deletedAt !== null)
+    .sort((a, b) => b.deletedAt! - a.deletedAt! || bySort(a, b))
+  return deleted.length ? [{ id: 'trash', label: 'Deleted', tasks: deleted }] : []
+}
+
+/** Every tag on a task that hasn't been deleted, in alphabetical order. */
+export const taskTags = (tasks: Task[]) =>
+  [...new Set(tasks.flatMap((t) => (t.deletedAt === null ? (t.tags ?? []) : [])))].sort((a, b) =>
+    a.localeCompare(b),
+  )
+
+/** Tasks with a tag: overdue, then open with the soonest first, then finished. */
+export function tagGroups(tasks: Task[], tag: string, current = today()): DateGroup[] {
+  const tagged = tasks.filter((t) => t.deletedAt === null && t.tags?.includes(tag))
+  const open = tagged.filter(isOpen)
+  const late = (t: Task) => {
+    const due = effectiveDueDate(t)
+    return !!due && due < current
+  }
+  const dueLast = (a: Task, b: Task) =>
+    Number(!effectiveDueDate(a)) - Number(!effectiveDueDate(b)) || byDue(a, b)
+  return [
+    { id: 'overdue', label: 'Overdue', tasks: open.filter(late).sort(byDue) },
+    { id: 'open', label: 'To do', tasks: open.filter((t) => !late(t)).sort(dueLast) },
+    { id: 'done', label: 'Completed', tasks: tagged.filter((t) => t.status === 'done').sort(byFinished) },
+  ].filter((group) => group.tasks.length)
+}
+
+/** The smart lists above and below the projects in the sidebar and drawer. */
+export type TaskView = 'today' | 'next7' | 'summary' | 'completed' | 'trash'
+/** A smart list, or the tasks with one tag. */
+export type TaskListView = TaskView | `tag:${string}`
+export const taskViews: Record<TaskView, { label: string; description: string; empty: string }> = {
+  today: {
+    label: 'Today',
+    description: 'Overdue and due-today tasks from every project.',
+    empty: 'Nothing due today.',
+  },
+  next7: {
+    label: 'Next 7 Days',
+    description: 'Overdue tasks and everything due this week, from every project.',
+    empty: 'Nothing due in the next 7 days.',
+  },
+  summary: {
+    label: 'Summary',
+    description: 'What you finished, and what was due and is still open.',
+    empty: 'Nothing finished or due in this period.',
+  },
+  completed: {
+    label: 'Completed',
+    description: 'Finished tasks from every project.',
+    empty: 'No completed tasks yet.',
+  },
+  trash: {
+    label: 'Trash',
+    description: 'Deleted tasks. Restoring one whose project was deleted puts it in the Inbox.',
+    empty: 'No deleted tasks.',
+  },
+}
+const isTagView = (view: TaskListView): view is `tag:${string}` => view.startsWith('tag:')
+export const taskViewMeta = (view: TaskListView) =>
+  isTagView(view)
+    ? {
+        label: `#${view.slice(4)}`,
+        description: 'Tasks with this tag, from every project.',
+        empty: 'No tasks with this tag.',
+      }
+    : taskViews[view]
+export function taskViewGroups(
+  view: TaskListView,
+  tasks: Task[],
+  period: SummaryPeriod = 7,
+  current = today(),
+): DateGroup[] {
+  if (isTagView(view)) return tagGroups(tasks, view.slice(4), current)
+  switch (view) {
+    case 'today':
+      return todayGroups(tasks, current)
+    case 'next7':
+      return nextSevenDaysGroups(tasks, current)
+    case 'summary':
+      return summaryGroups(tasks, period, current)
+    case 'completed':
+      return completedGroups(tasks, current)
+    case 'trash':
+      return trashGroups(tasks)
+  }
 }
 
 /** Board columns; cancelled tasks sit with done ones. */

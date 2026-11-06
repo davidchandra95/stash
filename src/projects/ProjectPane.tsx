@@ -1,4 +1,5 @@
 import { effectiveDueDate } from './schedule'
+import { ReminderMark } from './TaskReminders'
 import {
   useEffect,
   useRef,
@@ -32,7 +33,8 @@ import ResizableTaskDetail from './ResizableTaskDetail'
 import TaskCalendar from './TaskCalendar'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
-import TaskDateView, { isDateView } from './TaskDateView'
+import TaskDateView, { isDateView, taskViewOf } from './TaskDateView'
+import { TaskTagChips } from './TaskTags'
 import NewTask from './NewTask'
 import {
   bySort,
@@ -48,6 +50,7 @@ import {
   type Project,
   type Task,
   type TaskGroup,
+  taskViewMeta,
 } from './model'
 import {
   deleteTask,
@@ -58,6 +61,7 @@ import {
   updateProject,
   updateTask,
 } from './actions'
+import { RepeatMark } from './RepeatEditor'
 
 const groups: { id: TaskGroup; label: string }[] = [
   { id: 'doing', label: 'Doing' },
@@ -148,7 +152,7 @@ export default trackApp(function ProjectPane() {
     return (
       <section
         className={`project-pane ${selected ? 'has-detail' : ''}`}
-        aria-label={dateView === 'tasks:today' ? 'Due today' : 'Upcoming'}
+        aria-label={taskViewMeta(taskViewOf(dateView)).label}
         data-pane="project"
       >
         <div className="project-main">
@@ -464,8 +468,10 @@ function TaskList({
               <span className={`task-due is-${due}`}>
                 <Calendar aria-hidden="true" />
                 {formatTaskTiming(task)}
+                <ReminderMark task={task} />
               </span>
             )}
+            {task.repeat && <RepeatMark repeat={task.repeat} />}
             {task.priority > 0 && (
               <AppTooltip label={`${priorities[task.priority].label} priority`}>
                 <span className="task-priority">
@@ -473,6 +479,7 @@ function TaskList({
                 </span>
               </AppTooltip>
             )}
+            <TaskTagChips task={task} />
           </span>
         </div>
       </TaskMenu>

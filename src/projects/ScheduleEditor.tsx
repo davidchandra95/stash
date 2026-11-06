@@ -310,8 +310,7 @@ export default function ScheduleEditor({
         <p className="field-help">
           {draft.kind === 'allDay'
             ? 'All-day dates stay fixed.'
-            : 'Shown in the calendar’s time zone.'}{' '}
-          Times don’t create reminders.
+            : 'Shown in the calendar’s time zone.'}
         </p>
       )}
     </form>

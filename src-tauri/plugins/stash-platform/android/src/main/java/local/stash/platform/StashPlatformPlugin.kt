@@ -1,5 +1,6 @@
 package local.stash.platform
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
@@ -11,6 +12,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.security.keystore.KeyGenParameterSpec
@@ -22,6 +25,8 @@ import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.Permission
+import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
@@ -38,7 +43,11 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg class UrlArgs { lateinit var url: String }
 @InvokeArg class KeyboardArgs { var visible: Boolean = false }
 
-@TauriPlugin
+@InvokeArg class ReminderEntryArgs { lateinit var id: String; var title: String = ""; var body: String = ""; var fireAt: Long = 0 }
+@InvokeArg class ReminderCancelArgs { var ids: Array<String> = arrayOf() }
+@InvokeArg class ReminderSyncArgs { var entries: Array<ReminderEntryArgs> = arrayOf(); var drop: Array<String> = arrayOf() }
+
+@TauriPlugin(permissions = [Permission(strings = [Manifest.permission.POST_NOTIFICATIONS], alias = "notifications")])
 class StashPlatformPlugin(private val activity: Activity): Plugin(activity) {
     private external fun initTls(context: Context)
     private var webView: WebView? = null
@@ -57,6 +66,56 @@ class StashPlatformPlugin(private val activity: Activity): Plugin(activity) {
             WindowInsetsCompat.Builder(insets).setInsets(types, Insets.NONE).build()
         }
         ViewCompat.requestApplyInsets(container)
+        activity.intent?.let { takeReminderIntent(it) }
+    }
+    override fun onNewIntent(intent: Intent) {
+        if (takeReminderIntent(intent)) trigger("reminderOpen", JSObject())
+    }
+    private var reminderTask: String? = null
+    private fun takeReminderIntent(intent: Intent): Boolean {
+        val task = intent.getStringExtra(Reminders.EXTRA_TASK) ?: return false
+        intent.removeExtra(Reminders.EXTRA_TASK)
+        reminderTask = task
+        return true
+    }
+    @Command fun reminderStatus(invoke: Invoke) {
+        invoke.resolve(JSObject().put("status", Reminders.status(activity)))
+    }
+    @Command fun reminderRequestPermission(invoke: Invoke) {
+        Reminders.markAsked(activity)
+        // Before Android 13 there's no runtime permission; notifications start out allowed.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) invoke.resolve()
+        else requestPermissionForAlias("notifications", invoke, "reminderPermissionResult")
+    }
+    @PermissionCallback fun reminderPermissionResult(invoke: Invoke) { invoke.resolve() }
+    @Command fun reminderPending(invoke: Invoke) {
+        val ids = app.tauri.plugin.JSArray()
+        Reminders.pendingIds(activity).forEach { ids.put(it) }
+        invoke.resolve(JSObject().put("ids", ids))
+    }
+    @Command fun reminderSync(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(ReminderSyncArgs::class.java)
+            Reminders.sync(activity, args.entries.map { Reminders.Entry(it.id, it.title, it.body, it.fireAt) }, args.drop.toList())
+            invoke.resolve()
+        } catch (e: Exception) { invoke.reject("Could not schedule reminders") }
+    }
+    @Command fun reminderCancel(invoke: Invoke) {
+        try {
+            Reminders.remove(activity, invoke.parseArgs(ReminderCancelArgs::class.java).ids.toList())
+            invoke.resolve()
+        } catch (e: Exception) { invoke.reject("Could not cancel the snooze") }
+    }
+    @Command fun reminderTakeOpen(invoke: Invoke) {
+        val task = reminderTask
+        reminderTask = null
+        invoke.resolve(JSObject().put("task", task))
+    }
+    @Command fun reminderOpenSettings(invoke: Invoke) {
+        try {
+            activity.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName))
+            invoke.resolve()
+        } catch (e: Exception) { invoke.reject("Could not open notification settings") }
     }
     @Command fun keyboard(invoke: Invoke) {
         val args = invoke.parseArgs(KeyboardArgs::class.java)

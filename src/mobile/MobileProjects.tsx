@@ -1,4 +1,7 @@
+import RepeatEditor from '../projects/RepeatEditor'
+import { formatRepeat } from '../projects/repeat'
 import ScheduleEditor from '../projects/ScheduleEditor'
+import TaskReminders, { ReminderMark } from '../projects/TaskReminders'
 import { effectiveDueDate, schedulePatch } from '../projects/schedule'
 import { projectStore } from '../projects/store'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
@@ -33,7 +36,9 @@ import {
   updateProject,
   updateTask,
   type Notify,
+  restoreTask,
 } from '../projects/actions'
+import TaskTagsEditor from '../projects/TaskTags'
 import { findTaskMentions } from '../projects/mentions'
 import {
   boardColumns,
@@ -56,8 +61,10 @@ import {
   taskStatusLabel,
   taskStatuses,
   today,
-  todayGroups,
-  upcomingGroups,
+  taskViewGroups,
+  taskViewMeta,
+  type SummaryPeriod,
+  type TaskListView,
   type Priority,
   type Project,
   type ProjectSummary,
@@ -267,12 +274,17 @@ function TaskRow({
       <TaskCheck task={task} disabled={disabled} />
       <button className="mobile-task-label" onClick={() => onOpen(task.id)}>
         <span className={`mobile-row-title is-${task.status}`}>{task.title}</span>
-        {(effectiveDueDate(task) || task.schedule || task.priority > 0 || project) && (
+        {(effectiveDueDate(task) || task.schedule || task.repeat || task.priority > 0 || task.tags?.length || project) && (
           <span className="mobile-row-meta">
             {(effectiveDueDate(task) || task.schedule) && (
-              <span className={`is-${dueState(task)}`}>{formatTaskTiming(task)}</span>
+              <span className={`is-${dueState(task)}`}>
+                {formatTaskTiming(task)}
+                <ReminderMark task={task} />
+              </span>
             )}
+            {task.repeat && <span>{formatRepeat(task.repeat)}</span>}
             {task.priority > 0 && <span>{priority?.label}</span>}
+            {task.tags?.map((tag) => <span key={tag}>#{tag}</span>)}
             {project && <span>{project}</span>}
           </span>
         )}
@@ -513,7 +525,7 @@ export function ProjectPage({
   )
 }
 
-/** Due today and Upcoming: tasks from every project and the Inbox, grouped by when they're due. */
+/** The smart lists: tasks from every project and the Inbox, grouped by when they matter. */
 export function TaskDateList({
   view,
   projects,
@@ -525,7 +537,7 @@ export function TaskDateList({
   onOpenTask,
   onSheet,
 }: {
-  view: 'today' | 'upcoming'
+  view: TaskListView
   projects: Project[]
   tasks: Task[]
   appearance: Appearance
@@ -535,11 +547,31 @@ export function TaskDateList({
   onOpenTask: (id: string) => void
   onSheet: (sheet: ProjectSheet) => void
 }) {
-  const isToday = view === 'today'
-  const groups = isToday ? todayGroups(tasks) : upcomingGroups(tasks)
+  const [period, setPeriod] = useState<SummaryPeriod>(7)
+  const groups = taskViewGroups(view, tasks, period)
   return (
     <div className="mobile-project-scroll" ref={scrollRef}>
-      {isToday && (
+      {view === 'summary' && (
+        <div className="segmented mobile-summary-period" role="group" aria-label="Summary period">
+          <button aria-pressed={period === 7} onClick={() => setPeriod(7)}>
+            Last 7 days
+          </button>
+          <button aria-pressed={period === 30} onClick={() => setPeriod(30)}>
+            Last 30 days
+          </button>
+        </div>
+      )}
+      {view.startsWith('tag:') && (
+        <NewTaskForm
+          key={view}
+          projectId={null}
+          disabled={disabled}
+          tags={[view.slice(4)]}
+          appearance={appearance}
+          onAppearance={onAppearance}
+        />
+      )}
+      {(view === 'today' || view === 'next7') && (
         <NewTaskForm
           projectId={null}
           disabled={disabled}
@@ -553,21 +585,35 @@ export function TaskDateList({
           <h2 className={`mobile-task-group ${group.id === 'overdue' ? 'is-late' : ''}`}>
             {group.label} · {group.tasks.length}
           </h2>
-          {group.tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              disabled={disabled}
-              project={projectName(task.projectId, projects)}
-              onOpen={onOpenTask}
-              onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
-            />
-          ))}
+          {group.tasks.map((task) =>
+            view === 'trash' ? (
+              <div className="mobile-task-row" key={task.id}>
+                <span className="mobile-task-label">
+                  <span className="mobile-row-title">{task.title}</span>
+                  <span className="mobile-row-meta">
+                    <span>{projectName(task.projectId, projects)}</span>
+                  </span>
+                </span>
+                <button className="btn btn-sm" disabled={disabled} onClick={() => restoreTask(task)}>
+                  Restore
+                </button>
+              </div>
+            ) : (
+              <TaskRow
+                key={task.id}
+                task={task}
+                disabled={disabled}
+                project={projectName(task.projectId, projects)}
+                onOpen={onOpenTask}
+                onActions={(taskId) => onSheet({ kind: 'task-actions', id: taskId })}
+              />
+            ),
+          )}
         </section>
       ))}
       {!groups.length && (
         <p className="mobile-sheet-note mobile-project-empty">
-          {isToday ? 'Nothing due today.' : 'No upcoming due dates.'}
+          {taskViewMeta(view).empty}
         </p>
       )}
     </div>
@@ -789,6 +835,10 @@ function TaskFields({
           'task-dates',
         )}
       </div>
+      <h3 className="mobile-task-heading">Tags</h3>
+      <TaskTagsEditor id="mobile-task-tags" task={task} disabled={disabled} />
+      <h3 className="mobile-task-heading">Repeat</h3>
+      <RepeatEditor task={task} disabled={disabled || task.status === 'done' || task.status === 'cancelled'} />
       <h3 className="mobile-task-heading">Work schedule</h3>
       <ScheduleEditor schedule={task.schedule} disabled={disabled} onSave={async (schedule) => {
         const current = projectStore.getSnapshot().tasks.find((entry) => entry.id === task.id) ?? task
@@ -798,6 +848,8 @@ function TaskFields({
         onChange={(event) => updateTask(task, event.target.checked
           ? { dueLinked: true, dueDate: null, dueTime: null }
           : { dueLinked: false, dueDate: effectiveDueDate(task) })} />Due day follows schedule</label>}
+      <h3 className="mobile-task-heading">Reminders</h3>
+      <TaskReminders task={task} disabled={disabled} />
       <label className="mobile-task-heading" htmlFor="mobile-task-description">
         Description
       </label>

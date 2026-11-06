@@ -2,8 +2,25 @@
 import { expect, it } from 'vitest'
 import { LibraryProjection } from './librarySelectors'
 import { LibraryStore } from './library'
-import { matchesView, type Note, type View } from '../model'
+import { hasTasks, matchesView, type Note, type View } from '../model'
 import { sortNotes, type NoteListPreferences } from '../noteOrder'
+
+it('finds tasks anywhere in a document and honors the saved flag', () => {
+  const doc = (...content: object[]) => ({ type: 'doc', content })
+  const list = (kind: string) => ({
+    type: 'mixedList',
+    content: [{ type: 'mixedListItem', attrs: { kind }, content: [{ type: 'paragraph' }] }],
+  })
+  const quote = (node: object) => ({ type: 'blockquote', content: [node] })
+  expect(hasTasks({ content: doc(quote(list('task'))) })).toBe(true)
+  expect(hasTasks({ content: doc(quote({ type: 'inlineCheckbox' })) })).toBe(true)
+  expect(hasTasks({ content: doc(list('bullet')) })).toBe(false)
+  const lookalike = { type: 'text', text: '"kind":"task" "type":"inlineCheckbox"' }
+  expect(hasTasks({ content: doc({ type: 'paragraph', content: [lookalike] }) })).toBe(false)
+  expect(hasTasks({})).toBe(false)
+  expect(hasTasks({ hasTasks: true, content: doc() })).toBe(true)
+  expect(hasTasks({ hasTasks: false, content: doc(list('task')) })).toBe(false)
+})
 
 const note = (id: string, updated = 1): Note => ({
   id,

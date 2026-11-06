@@ -104,6 +104,7 @@ it('lists the desktop categories that apply on mobile and opens one through navi
     'Appearance',
     'Typography',
     'Editor',
+    'Notifications',
   ])
   await act(() => categoryButtons()[2].click())
   expect(onCategory).toHaveBeenCalledWith('editor')
@@ -238,7 +239,7 @@ it('searches by setting name and shows the matching controls inline', async () =
   expect(host.textContent).not.toContain('color-mode')
   expect(control('Accent color')).not.toBeNull()
   await act(() => control<HTMLButtonElement>('Clear settings search')!.click())
-  expect(categoryButtons()).toHaveLength(3)
+  expect(categoryButtons()).toHaveLength(4)
   await setValue(control('Search settings')!, 'nothing-matches', 'input')
   expect(host.querySelector('[role="status"]')?.textContent).toBe(
     'No results for “nothing-matches”',

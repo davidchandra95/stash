@@ -13,7 +13,9 @@ import {
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
 import { fontFamily } from '../fonts'
+import ReminderSettings from '../projects/ReminderSettings'
 import {
+  Bell,
   ChevronRight,
   Palette,
   PenLine,
@@ -39,6 +41,7 @@ const categories: { id: SettingsCategory; label: string; icon: IconComponent; co
   { id: 'appearance', label: 'Appearance', icon: Palette, color: '#007aff' },
   { id: 'typography', label: 'Typography', icon: Type, color: '#f7821b' },
   { id: 'editor', label: 'Editor', icon: PenLine, color: '#4fa83a' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#e5484d' },
   { id: 'sync', label: 'Sync', icon: RefreshCw, color: '#30b0c7' },
 ]
 
@@ -601,6 +604,13 @@ export default function MobileSettings({
           </select>
         </Row>
       ),
+    },
+    {
+      id: 'task-reminders',
+      category: 'notifications',
+      group: '',
+      search: 'Notifications task reminders permission allowed blocked snooze',
+      content: <ReminderSettings />,
     },
     ...(syncSettings
       ? [

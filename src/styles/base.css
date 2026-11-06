@@ -78,9 +78,10 @@ button {
   cursor: default;
 }
 
-/* An active note or tab drag holds the closed hand wherever the pointer goes. */
-:is(.window, .app):has(.note-drag-ghost, .tabs.is-reordering),
-:is(.window, .app):has(.note-drag-ghost, .tabs.is-reordering) * {
+/* An active note or tab drag holds the closed hand wherever the pointer goes.
+   Set from dragCursor.ts: a :has() here would be rechecked for every restyled element. */
+:root[data-drag-cursor],
+:root[data-drag-cursor] * {
   cursor: grabbing !important;
 }
 

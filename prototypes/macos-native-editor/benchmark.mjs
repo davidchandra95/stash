@@ -142,8 +142,14 @@ try{
     for(const client of ['stash','native']){
       await send(client,{action:'resize',width,height})
       if(stage==='input-checks')continue
-      resizeResults[client]=await drive(client,{mode:'window-info'},`resize-${width}-${client}`)
-      const b=resizeResults[client].kCGWindowBounds
+      // The window server can report the old bounds until a large document finishes its layout.
+      let b
+      for(let attempt=0;attempt<50;attempt++){
+        resizeResults[client]=await drive(client,{mode:'window-info'},`resize-${width}-${client}`)
+        b=resizeResults[client].kCGWindowBounds
+        if(b.Width===width&&b.Height===height)break
+        await sleep(200)
+      }
       if(b.Width!==width || b.Height!==height)throw Error(`Window size differs: ${client} ${JSON.stringify(b)}`)
     }
     for(let trial=0;trial<repetitions;trial++){

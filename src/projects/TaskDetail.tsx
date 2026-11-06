@@ -1,5 +1,8 @@
 import DateField from '../components/DateField'
+import RepeatEditor from './RepeatEditor'
 import ScheduleEditor from './ScheduleEditor'
+import TaskReminders from './TaskReminders'
+import TaskTagsEditor from './TaskTags'
 import { displayZone, effectiveDueDate, schedulePatch, subscribeDisplayZone } from './schedule'
 import { projectStore } from './store'
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -216,6 +219,8 @@ export default function TaskDetail({ task }: { task: Task }) {
               </option>
             ))}
           </select>
+          <label htmlFor="task-tags">Tags</label>
+          <TaskTagsEditor id="task-tags" task={task} disabled={blocked} />
           {date('startDate', 'Start')}
           {date('dueDate', 'Due')}
           {task.dueTime && <>
@@ -229,6 +234,9 @@ export default function TaskDetail({ task }: { task: Task }) {
             onChange={(event) => updateTask(task, { dueTime: event.target.value || null })}
           />
           </>}
+        </div>
+        <div className="task-detail-section">
+          <RepeatEditor task={task} disabled={blocked || task.status === 'done' || task.status === 'cancelled'} />
         </div>
         <div className="task-detail-section">
           <ScheduleEditor
@@ -261,6 +269,10 @@ export default function TaskDetail({ task }: { task: Task }) {
             </label>
           )}
           {task.dueLinked && <p className="field-help">Editing Due sets a separate deadline.</p>}
+        </div>
+        <div className="task-detail-section">
+          <h3 className="task-detail-heading">Reminders</h3>
+          <TaskReminders task={task} disabled={blocked} />
         </div>
         <div className="task-detail-section">
           <label className="task-detail-heading" htmlFor="task-description">

@@ -344,12 +344,14 @@ it('commits pointer moves only after the threshold and cancels interrupted drags
     await pointer('pointerdown', 30, 16, button)
     await pointer('pointermove', 260)
     expect(strip.classList.contains('is-reordering')).toBe(true)
+    expect(document.documentElement.hasAttribute('data-drag-cursor')).toBe(true)
     if (cancellation === 'Escape') await press('Escape', {}, window)
     else if (cancellation === 'outside') await pointer('pointerup', 260, 80)
     else if (cancellation === 'disabled') await render({ disabled: true })
     else await act(() => window.dispatchEvent(new Event(cancellation)))
     await pointer('pointerup', 260)
     expect(onReorderTab).not.toHaveBeenCalled()
+    expect(document.documentElement.hasAttribute('data-drag-cursor')).toBe(false)
     await render()
   }
   const current = strip.querySelector<HTMLElement>('[role="tab"]')!
