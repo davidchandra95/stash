@@ -17,6 +17,14 @@ Only the next occurrence exists, so Calendar and Next 7 Days don't show later on
 
 Tasks have their own tags, separate from the hashtags in note bodies: up to 20 per task, each up to 50 characters, stored lowercase with spaces turned into hyphens. Add them from task details, or by typing `#tag` in any new-task field. A tag exists while a task that isn't deleted uses it, so removing it from its last task retires it. There is no rename or merge yet. Rules live in `validate_task` (`storage/projects.rs`), `validateTags` on the sync server, and `taskTagName` (`src/tags.ts`).
 
+## Filters
+
+Filters are saved smart lists on desktop. **New filter** (the + beside Filters in the sidebar) picks any of projects (including Inbox), task tags, priorities and due dates (Overdue, Today, Tomorrow, Next 7 days, Later, No date), and whether to show open, completed or all tasks. A task must match every condition; within a condition any selected option matches, and an empty condition matches anything. Next 7 days includes today and tomorrow. Cancelled and deleted tasks never match.
+
+A filter page groups tasks Overdue, To do and Completed, like a tag page. A task added there starts in the filter's project when it names exactly one, with its first tag, and due today when Today or Next 7 days is selected, so it usually stays on the page. Deleting a filter offers Undo.
+
+Filters are a device preference (`Appearance.taskFilters`, rules in `src/projects/filters.ts`): they don't sync and Android doesn't show them yet. A filter keeps a deleted project's ID, which then matches nothing until it is removed in the dialog.
+
 ## Android
 
 Android has projects, tasks, mentions, the calendar, smart input, Today, Next 7 Days, Summary, Completed, Trash, Board and Timeline.

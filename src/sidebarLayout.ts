@@ -29,6 +29,7 @@ export const taskViewItems = {
   inbox: 'Inbox',
   'tasks:summary': 'Summary',
   'tasks:calendar': 'Calendar',
+  'tasks:filters': 'Filters',
   'tasks:tags': 'Tags',
 } as const
 

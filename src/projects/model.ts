@@ -383,8 +383,14 @@ export const taskTags = (tasks: Task[]) =>
   )
 
 /** Tasks with a tag: overdue, then open with the soonest first, then finished. */
-export function tagGroups(tasks: Task[], tag: string, current = today()): DateGroup[] {
-  const tagged = tasks.filter((t) => t.deletedAt === null && t.tags?.includes(tag))
+export const tagGroups = (tasks: Task[], tag: string, current = today()): DateGroup[] =>
+  dueGroups(
+    tasks.filter((t) => t.deletedAt === null && t.tags?.includes(tag)),
+    current,
+  )
+
+/** Overdue, then open with the soonest first and dateless last, then finished. */
+export function dueGroups(tagged: Task[], current = today()): DateGroup[] {
   const open = tagged.filter(isOpen)
   const late = (t: Task) => {
     const due = effectiveDueDate(t)

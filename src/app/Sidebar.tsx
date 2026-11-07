@@ -17,6 +17,8 @@ import { libraryProjection } from '../storage/librarySelectors'
 import { library as libraryStore, useLibrarySelector } from '../storage/useLibrary'
 import { pdfStore } from '../pdf/store'
 import ProjectRing from '../projects/ProjectRing'
+import { filterView, maxFilterName, openFilterCount } from '../projects/filters'
+import { newId } from '../projects/store'
 import {
   health,
   healthLabel,
@@ -56,6 +58,9 @@ import {
   Star,
   EyeOff,
   Settings,
+  ListFilter,
+  Pencil,
+  Copy,
 } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
 import { SidebarToggle } from './WindowControls'
@@ -566,6 +571,73 @@ function ProjectsNavigation() {
           </p>
         )}
       </Section>
+      {!hidden.includes('tasks:filters') && (
+        <Section
+          title="Filters"
+          onHide={() =>
+            app.setAppearance({
+              ...app.appearance,
+              sidebarHidden: setSidebarItemHidden(hidden, 'tasks:filters', true),
+            })
+          }
+          action={
+            <AppTooltip instant label="New filter" disabled={blocked || !ready}>
+              <button
+                className="icon-btn icon-btn-sm side-section-action"
+                aria-label="New filter"
+                disabled={blocked || !ready}
+                onClick={() => app.setFilterEditing('new')}
+              >
+                <Plus aria-hidden="true" />
+              </button>
+            </AppTooltip>
+          }
+        >
+          {app.appearance.taskFilters.map((filter) => {
+            const id = filterView(filter)
+            const total = openFilterCount(tasks, filter, current)
+            return (
+              <NoteContextMenu
+                key={filter.id}
+                disabled={blocked}
+                actions={[
+                  { label: 'Edit Filter…', icon: Pencil, run: () => app.setFilterEditing(filter) },
+                  {
+                    label: 'Duplicate Filter',
+                    icon: Copy,
+                    run: () => {
+                      const copy = { ...filter, id: newId(), name: `${filter.name} copy`.slice(0, maxFilterName) }
+                      app.saveFilter(copy)
+                      app.openProject(filterView(copy))
+                    },
+                  },
+                  {
+                    label: 'Delete Filter',
+                    icon: Trash2,
+                    separator: true,
+                    run: () => app.deleteFilter(filter),
+                  },
+                ]}
+              >
+                <button
+                  className={`side-row ${app.projectView === id ? 'is-selected' : ''}`}
+                  data-tone="slate"
+                  aria-current={app.projectView === id ? 'page' : undefined}
+                  disabled={blocked || !ready}
+                  onClick={() => app.openProject(id)}
+                >
+                  <ListFilter aria-hidden="true" />
+                  <span className="side-label">{filter.name}</span>
+                  {showCounts && total > 0 && <span className="count">{total}</span>}
+                </button>
+              </NoteContextMenu>
+            )
+          })}
+          {!app.appearance.taskFilters.length && (
+            <p className="side-hint">Save tasks that match a project, tag, priority or date.</p>
+          )}
+        </Section>
+      )}
       {tags.length > 0 && !hidden.includes('tasks:tags') && (
         <Section
           title="Tags"

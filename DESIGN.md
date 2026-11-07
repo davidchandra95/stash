@@ -300,7 +300,7 @@ Use the shared classes before writing new CSS:
 ## Projects and tasks
 
 - The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,
-  Inbox, Summary and Calendar, then All projects, the Projects section, Tags, then Completed and Trash.
+  Inbox, Summary and Calendar, then All projects, the Projects section, Filters, Tags, then Completed and Trash.
   The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
   ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
   over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
@@ -310,6 +310,12 @@ Use the shared classes before writing new CSS:
   show two tag chips and "+N"; Board cards and calendar blocks show none. The inspector's Tags row
   edits them in place: Return, comma or space adds, Backspace on an empty field removes the last, and
   matching tags appear below while focused.
+- Filters are saved smart lists (desktop only, stored per device in `Appearance.taskFilters`). Rows
+  use the `ListFilter` icon and an open-task count; their context menu edits, duplicates and
+  deletes (with Undo). The dialog uses the project form grid with toggle chips (`.filter-option`,
+  `aria-pressed`, selected as an `--accent` outline on `--accent-soft`; tag chips keep their tone
+  until selected) and a live match count. A filter page groups like a tag page, and its header
+  carries Edit and Delete icon buttons and a one-line summary of the conditions.
 - Sidebar projects show a 17px progress ring in the project color (dashed while planned) and a
   6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
   collapsed "Other projects" row.

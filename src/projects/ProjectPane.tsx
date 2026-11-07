@@ -36,6 +36,7 @@ import TaskCalendar from './TaskCalendar'
 import TaskBoard from './TaskBoard'
 import ProjectsOverview from './ProjectsOverview'
 import TaskDateView, { isDateView, taskViewOf } from './TaskDateView'
+import { filterOf, isFilterView } from './filters'
 import { TaskTagChips } from './TaskTags'
 import NewTask from './NewTask'
 import {
@@ -115,7 +116,10 @@ export default trackApp(function ProjectPane() {
       ? undefined
       : projects.find((p) => p.id === app.projectView && p.deletedAt === null)
   const dateView = isDateView(app.projectView) ? app.projectView : null
-  const missing = !inbox && !overview && !dateView && !calendar && !project
+  const filter = filterOf(app.appearance.taskFilters, app.projectView)
+  const missing =
+    (!inbox && !overview && !dateView && !calendar && !project) ||
+    (isFilterView(app.projectView) && !filter)
 
   useEffect(() => {
     // The project was deleted (here or by undoing its creation): fall back to the Inbox.
@@ -171,7 +175,9 @@ export default trackApp(function ProjectPane() {
     return (
       <section
         className={`project-pane ${selected ? 'has-detail' : ''}`}
-        aria-label={taskViewMeta(taskViewOf(dateView)).label}
+        aria-label={
+          isFilterView(dateView) ? (filter?.name ?? 'Filter') : taskViewMeta(taskViewOf(dateView)).label
+        }
         data-pane="project"
       >
         <div className="project-main">

@@ -2,7 +2,8 @@ import { effectiveDueDate } from './schedule'
 import { ReminderMark } from './TaskReminders'
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useApp, useBlocked } from '../app/context'
-import { Calendar, CalendarClock, CircleCheck, FileText, Hash, Trash2 } from '../icons'
+import { Calendar, CalendarClock, CircleCheck, FileText, Hash, ListFilter, Pencil, Trash2 } from '../icons'
+import { describeFilter, filterGroups, filterOf, isFilterView, newTaskDefaults } from './filters'
 import { TaskTagChips } from './TaskTags'
 import AppTooltip from '../components/AppTooltip'
 import ProjectRing from './ProjectRing'
@@ -25,11 +26,12 @@ import {
   type TaskView,
 } from './model'
 
-export type DateView = `tasks:${TaskView}` | `tag:${string}`
-export const taskViewOf = (view: DateView): TaskListView =>
+export type DateView = `tasks:${TaskView}` | `tag:${string}` | `filter:${string}`
+export const taskViewOf = (view: Exclude<DateView, `filter:${string}`>): TaskListView =>
   view.startsWith('tasks:') ? (view.slice('tasks:'.length) as TaskView) : (view as `tag:${string}`)
 export const isDateView = (view: string | null): view is DateView =>
   !!view?.startsWith('tag:') ||
+  isFilterView(view) ||
   (!!view?.startsWith('tasks:') && view.slice('tasks:'.length) in taskViews)
 
 const viewIcons: Record<TaskView, ReactNode> = {
@@ -47,11 +49,22 @@ export default function TaskDateView({ view }: { view: DateView }) {
   const listRef = useRef<HTMLDivElement>(null)
   const current = today()
   const [period, setPeriod] = useState<SummaryPeriod>(7)
-  const name = taskViewOf(view)
-  const meta = taskViewMeta(name)
-  const tag = name.startsWith('tag:') ? name.slice(4) : null
+  const filter = filterOf(app.appearance.taskFilters, view)
+  const name = isFilterView(view) ? null : taskViewOf(view)
+  const meta = filter
+    ? {
+        label: filter.name,
+        description: describeFilter(filter, app.projects.projects),
+        empty: 'No tasks match this filter.',
+      }
+    : taskViewMeta(name ?? 'today')
+  const tag = name?.startsWith('tag:') ? name.slice(4) : null
   const isToday = name === 'today'
-  const groups = taskViewGroups(name, app.projects.tasks, period, current)
+  const groups = filter
+    ? filterGroups(app.projects.tasks, filter, current)
+    : name
+      ? taskViewGroups(name, app.projects.tasks, period, current)
+      : []
   const visible = groups.flatMap((group) => group.tasks)
   const projects = new Map(
     app.projects.projects.filter((p) => p.deletedAt === null).map((p) => [p.id, p]),
@@ -89,12 +102,45 @@ export default function TaskDateView({ view }: { view: DateView }) {
     }
   }
 
+  // A deleted filter: the project pane moves to another page.
+  if (isFilterView(view) && !filter) return null
+  const defaults = filter && newTaskDefaults(filter)
   return (
     <>
       <header className="project-header">
         <div className="project-title">
-          {tag ? <Hash aria-hidden="true" /> : viewIcons[name as TaskView]}
+          {filter ? (
+            <ListFilter aria-hidden="true" />
+          ) : tag ? (
+            <Hash aria-hidden="true" />
+          ) : (
+            viewIcons[name as TaskView]
+          )}
           <h1>{tag ?? meta.label}</h1>
+          {filter && (
+            <div className="project-actions">
+              <AppTooltip instant label="Edit filter">
+                <button
+                  className="icon-btn"
+                  aria-label="Edit filter"
+                  disabled={blocked}
+                  onClick={() => app.setFilterEditing(filter)}
+                >
+                  <Pencil aria-hidden="true" />
+                </button>
+              </AppTooltip>
+              <AppTooltip instant label="Delete filter">
+                <button
+                  className="icon-btn"
+                  aria-label="Delete filter"
+                  disabled={blocked}
+                  onClick={() => app.deleteFilter(filter)}
+                >
+                  <Trash2 aria-hidden="true" />
+                </button>
+              </AppTooltip>
+            </div>
+          )}
           {name === 'summary' && (
             <div className="project-actions">
               <div className="segmented" role="group" aria-label="Summary period">
@@ -115,6 +161,9 @@ export default function TaskDateView({ view }: { view: DateView }) {
       <div className="task-scroll">
         {(isToday || name === 'next7') && <NewTask projectId={null} disabled={blocked} dueToday />}
         {tag && <NewTask key={tag} projectId={null} disabled={blocked} tags={[tag]} />}
+        {filter && defaults && filter.status !== 'done' && (
+          <NewTask key={filter.id} disabled={blocked} {...defaults} />
+        )}
         <div className="task-list" ref={listRef} role="listbox" aria-label="Tasks">
           {groups.map((group) => (
             <div role="group" aria-label={group.label} key={group.id} className="task-group">
