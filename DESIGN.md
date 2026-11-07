@@ -300,7 +300,7 @@ Use the shared classes before writing new CSS:
 ## Projects and tasks
 
 - The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,
-  Inbox, Summary and Calendar, then All projects, the Projects section, Filters, Tags, then Completed and Trash.
+  Inbox, Summary, Calendar and Habits, then All projects, the Projects section, Filters, Tags, then Completed and Trash.
   The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
   ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
   over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
@@ -317,6 +317,15 @@ Use the shared classes before writing new CSS:
   show two tag chips and "+N"; Board cards and calendar blocks show none. The inspector's Tags row
   edits them in place: Return, comma or space adds, Backspace on an empty field removes the last, and
   matching tags appear below while focused.
+- Habits (`src/habits/*`, `src/styles/habits.css`) is a Projects page: a table of the last seven
+  days (36px columns, 44px rows, inset `--line` dividers) and a Flame streak in `--warning` while
+  active, `--text-4` at zero. A day is a 24px ring in the habit's notebook color at 45%, filled
+  with that color once done (check in `--bg-content`); days a weekday habit isn't due use a 1px
+  `--line` ring; a note is a 7px `--text-2` dot at the corner. Clicking a day checks it and opens a
+  `.popover` with the note field focused; clicking a done day opens the note with Mark not done.
+  The inspector shares the task inspector's resizable slot and saved width, and in a pane under
+  520px the grid tightens to 30px days and drops the streak column. Android shows one `--fill-1`
+  card per habit with 36px days, and the habit page reuses the inspector body.
 - Filters are saved smart lists (desktop only, stored per device in `Appearance.taskFilters`). Rows
   use the `ListFilter` icon and an open-task count; their context menu edits, duplicates and
   deletes (with Undo). The dialog uses the project form grid with toggle chips (`.filter-option`,

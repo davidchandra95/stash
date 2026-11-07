@@ -1,4 +1,6 @@
 import { useDictation } from '../dictation/useDictation'
+import { habitStore, useHabits } from '../habits/store'
+import type { Habit } from '../habits/model'
 import { filterView, isFilterView, type TaskFilter } from '../projects/filters'
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
@@ -303,6 +305,11 @@ export function useAppController() {
   useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
   const projects = useProjects(library.ready)
   useEffect(() => libraryStore.registerFlush(projectStore.flush), [])
+  const habits = useHabits(library.ready)
+  useEffect(() => libraryStore.registerFlush(habitStore.flush), [])
+  /** The habit open in the Habits page's detail panel. */
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null)
+  const [habitEditing, setHabitEditing] = useState<Habit | 'new' | null>(null)
   /** The open project page: a project ID, 'inbox', 'all' (the overview), or null for notes. */
   const [projectView, setProjectView] = useState<string | null>(null)
   const projectViewRef = useRef(projectView)
@@ -1435,6 +1442,11 @@ export function useAppController() {
     setProjectEditing,
     projectToDelete,
     setProjectToDelete,
+    habits,
+    selectedHabitId,
+    setSelectedHabitId,
+    habitEditing,
+    setHabitEditing,
     filterEditing,
     setFilterEditing,
     saveFilter,
@@ -1535,6 +1547,7 @@ const fixedProjectPages = [
   'tasks:completed',
   'tasks:trash',
   'tasks:calendar',
+  'habits',
 ]
 /** Where the app is right now, as a stop on the Back/Forward timeline. */
 function currentPlace(

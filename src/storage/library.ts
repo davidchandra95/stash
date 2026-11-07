@@ -31,6 +31,7 @@ import { defaultHeadingStyles, normalizeHeadingStyles } from '../headingStyles'
 import { documentSchema } from '../editor/documentSchema'
 import { defaultNotebookColor } from '../notebookColors'
 import { projectStore } from '../projects/store'
+import { habitStore } from '../habits/store'
 
 // Documents are immutable snapshots. Metadata edits can reuse their confirmed tags.
 const bodyTagCache = new WeakMap<JSONContent, string[]>()
@@ -242,6 +243,7 @@ export class LibraryStore {
       await Promise.all(this.loading.values())
       await this.flush()
       await projectStore.settle()
+      await habitStore.settle()
       const result = await this.command<{ library: LibraryData; status: SyncStatus }>(
         'sync_library',
         {},
@@ -291,6 +293,7 @@ export class LibraryStore {
       })
       this.reconcileBodyCache()
       await projectStore.refresh()
+      await habitStore.refresh()
       if (reloadFailures.length)
         throw Error(
           `Sync completed, but ${reloadFailures.length === 1 ? 'one note could' : `${reloadFailures.length} notes could`} not be reloaded. Retry the note before editing.`,

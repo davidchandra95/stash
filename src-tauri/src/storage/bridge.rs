@@ -371,6 +371,17 @@ pub async fn save_projects(
     work(service.inner().clone(), move |s| s.save_project_changes(&changes)).await
 }
 #[tauri::command]
+pub async fn list_habits(service: tauri::State<'_, Arc<Service>>) -> Result<habits::HabitData> {
+    work(service.inner().clone(), |s| s.habit_data()).await
+}
+#[tauri::command]
+pub async fn save_habits(
+    changes: habits::HabitChanges,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<habits::HabitData> {
+    work(service.inner().clone(), move |s| s.save_habit_changes(&changes)).await
+}
+#[tauri::command]
 pub async fn task_mentions(
     task_id: String,
     service: tauri::State<'_, Arc<Service>>,

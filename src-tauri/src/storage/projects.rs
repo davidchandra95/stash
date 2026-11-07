@@ -205,7 +205,7 @@ pub(super) fn valid_record_id(id: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 /// A calendar date written as YYYY-MM-DD.
-fn valid_date(date: &Option<String>) -> bool {
+pub(super) fn valid_date(date: &Option<String>) -> bool {
     let Some(date) = date else { return true };
     let parts: Vec<&str> = date.split('-').collect();
     if parts.len() != 3
@@ -231,7 +231,7 @@ fn valid_date(date: &Option<String>) -> bool {
     };
     year > 0 && (1..=days).contains(&day)
 }
-fn valid_color(color: &str) -> bool {
+pub(super) fn valid_color(color: &str) -> bool {
     color.len() == 7
         && color.starts_with('#')
         && color[1..].bytes().all(|b| b.is_ascii_hexdigit())
@@ -367,7 +367,7 @@ fn validate_task(t: &SaveTask) -> Result<()> {
     Ok(())
 }
 /// The stored record must still be at the revision the caller edited.
-fn check_revision(current: Option<i64>, expected: i64, kind: &str) -> Result<i64> {
+pub(super) fn check_revision(current: Option<i64>, expected: i64, kind: &str) -> Result<i64> {
     match current {
         None if expected == 0 => Ok(0),
         Some(revision) if revision == expected => Ok(revision),

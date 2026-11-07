@@ -1,4 +1,8 @@
 import TaskCalendar from '../projects/TaskCalendar'
+import { MobileHabitList, MobileHabitPage } from './MobileHabits'
+import HabitDialog from '../habits/HabitDialog'
+import { habitStore, useHabits } from '../habits/store'
+import type { Habit } from '../habits/model'
 import { useDocumentTheme } from '../appearance'
 import {
   lazy,
@@ -33,6 +37,8 @@ import {
   CalendarClock,
   CircleCheck,
   Calendar,
+  Pencil,
+  Target,
   ArrowDownWideNarrow,
   ArrowLeft,
   Book,
@@ -159,6 +165,9 @@ export default function MobileApp() {
   const state = useLibrary()
   const { notes, notebooks, appearance } = state
   const projectData = useProjects(state.ready)
+  const habitData = useHabits(state.ready)
+  useEffect(() => library.registerFlush(habitStore.flush), [])
+  const [habitDialog, setHabitDialog] = useState<{ habit?: Habit } | null>(null)
   useEffect(() => library.registerFlush(projectStore.flush), [])
   const pdfs = usePdfs(state.ready)
   useEffect(() => library.registerFlush(pdfStore.flush), [])
@@ -277,7 +286,7 @@ export default function MobileApp() {
         ? `list:${route.view}`
         : route.kind === 'settings'
           ? `settings:${route.category ?? ''}`
-          : route.kind === 'calendar' || route.kind === 'reminders'
+          : route.kind === 'calendar' || route.kind === 'reminders' || route.kind === 'habits'
             ? route.kind
             : route.kind === 'projects'
               ? 'projects'
@@ -592,6 +601,10 @@ export default function MobileApp() {
           ? 'Calendar'
           : route.kind === 'reminders'
             ? 'Recent reminders'
+          : route.kind === 'habits'
+            ? 'Habits'
+          : route.kind === 'habit'
+            ? (habitData.habits.find((h) => h.id === route.id)?.name ?? 'Habit')
           : route.kind === 'projects'
             ? 'Projects'
             : route.kind === 'tasks'
@@ -754,7 +767,7 @@ export default function MobileApp() {
     openTask,
   }
   // A failed task save has already reloaded the stored state, so it only needs dismissing.
-  const projectFailure = projectData.saveError || projectData.error
+  const projectFailure = projectData.saveError || projectData.error || habitData.saveError || habitData.error
   const saveFailure = (error || state.error || state.syncError || projectFailure) && (
     <div className="mobile-error" role="alert">
       <span>{error || state.error || state.syncError || projectFailure}</span>
@@ -765,11 +778,13 @@ export default function MobileApp() {
             if (error || state.error) await library.flush()
             else if (state.syncError) await library.sync()
             else if (projectData.saveError) projectStore.clearSaveError()
+            else if (habitData.saveError) habitStore.clearSaveError()
+            else if (habitData.error) await habitStore.open()
             else await projectStore.open()
           }, false)
         }
       >
-        {!error && !state.error && !state.syncError && projectData.saveError ? 'Dismiss' : 'Retry'}
+        {!error && !state.error && !state.syncError && (projectData.saveError || habitData.saveError) ? 'Dismiss' : 'Retry'}
       </button>
     </div>
   )
@@ -846,6 +861,26 @@ export default function MobileApp() {
               onClick={() => setSearchOpen((v) => !v)}
             >
               <Search />
+            </button>
+          )}
+          {route.kind === 'habits' && (
+            <button
+              className="icon-btn"
+              aria-label="New habit"
+              disabled={blocked || !habitData.ready}
+              onClick={() => setHabitDialog({})}
+            >
+              <Plus aria-hidden="true" />
+            </button>
+          )}
+          {route.kind === 'habit' && (
+            <button
+              className="icon-btn"
+              aria-label="Edit habit"
+              disabled={blocked}
+              onClick={() => setHabitDialog({ habit: habitData.habits.find((h) => h.id === route.id) })}
+            >
+              <Pencil aria-hidden="true" />
             </button>
           )}
           {route.kind === 'projects' && (
@@ -1129,6 +1164,30 @@ export default function MobileApp() {
           />
         )}
         {route.kind === 'reminders' && <RecentReminders onOpen={openTask} />}
+        {route.kind === 'habits' && (
+          <MobileHabitList
+            habits={habitData.habits}
+            checkins={habitData.checkins}
+            disabled={blocked}
+            onOpen={(id) => push({ kind: 'habit', id, scroll: 0 })}
+          />
+        )}
+        {route.kind === 'habit' &&
+          (() => {
+            const habit = habitData.habits.find((h) => h.id === route.id && h.deletedAt === null)
+            return habit ? (
+              <MobileHabitPage
+                key={habit.id}
+                habit={habit}
+                checkins={habitData.checkins}
+                disabled={blocked}
+                notify={setProjectNotice}
+                onDeleted={back}
+              />
+            ) : (
+              <p className="mobile-empty">This habit was deleted.</p>
+            )
+          })()}
         {route.kind === 'calendar' && (
           <TaskCalendar
             tasks={projectData.tasks}
@@ -1347,6 +1406,14 @@ export default function MobileApp() {
                     <button onClick={() => { setOverlay(null); push({ kind: 'calendar' }) }}>
                       <CalendarDays aria-hidden="true" />
                       <span>Calendar</span>
+                    </button>
+                    <button
+                      className={route.kind === 'habits' ? 'selected' : ''}
+                      aria-current={route.kind === 'habits' ? 'page' : undefined}
+                      onClick={() => { setOverlay(null); push({ kind: 'habits', scroll: 0 }) }}
+                    >
+                      <Target aria-hidden="true" />
+                      <span>Habits</span>
                     </button>
                     <button
                       className={route.kind === 'reminders' ? 'selected' : ''}
@@ -1768,6 +1835,14 @@ export default function MobileApp() {
               })
               setDeleteBook(null)
             }}
+          />
+        )}
+        {habitDialog && (
+          <HabitDialog
+            open
+            habit={habitDialog.habit}
+            onClose={() => setHabitDialog(null)}
+            onCreated={(habit) => push({ kind: 'habit', id: habit.id, scroll: 0 })}
           />
         )}
         {projectDialog && (

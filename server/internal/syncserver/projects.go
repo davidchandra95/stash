@@ -29,7 +29,11 @@ const (
 	maxInstant = 253_402_300_799_999
 )
 
-func isProjectKind(kind string) bool { return kind == "project" || kind == "task" }
+// isProjectKind covers the record kinds that delete softly and are validated field by field:
+// projects and tasks (protocol 2), habits and their check-ins (protocol 3).
+func isProjectKind(kind string) bool {
+	return kind == "project" || kind == "task" || kind == "habit" || kind == "habitCheckin"
+}
 
 func validDate(date *string) bool {
 	if date == nil {
@@ -149,6 +153,9 @@ func validateSchedule(raw json.RawMessage) bool {
 func validateProjectRecord(op Operation) error {
 	if !recordIDPattern.MatchString(op.ID) {
 		return errors.New("invalid record ID")
+	}
+	if op.Kind == "habit" || op.Kind == "habitCheckin" {
+		return validateHabitRecord(op)
 	}
 	if op.Kind == "project" {
 		var p struct {
@@ -307,7 +314,8 @@ func sameProjectContent(a, b map[string]any) bool {
 	return reflect.DeepEqual(strip(a), strip(b))
 }
 
-// resolveProjectConflict keeps the accepted record. Different content from a stale device becomes
+// resolveProjectConflict keeps the accepted record. Check-ins merge instead, since the same day
+// checked on two devices is the same record. Different content from a stale device becomes
 // a visible copy, except a stale deletion, which never removes another device's newer edit.
 func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision *int64, op Operation, currentData []byte, result *Receipt) error {
 	var incoming, current map[string]any
@@ -323,9 +331,17 @@ func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision
 			return nil
 		}
 	}
+	if op.Kind == "habitCheckin" {
+		merged, err := json.Marshal(mergeCheckins(current, incoming))
+		if err != nil {
+			return err
+		}
+		result.Conflict = false
+		return s.put(ctx, tx, revision, Entity{Kind: op.Kind, ID: op.ID, Data: merged})
+	}
 	noun, field, limit := "task", "title", 500
-	if op.Kind == "project" {
-		noun, field, limit = "project", "name", 200
+	if op.Kind == "project" || op.Kind == "habit" {
+		noun, field, limit = op.Kind, "name", 200
 	}
 	if incoming["deletedAt"] != nil {
 		result.Message = "Deleted here but changed on another device; the changed " + noun + " was kept."
@@ -355,6 +371,9 @@ func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision
 	result.Message = "Both " + noun + " versions were kept."
 	if op.Kind == "project" {
 		result.Message += " Tasks stay with the original."
+	}
+	if op.Kind == "habit" {
+		result.Message += " Check-ins stay with the original."
 	}
 	return nil
 }

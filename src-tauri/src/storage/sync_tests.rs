@@ -752,13 +752,68 @@ fn a_server_without_project_sync_gets_notes_and_projects_stay_queued() {
     identity(&s);
     s.save_note_record(&note("n", "Note", 0)).unwrap();
     s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![save_task("t", "Task", None, 0)] }).unwrap();
-    s.prepare_cycle(false).unwrap();
+    s.prepare_cycle(1).unwrap();
     let ops = outbox(&s);
     assert_eq!(ops.iter().map(|op| op.kind.as_str()).collect::<Vec<_>>(), ["note"]);
     s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
     s.stage_page(Page { library_id: "test".into(), changes: vec![], cursor: 0, target: 0 }).unwrap();
     s.finish_sync().unwrap();
     assert_eq!(s.sync_status().unwrap().pending, 1);
-    s.prepare_cycle(true).unwrap();
+    s.prepare_cycle(2).unwrap();
     assert_eq!(outbox(&s).remove(0).kind, "task");
+}
+
+#[test]
+fn habits_upload_apply_and_wait_for_a_protocol_three_server() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    let habit = habits::SaveHabit {
+        id: "h".into(),
+        name: "Read".into(),
+        color: "#112233".into(),
+        frequency: habits::HabitFrequency::Weekdays { days: vec![1, 3, 5] },
+        start_date: "2026-11-01".into(),
+        archived_at: None,
+        sort: 1.0,
+        deleted: false,
+        expected_revision: 0,
+    };
+    let checkin = habits::SaveCheckin { habit_id: "h".into(), date: "2026-11-03".into(), done: true, note: "Read ABC".into(), expected_revision: 0 };
+    s.save_habit_changes(&habits::HabitChanges { habits: vec![habit], checkins: vec![checkin] }).unwrap();
+
+    // A protocol 2 server gets nothing; the habit waits.
+    s.prepare_cycle(2).unwrap();
+    assert!(outbox(&s).is_empty());
+    s.stage_page(Page { library_id: "test".into(), changes: vec![], cursor: 0, target: 0 }).unwrap();
+    s.finish_sync().unwrap();
+    assert_eq!(s.sync_status().unwrap().pending, 2);
+
+    s.prepare_cycle(3).unwrap();
+    let ops = outbox(&s);
+    assert_eq!(ops.iter().map(|op| op.kind.as_str()).collect::<Vec<_>>(), ["habit", "habitCheckin"]);
+    assert_eq!(ops[1].id, "h_20261103");
+    assert_eq!(ops[1].data["note"], json!("Read ABC"));
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.stage_page(Page { library_id: "test".into(), changes: vec![], cursor: 0, target: 0 }).unwrap();
+    s.finish_sync().unwrap();
+
+    // Remote records apply check-in before habit in inbox order, and don't requeue.
+    let remote_habit = json!({"id":"r","name":"Walk","color":"#445566","frequency":{"kind":"weekly","times":3},"startDate":"2026-11-01","archivedAt":null,"sort":2.0,"deletedAt":null,"created":1,"updated":2,"revision":4});
+    let remote_checkin = json!({"id":"r_20261104","habitId":"r","date":"2026-11-04","done":true,"note":"Park loop","created":1,"updated":2,"revision":3});
+    download(&mut s, vec![
+        Entity { kind: "habitCheckin".into(), id: "r_20261104".into(), revision: 1, deleted: false, data: remote_checkin },
+        Entity { kind: "habit".into(), id: "r".into(), revision: 2, deleted: false, data: remote_habit },
+    ]);
+    let data = s.habit_data().unwrap();
+    assert!(data.habits.iter().any(|h| h.id == "r" && h.frequency == habits::HabitFrequency::Weekly { times: 3 }));
+    assert!(data.checkins.iter().any(|c| c.id == "r_20261104" && c.note == "Park loop"));
+    assert_eq!(s.sync_status().unwrap().pending, 0);
+
+    // A check-in whose ID doesn't match its habit and date is refused.
+    let bad = json!({"id":"r_20261105","habitId":"r","date":"2026-11-06","done":true,"note":"","created":1,"updated":2,"revision":1});
+    let after: i64 = s.conn.query_row("SELECT cursor FROM sync_state", [], |r| r.get(0)).unwrap();
+    s.prepare_sync().unwrap();
+    s.stage_page(Page { library_id: "test".into(), changes: vec![Entity { kind: "habitCheckin".into(), id: "r_20261105".into(), revision: after + 1, deleted: false, data: bad }], cursor: after + 1, target: after + 1 }).unwrap();
+    assert!(s.finish_sync().is_err());
 }

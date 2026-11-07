@@ -9,6 +9,8 @@ export type MobileRoute =
   | { kind: 'settings'; category?: SettingsCategory }
   | { kind: 'calendar' }
   | { kind: 'reminders' }
+  | { kind: 'habits'; scroll: number }
+  | { kind: 'habit'; id: string; scroll: number }
   | { kind: 'projects'; scroll: number }
   /** `id` is a project ID, or 'inbox'. */
   | { kind: 'project'; id: string; scroll: number; collapsed: TaskGroup[] }

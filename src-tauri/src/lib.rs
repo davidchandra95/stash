@@ -225,6 +225,8 @@ pub fn run() {
             storage::bridge::ensure_pdf_companion,
             storage::bridge::list_projects,
             storage::bridge::save_projects,
+            storage::bridge::list_habits,
+            storage::bridge::save_habits,
             storage::bridge::task_mentions,
             storage::bridge::import_pdf,
             storage::bridge::read_pdf_range,
