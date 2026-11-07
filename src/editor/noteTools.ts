@@ -3,15 +3,24 @@ import type { Node } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
-export type HeadingEntry = { pos: number; level: number; title: string; children: HeadingEntry[] }
+export type HeadingEntry = {
+  pos: number
+  level: number
+  /** The automatic number of a numbered heading, such as "2.". */
+  number?: string
+  title: string
+  children: HeadingEntry[]
+}
 export function outline(doc: Node): HeadingEntry[] {
   const roots: HeadingEntry[] = [],
     stack: HeadingEntry[] = []
+  const numbers = headingNumbers(doc)
   doc.descendants((node, pos) => {
     if (node.type.name !== 'heading') return
     const entry = {
       pos,
       level: Number(node.attrs.level),
+      number: numbers.get(pos),
       title: node.textBetween(0, node.content.size, ' ', ' ').trim() || 'Untitled heading',
       children: [],
     }
@@ -26,6 +35,7 @@ import { documentMatches } from './searchText'
 import type { DocumentMatch } from './searchText'
 import { referenceTitle } from './noteReferences'
 import { unfoldAround } from './headingFolds'
+import { headingNumbers } from './headingNumbers'
 type FindState = { query: string; active: number; decorations: DecorationSet }
 export const findKey = new PluginKey<FindState>('findInNote')
 export const FindInNote = Extension.create({

@@ -500,6 +500,14 @@
 .collapse-toggle:hover {
   color: var(--text);
 }
+/* Numbered headings: the number is a widget, not text, so it never enters copies or search. */
+.tiptap .heading-number {
+  margin-right: 0.35em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
 /* Heading folds: an arrow in the left gutter of top-level headings. View state only. */
 .tiptap > :is(h1, h2, h3, h4, h5, h6) {
   position: relative;

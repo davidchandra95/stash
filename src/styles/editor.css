@@ -522,6 +522,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.outline-number {
+  color: var(--accent);
+}
 .outline-heading:focus-visible {
   outline-offset: -2px;
 }

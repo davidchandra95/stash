@@ -11,6 +11,7 @@ import type { Note } from '../model'
 import { SplitEditorContext, sessionEditor } from './noteEditorView'
 import { retainEditorView } from '../editor/lifecycle'
 import { referenceTitle } from '../editor/noteReferences'
+import { foldedHeadings, toggleHeadingFold } from '../editor/headingFolds'
 import { resolveMatch, type MatchNavigation } from '../search'
 import {
   clearReveals,
@@ -71,6 +72,12 @@ export default function NoteTools({
   // Always calculate positions against the currently mounted editor.
   const doc = editor.state.doc
   const headings = useMemo(() => outline(doc), [doc])
+  // Sections folded in the note also collapse here.
+  const foldKey = useEditorState({
+    editor,
+    selector: ({ editor }) => foldedHeadings(editor.state).join(','),
+  })
+  const folded = useMemo(() => new Set(foldKey ? foldKey.split(',').map(Number) : []), [foldKey])
   const [query, setQuery] = useState('')
   const [replaceOpen, setReplaceOpen] = useState(false)
   const [replacement, setReplacement] = useState('')
@@ -328,52 +335,58 @@ export default function NoteTools({
   }
   const tree = (entries: HeadingEntry[]) => (
     <ul>
-      {entries.map((heading) => (
-        <li key={heading.pos}>
-          <div className="outline-row" data-visible={visibleSections.has(heading.pos) || undefined}>
-            {heading.children.length ? (
-              <button
-                className="outline-disclosure"
-                aria-label={`${collapsed.has(heading.pos) ? 'Expand' : 'Collapse'} ${heading.title}`}
-                aria-expanded={!collapsed.has(heading.pos)}
-                onClick={() =>
-                  setCollapsed((old) => {
-                    const next = new Set(old)
-                    if (next.has(heading.pos)) next.delete(heading.pos)
-                    else next.add(heading.pos)
-                    return next
-                  })
-                }
-              >
-                <ChevronRight aria-hidden="true" />
-              </button>
-            ) : (
-              <span className="outline-disclosure" aria-hidden="true" />
-            )}
-            <AppTooltip label={heading.title}>
-              <button
-                className="outline-heading"
-                onClick={() => {
-                  scrollToPosition(editor, heading.pos + 1)
-                  if (contentsMode === 'overlay') closeContents()
-                }}
-              >
-                {heading.title}
-              </button>
-            </AppTooltip>
-          </div>
-          {heading.children.length > 0 && (
-            <MotionPresence
-              open={!collapsed.has(heading.pos)}
-              collapse
-              duration={motion.collapse}
-              initial={false}
+      {entries.map((heading) => {
+        const closed = collapsed.has(heading.pos) || folded.has(heading.pos)
+        return (
+          <li key={heading.pos}>
+            <div
+              className="outline-row"
+              data-visible={visibleSections.has(heading.pos) || undefined}
             >
-              <div>{tree(heading.children)}</div>
-            </MotionPresence>
-          )}
-        </li>
-      ))}
+              {heading.children.length ? (
+                <button
+                  className="outline-disclosure"
+                  aria-label={`${closed ? 'Expand' : 'Collapse'} ${heading.title}`}
+                  aria-expanded={!closed}
+                  onClick={() => {
+                    // Expanding a section folded in the note unfolds it there as well.
+                    if (folded.has(heading.pos)) toggleHeadingFold(editor, heading.pos)
+                    setCollapsed((old) => {
+                      const next = new Set(old)
+                      if (closed) next.delete(heading.pos)
+                      else next.add(heading.pos)
+                      return next
+                    })
+                  }}
+                >
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              ) : (
+                <span className="outline-disclosure" aria-hidden="true" />
+              )}
+              <AppTooltip
+                label={heading.number ? `${heading.number} ${heading.title}` : heading.title}
+              >
+                <button
+                  className="outline-heading"
+                  onClick={() => {
+                    scrollToPosition(editor, heading.pos + 1)
+                    if (contentsMode === 'overlay') closeContents()
+                  }}
+                >
+                  {heading.number && <span className="outline-number">{heading.number} </span>}
+                  {heading.title}
+                </button>
+              </AppTooltip>
+            </div>
+            {heading.children.length > 0 && (
+              <MotionPresence open={!closed} collapse duration={motion.collapse} initial={false}>
+                <div>{tree(heading.children)}</div>
+              </MotionPresence>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
   useLayoutEffect(() => {

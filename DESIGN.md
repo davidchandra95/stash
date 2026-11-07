@@ -396,6 +396,18 @@ Use the shared classes before writing new CSS:
   caret skips folded sections, edits that land in one unfold it, find and the table of contents
   unfold what they navigate to, and Enter on a folded heading starts a new heading after it.
   Without hover (touch) the chevron is always shown at reduced opacity.
+- Numbered headings show an automatic number (`1.`) in the accent color before the text, and
+  the table of contents shows it too. Each level counts on its own and restarts under a higher
+  heading. The number is a widget, not text. Markdown notes can't store numbering.
+- Desktop editable notes show a block handle beside the block under the pointer
+  (`components/BlockHandle.tsx`, `src/editor/blocks.ts`): a 44×24 chip with the block's type
+  icon and a grip, left of the fold chevron. Blocks are top-level nodes and every list item.
+  Clicking opens the block menu: a turn-into grid (Text, H1–H4, numbered list or Number
+  heading, bullet list, checklist, code block, quote, collapsible section), Align and Indent,
+  Color Options, Cut, Copy, Delete and Insert Below. Dragging the grip past 6px moves the block
+  instead, with a 2px accent line at the drop gap. List items can land in any list, or become
+  a one-item list between top-level blocks. Unsupported Lark actions (comments, translate,
+  share, sub-docs, templates, block links) are left out until they exist.
 
 ## Behavior that must not regress
 
