@@ -500,6 +500,51 @@
 .collapse-toggle:hover {
   color: var(--text);
 }
+/* Heading folds: an arrow in the left gutter of top-level headings. View state only. */
+.tiptap > :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+}
+.tiptap > * > .heading-fold-toggle {
+  position: absolute;
+  top: 0;
+  left: -24px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 1.3em;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text-3);
+  font: 14px/1 var(--font-ui);
+  cursor: pointer;
+  opacity: 0;
+  user-select: none;
+  transition:
+    opacity 120ms,
+    color 120ms,
+    transform 120ms;
+}
+.tiptap :is(h1, h2, h3, h4, h5, h6):hover > .heading-fold-toggle,
+.tiptap .heading-fold-toggle:focus-visible,
+.tiptap .heading-fold-toggle[data-folded='true'] {
+  opacity: 1;
+}
+.tiptap .heading-fold-toggle:hover {
+  color: var(--accent);
+}
+.tiptap .heading-fold-toggle[data-folded='true'] {
+  transform: rotate(-90deg);
+}
+.tiptap .heading-fold-hidden {
+  display: none !important;
+}
+@media (hover: none) {
+  .tiptap .heading-fold-toggle {
+    opacity: 0.6;
+  }
+}
 .tiptap [data-type='collapsibleHeader'] > :first-child {
   margin-top: 0;
 }

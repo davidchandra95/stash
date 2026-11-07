@@ -389,6 +389,13 @@ Use the shared classes before writing new CSS:
   notebooks and backlinks. Backlinks are `--row` rows with the title and a `--text-3` notebook.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
   when the pane is narrow.
+- Top-level headings fold (`src/editor/headingFolds.ts`): a chevron in the left gutter
+  (`--text-3`, accent on hover) shows on heading hover and stays, turned right, while folded.
+  A fold hides the blocks up to the next heading of the same or a higher level. Folding is view
+  state, remembered per note on the device; it never edits the note or its undo history. The
+  caret skips folded sections, edits that land in one unfold it, find and the table of contents
+  unfold what they navigate to, and Enter on a folded heading starts a new heading after it.
+  Without hover (touch) the chevron is always shown at reduced opacity.
 
 ## Behavior that must not regress
 

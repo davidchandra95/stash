@@ -25,6 +25,7 @@ export { literalMatches, documentMatches } from './searchText'
 import { documentMatches } from './searchText'
 import type { DocumentMatch } from './searchText'
 import { referenceTitle } from './noteReferences'
+import { unfoldAround } from './headingFolds'
 type FindState = { query: string; active: number; decorations: DecorationSet }
 export const findKey = new PluginKey<FindState>('findInNote')
 export const FindInNote = Extension.create({
@@ -133,6 +134,7 @@ export function clearReveals(editor: Editor, pos?: number) {
 }
 // Decorations reveal hidden ancestors without changing saved collapse attributes.
 export function revealPosition(editor: Editor, pos: number) {
+  unfoldAround(editor, pos)
   const resolved = editor.state.doc.resolve(pos)
   const reveal: number[] = []
   for (let depth = 1; depth <= resolved.depth; depth++) {
