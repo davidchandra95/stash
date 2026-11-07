@@ -1,4 +1,5 @@
 import Settings from './Settings'
+import VersionHistory from '../history/VersionHistory'
 import HabitDialog from '../habits/HabitDialog'
 import { habitStore } from '../habits/store'
 import NotebookConvertDialog from '../components/NotebookConvertDialog'
@@ -164,6 +165,7 @@ export default trackApp(function Overlays() {
         onClose={() => app.setProjectEditing(null)}
         onCreated={(project) => app.openProject(project.id)}
       />
+      {app.historyId && <VersionHistory noteId={app.historyId} onClose={() => app.setHistoryId(null)} />}
       <HabitDialog
         open={!!app.habitEditing}
         habit={app.habitEditing === 'new' ? undefined : (app.habitEditing ?? undefined)}

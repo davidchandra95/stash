@@ -634,6 +634,8 @@ impl Store {
                     }
                     let body = n.content.ok_or("Missing synced document.")?;
                     validate_document(&body)?;
+                    // A remote change never silently replaces a local body: keep it as a version.
+                    versions::before_body_change(&tx, &n.id, &body.to_string(), true)?;
                     tx.execute("INSERT INTO notes(id,title,body,document_version,plain_text,has_tasks,pinned,trashed_at,created,updated,revision,last_op,quick_access) VALUES(?,?,?,1,?,?,?,?,?,?,1,'sync',?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,plain_text=excluded.plain_text,has_tasks=excluded.has_tasks,pinned=excluded.pinned,trashed_at=excluded.trashed_at,created=excluded.created,updated=excluded.updated,revision=notes.revision+1,last_op='sync',quick_access=excluded.quick_access",params![n.id,n.title,body.to_string(),n.text,has_tasks(&body),n.pinned,if n.trashed{Some(n.trashed_at.unwrap_or(n.updated))}else{None},n.created,n.updated,n.quick_access]).map_err(db_err)?;
                     tx.execute("DELETE FROM note_tags WHERE note_id=?", [&n.id])
                         .map_err(db_err)?;

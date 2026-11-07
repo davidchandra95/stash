@@ -91,7 +91,7 @@ export function useNoteIds(
   )
   return useLibrarySelector(select)
 }
-function useNote(id: string) {
+export function useNote(id: string) {
   return useLibrarySelector((state) => libraryProjection.note(state, id))
 }
 export function LiveNoteEditor({

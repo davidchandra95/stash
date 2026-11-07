@@ -817,3 +817,22 @@ fn habits_upload_apply_and_wait_for_a_protocol_three_server() {
     s.stage_page(Page { library_id: "test".into(), changes: vec![Entity { kind: "habitCheckin".into(), id: "r_20261105".into(), revision: after + 1, deleted: false, data: bad }], cursor: after + 1, target: after + 1 }).unwrap();
     assert!(s.finish_sync().is_err());
 }
+
+#[test]
+fn a_synced_change_keeps_the_local_body_as_a_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    s.save_note_record(&note("v", "Local words", 0)).unwrap();
+    s.prepare_sync().unwrap();
+    s.conn.execute("DELETE FROM sync_outbox", []).unwrap();
+    s.stage_page(Page { library_id: "test".into(), changes: vec![], cursor: 0, target: 0 }).unwrap();
+    s.finish_sync().unwrap();
+    let mut entity = incoming(&s, "v", 1);
+    entity.data["text"] = json!("Remote words");
+    entity.data["content"] = json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Remote words"}]}]});
+    download(&mut s, vec![entity]);
+    let versions = s.note_versions("v").unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].preview, "Local words");
+}

@@ -297,10 +297,15 @@ Use the shared classes before writing new CSS:
   turns `--danger` on failure. Tooltips open to the right.
 - Add an area only when a real domain ships; the rail is not a launcher.
 
-## Export
+## Export and version history
 
-- Export actions sit after Note information in the note menu (Export as Markdown…, Export as
-  HTML…), Export notebook… sits before Delete notebook, and Export all notes… is a command. Results and failures are a `.notice` with Dismiss; success stays quiet otherwise.
+- Export actions sit after Note information in the note menu (Export as Markdown…, Export as HTML…,
+  Version history…), Export notebook… sits before Delete notebook, and Export all notes… is a
+  command. Results and failures are a `.notice` with Dismiss; success stays quiet otherwise.
+- Version history is an 880×640 `.dialog`: a 240px list (day labels in `--text-3`, rows with time,
+  size and a one-line preview, selection as `--accent-soft` with a 2px accent edge) beside a
+  read-only preview on `--bg-content` in the note typography. Restore is the primary button and
+  stays disabled until an earlier version is selected.
 
 ## Projects and tasks
 

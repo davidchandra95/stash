@@ -1,4 +1,5 @@
 import { useDictation } from '../dictation/useDictation'
+import { startVersionHistory } from '../history/versions'
 import { exportNote, exportNotes } from '../export/exporter'
 import { habitStore, useHabits } from '../habits/store'
 import type { Habit } from '../habits/model'
@@ -66,6 +67,7 @@ import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import {
   FileCode,
   FileDown,
+  History,
   FolderDown,
   Files,
   Pin,
@@ -221,6 +223,9 @@ export function useAppController() {
     launcher: HTMLElement | null
   } | null>(null)
   const [informationId, setInformationId] = useState<string | null>(null)
+  /** The note whose version history is open. */
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  useEffect(startVersionHistory, [])
   /** The outcome of the last export, until dismissed. */
   const [exportNotice, setExportNotice] = useState<{ message: string; error?: boolean } | null>(null)
   const exportFailed = (error: unknown) =>
@@ -1122,6 +1127,9 @@ export function useAppController() {
       },
       information,
       ...exports,
+      ...(note.source
+        ? []
+        : [{ label: 'Version history…', icon: History, run: () => setHistoryId(note.id) }]),
       {
         label: note.source ? 'Move file to notebook' : 'Move to another notebook',
         icon: FolderInput,
@@ -1449,6 +1457,8 @@ export function useAppController() {
     setInformationId,
     exportNotice,
     setExportNotice,
+    historyId,
+    setHistoryId,
     exportNotebook: (book: NotebookModel) => exportMany({ notebook: book }),
     organization,
     storeOrganization,

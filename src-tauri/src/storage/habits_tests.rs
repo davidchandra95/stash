@@ -86,7 +86,7 @@ fn version_eighteen_upgrade_adds_habits_without_requeueing() {
         .unwrap();
     drop(store);
     let mut store = Store::open(dir.path()).unwrap();
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 19);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 20);
     let dirty: i64 = store.conn.query_row("SELECT COUNT(*) FROM sync_dirty", [], |r| r.get(0)).unwrap();
     assert_eq!(dirty, 0);
     store.save_habit_changes(&changes(vec![habit("h")], vec![checkin("h", "2026-11-03", "")])).unwrap();
