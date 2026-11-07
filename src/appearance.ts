@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTagColor, tagColorRules } from './tags'
 import { normalizeSidebarHidden, normalizeSidebarOrder } from './sidebarLayout'
+import { normalizeTaskFilters } from './projects/filters'
 import { BookOpen, Moon, Sun, SunMoon, type IconComponent } from './icons'
 import type {
   AccentColor,
@@ -175,6 +176,7 @@ export function normalizeAppearance(
       : defaults.density,
     sidebarOrder: normalizeSidebarOrder(rest.sidebarOrder),
     sidebarHidden: normalizeSidebarHidden(rest.sidebarHidden),
+    taskFilters: normalizeTaskFilters(rest.taskFilters),
     surfaceColor: surfaceColorValues.includes(rest.surfaceColor as SurfaceColor)
       ? (rest.surfaceColor as SurfaceColor)
       : defaults.surfaceColor,

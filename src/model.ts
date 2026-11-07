@@ -1,3 +1,4 @@
+import type { TaskFilter } from './projects/filters'
 import type { ShortcutOverrides } from './shortcuts'
 import { richWritingFixture } from './editor/fixtures'
 import type { JSONContent } from '@tiptap/react'
@@ -129,6 +130,8 @@ export interface Appearance extends CursorSettings {
   sidebarOrder: SidebarSection[]
   /** Desktop only. Sidebar views and sections that are hidden. */
   sidebarHidden: SidebarItem[]
+  /** Desktop only. Saved task filters, shown under Filters in the Projects sidebar. */
+  taskFilters: TaskFilter[]
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
   /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */

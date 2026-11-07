@@ -1,4 +1,5 @@
 import { useDictation } from '../dictation/useDictation'
+import { filterView, isFilterView, type TaskFilter } from '../projects/filters'
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
@@ -304,10 +305,41 @@ export function useAppController() {
   useEffect(() => libraryStore.registerFlush(projectStore.flush), [])
   /** The open project page: a project ID, 'inbox', 'all' (the overview), or null for notes. */
   const [projectView, setProjectView] = useState<string | null>(null)
+  const projectViewRef = useRef(projectView)
+  projectViewRef.current = projectView
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [projectLayout, setProjectLayout] = useState<'list' | 'board'>('list')
   const [projectEditing, setProjectEditing] = useState<Project | 'new' | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [filterEditing, setFilterEditing] = useState<TaskFilter | 'new' | null>(null)
+  /** Adds a filter, or replaces the saved one with the same ID. */
+  const saveFilter = (filter: TaskFilter) => {
+    const current = libraryStore.getSnapshot().appearance
+    const exists = current.taskFilters.some((f) => f.id === filter.id)
+    setAppearance({
+      ...current,
+      taskFilters: exists
+        ? current.taskFilters.map((f) => (f.id === filter.id ? filter : f))
+        : [...current.taskFilters, filter],
+    })
+  }
+  const deleteFilter = (filter: TaskFilter) => {
+    const current = libraryStore.getSnapshot().appearance
+    const index = current.taskFilters.findIndex((f) => f.id === filter.id)
+    if (index < 0) return
+    setAppearance({ ...current, taskFilters: current.taskFilters.filter((f) => f.id !== filter.id) })
+    if (projectViewRef.current === filterView(filter)) openProject('tasks:today')
+    setProjectNotice({
+      message: `Deleted the filter “${filter.name}”.`,
+      undo: () => {
+        const latest = libraryStore.getSnapshot().appearance
+        if (latest.taskFilters.some((f) => f.id === filter.id)) return
+        const next = [...latest.taskFilters]
+        next.splice(Math.min(index, next.length), 0, filter)
+        setAppearance({ ...latest, taskFilters: next })
+      },
+    })
+  }
   const [projectNotice, setProjectNotice] = useState<{ message: string; undo?: () => void } | null>(
     null,
   )
@@ -1403,6 +1435,10 @@ export function useAppController() {
     setProjectEditing,
     projectToDelete,
     setProjectToDelete,
+    filterEditing,
+    setFilterEditing,
+    saveFilter,
+    deleteFilter,
     projectNotice,
     setProjectNotice,
     pdfImportError,
@@ -1521,4 +1557,5 @@ function currentPlace(
 const projectPageExists = (id: string, projects: Project[]) =>
   fixedProjectPages.includes(id) ||
   id.startsWith('tag:') ||
+  isFilterView(id) ||
   projects.some((p) => p.id === id && p.deletedAt === null)

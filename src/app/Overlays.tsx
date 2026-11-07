@@ -15,6 +15,8 @@ import { library as libraryStore } from '../storage/useLibrary'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from '../icons'
 import ProjectDialog from '../projects/ProjectDialog'
+import FilterDialog from '../projects/FilterDialog'
+import { filterView } from '../projects/filters'
 import DeleteProjectDialog from '../projects/DeleteProjectDialog'
 import { projectStore } from '../projects/store'
 import { trackApp, useApp, useBlocked } from './context'
@@ -143,6 +145,17 @@ export default trackApp(function Overlays() {
         notebooks={notebooks}
         onClose={() => app.setProjectEditing(null)}
         onCreated={(project) => app.openProject(project.id)}
+      />
+      <FilterDialog
+        open={!!app.filterEditing}
+        filter={app.filterEditing === 'new' ? undefined : (app.filterEditing ?? undefined)}
+        projects={app.projects.projects}
+        tasks={app.projects.tasks}
+        onClose={() => app.setFilterEditing(null)}
+        onSave={(filter, created) => {
+          app.saveFilter(filter)
+          if (created) app.openProject(filterView(filter))
+        }}
       />
       <DeleteProjectDialog
         project={app.projectToDelete}

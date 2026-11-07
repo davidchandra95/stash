@@ -82,6 +82,7 @@ export const defaultAppearance: Appearance = {
   density: 'default',
   sidebarOrder: ['quick', 'notebooks', 'pdfs', 'tags'],
   sidebarHidden: [],
+  taskFilters: [],
   translucentSidebar: true,
   layout: 'standard',
   sidebarCounts: true,
