@@ -28,7 +28,7 @@ import {
   type Task,
 } from '../projects/model'
 import type { View } from '../model'
-import { tagTone } from '../tags'
+import TagChip from '../components/TagChip'
 import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
@@ -340,15 +340,14 @@ export default trackApp(function Sidebar({
               <Section title="Tags">
                 <div className="side-tags">
                   {app.tags.map((tag) => (
-                    <button
-                      className={`chip ${view === `tag:${tag}` ? 'is-selected' : ''}`}
-                      data-tone={tagTone(tag)}
-                      aria-current={view === `tag:${tag}` ? 'page' : undefined}
+                    <TagChip
                       key={tag}
-                      onClick={() => select(`tag:${tag}`)}
-                    >
-                      #{tag}
-                    </button>
+                      tag={tag}
+                      selected={view === `tag:${tag}`}
+                      appearance={app.appearance}
+                      setAppearance={app.setAppearance}
+                      onSelect={() => select(`tag:${tag}`)}
+                    />
                   ))}
                 </div>
               </Section>
@@ -509,21 +508,17 @@ function ProjectsNavigation() {
       {tags.length > 0 && (
         <Section title="Tags">
           <div className="side-tags">
-            {tags.map((tag) => {
-              const selected = app.projectView === `tag:${tag}`
-              return (
-                <button
-                  className={`chip ${selected ? 'is-selected' : ''}`}
-                  data-tone={tagTone(tag)}
-                  aria-current={selected ? 'page' : undefined}
-                  disabled={blocked}
-                  key={tag}
-                  onClick={() => app.openProject(`tag:${tag}`)}
-                >
-                  #{tag}
-                </button>
-              )
-            })}
+            {tags.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                selected={app.projectView === `tag:${tag}`}
+                disabled={blocked}
+                appearance={app.appearance}
+                setAppearance={app.setAppearance}
+                onSelect={() => app.openProject(`tag:${tag}`)}
+              />
+            ))}
           </div>
         </Section>
       )}

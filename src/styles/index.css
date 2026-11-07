@@ -2,6 +2,7 @@
 @import './tokens.css';
 @import './theme-workspace.css';
 @import './theme-sepia.css';
+@import './theme-color.css';
 @import './base.css';
 @import './controls.css';
 @import './floating.css';

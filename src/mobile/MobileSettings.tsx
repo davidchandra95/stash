@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import HeadingStyles from '../components/HeadingStyles'
+import { CustomAccentOption, SurfaceColorOptions } from '../components/ColorSettings'
 import {
   accentColors,
   accents,
@@ -9,6 +10,7 @@ import {
   colorModes,
   newNoteTitles,
   interfaceThemes,
+  surfaceColors,
   themeAccents,
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
@@ -304,7 +306,8 @@ export default function MobileSettings({
       id: 'accent',
       category: 'appearance',
       group: '',
-      search: 'Accent color highlight selection blue purple pink red orange yellow green graphite',
+      search:
+        'Accent color highlight selection blue indigo purple pink red orange yellow green teal graphite custom picker',
       content: (
         <Row label="Accent color" stacked>
           {/* Android doesn't report an accent color, so the automatic choice shows as Blue
@@ -336,7 +339,23 @@ export default function MobileSettings({
                 onClick={() => set('accent', accent)}
               />
             ))}
+            <CustomAccentOption value={value} onChange={onChange} />
           </span>
+        </Row>
+      ),
+    },
+    {
+      id: 'surface-color',
+      category: 'appearance',
+      group: '',
+      search: 'Surface color tint tinted vivid neutral colorful background window',
+      content: (
+        <Row
+          label="Surface color"
+          stacked
+          description={surfaceColors[value.surfaceColor].description}
+        >
+          <SurfaceColorOptions value={value} onChange={onChange} />
         </Row>
       ),
     },

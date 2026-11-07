@@ -5,12 +5,12 @@
  */
 
 :root[data-ui][data-tint='sepia'] {
-  --bg-window: #e9dfc8;
-  --bg-sidebar: #e9dfc8;
-  --bg-sidebar-translucent: #e9dfc8;
-  --bg-content: #f6eedb;
-  --bg-elevated: #fbf5e6;
-  --bg-elevated-solid: #fbf5e6;
+  --base-window: #e9dfc8;
+  --base-sidebar: #e9dfc8;
+  --base-sidebar-translucent: #e9dfc8;
+  --base-content: #f6eedb;
+  --base-elevated: #fbf5e6;
+  --base-elevated-solid: #fbf5e6;
   --bg-input: rgba(91, 62, 26, 0.06);
   --bg-control: #fbf5e6;
   --bg-code: rgba(91, 62, 26, 0.07);
@@ -28,8 +28,8 @@
   --scrollbar-hover: rgba(91, 62, 26, 0.32);
   --scrollbar-active: rgba(91, 62, 26, 0.5);
 
-  --line: rgba(91, 62, 26, 0.16);
-  --line-strong: rgba(91, 62, 26, 0.26);
+  --base-line: rgba(91, 62, 26, 0.16);
+  --base-line-strong: rgba(91, 62, 26, 0.26);
   --fill-1: rgba(91, 62, 26, 0.07);
   --fill-2: rgba(91, 62, 26, 0.11);
   --fill-3: rgba(91, 62, 26, 0.15);

@@ -5,7 +5,7 @@ import { generateText } from '@tiptap/core'
 import { normalizeContent } from './editor/clipboard'
 import { writingExtensions } from './editor/extensions'
 import type { CursorSettings } from './editor/cursor'
-import { tagFooterContent, tagsFromContent } from './tags'
+import { tagFooterContent, tagsFromContent, type TagColor } from './tags'
 import type { HeadingStyles } from './headingStyles'
 
 export type {
@@ -92,7 +92,20 @@ export type ColorMode = 'light' | 'sepia' | 'dark' | 'system'
 /** `native` follows macOS; `workspace` is an opaque, bordered indigo theme. */
 export type InterfaceTheme = 'native' | 'workspace'
 export type AccentColor =
-  'system' | 'blue' | 'purple' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'graphite'
+  | 'system'
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'pink'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'teal'
+  | 'graphite'
+  | 'custom'
+/** How strongly the accent washes the window surfaces. */
+export type SurfaceColor = 'neutral' | 'tinted' | 'vivid'
 
 export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
@@ -100,6 +113,11 @@ export interface Appearance extends CursorSettings {
   colorMode: ColorMode
   interfaceTheme: InterfaceTheme
   accent: AccentColor
+  /** Hex color used when `accent` is `custom`. */
+  customAccent: string
+  surfaceColor: SurfaceColor
+  /** Tag colors picked by hand, keyed by lowercase tag name; other tags use tagTone(). */
+  tagColors: Record<string, TagColor>
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
   /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */

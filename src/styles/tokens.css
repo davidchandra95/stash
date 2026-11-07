@@ -57,12 +57,12 @@
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg-window: #ececee;
-  --bg-sidebar: #ececee;
-  --bg-sidebar-translucent: rgba(236, 236, 238, 0.82);
-  --bg-content: #ffffff;
-  --bg-elevated: rgba(252, 252, 253, 0.94);
-  --bg-elevated-solid: #fcfcfd;
+  --base-window: #ececee;
+  --base-sidebar: #ececee;
+  --base-sidebar-translucent: rgba(236, 236, 238, 0.82);
+  --base-content: #ffffff;
+  --base-elevated: rgba(252, 252, 253, 0.94);
+  --base-elevated-solid: #fcfcfd;
   --bg-input: rgba(0, 0, 0, 0.04);
   --bg-control: #ffffff;
   --bg-code: rgba(0, 0, 0, 0.035);
@@ -77,8 +77,8 @@
   --scrollbar-hover: rgba(0, 0, 0, 0.26);
   --scrollbar-active: rgba(0, 0, 0, 0.42);
 
-  --line: rgba(0, 0, 0, 0.09);
-  --line-strong: rgba(0, 0, 0, 0.15);
+  --base-line: rgba(0, 0, 0, 0.09);
+  --base-line-strong: rgba(0, 0, 0, 0.15);
   --fill-1: rgba(0, 0, 0, 0.05);
   --fill-2: rgba(0, 0, 0, 0.08);
   --fill-3: rgba(0, 0, 0, 0.11);
@@ -123,12 +123,12 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg-window: #262628;
-  --bg-sidebar: #29292b;
-  --bg-sidebar-translucent: rgba(40, 40, 42, 0.8);
-  --bg-content: #1e1e1f;
-  --bg-elevated: rgba(44, 44, 46, 0.95);
-  --bg-elevated-solid: #2c2c2e;
+  --base-window: #262628;
+  --base-sidebar: #29292b;
+  --base-sidebar-translucent: rgba(40, 40, 42, 0.8);
+  --base-content: #1e1e1f;
+  --base-elevated: rgba(44, 44, 46, 0.95);
+  --base-elevated-solid: #2c2c2e;
   --bg-input: rgba(255, 255, 255, 0.06);
   --bg-control: rgba(255, 255, 255, 0.1);
   --bg-code: rgba(255, 255, 255, 0.045);
@@ -143,8 +143,8 @@
   --scrollbar-hover: rgba(255, 255, 255, 0.24);
   --scrollbar-active: rgba(255, 255, 255, 0.4);
 
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.14);
+  --base-line: rgba(255, 255, 255, 0.08);
+  --base-line-strong: rgba(255, 255, 255, 0.14);
   --fill-1: rgba(255, 255, 255, 0.06);
   --fill-2: rgba(255, 255, 255, 0.09);
   --fill-3: rgba(255, 255, 255, 0.13);

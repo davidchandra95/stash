@@ -13,7 +13,8 @@ lists what changes for touch. Shared components must keep working on both.
 
 1. **Native first, by default.** The Native theme uses macOS conventions: system font, traffic
    lights, translucent sidebar, native context menus, 42px unified toolbar rows. Color comes
-   from the shared tones, not from flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
+   from the shared tones and the user's Surface color setting (see [Themes](#themes)), never
+   from area styles flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
    mixing them with their own look.
 2. **Compact by default.** 28px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
    to make something look important.
@@ -24,23 +25,23 @@ lists what changes for touch. Shared components must keep working on both.
 
 ## Where things live
 
-| Area                     | Code                                                     | Styles                                              |
-| ------------------------ | -------------------------------------------------------- | --------------------------------------------------- |
-| Tokens, base, controls   | –                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
-| Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`)  | `src/styles/theme-workspace.css`                    |
-| Menus, popovers, dialogs | Radix + `components/*`                                   | `src/styles/floating.css`, `dialogs.css`            |
-| Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`              | `src/styles/shell.css`                              |
-| Activity rail            | `src/app/ActivityRail.tsx`                               | `src/styles/sidebar.css`                            |
-| Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`     | `src/styles/sidebar.css`                            |
-| Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows` | `src/styles/notelist.css`                           |
-| Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`             | `src/styles/editor.css`                             |
-| Note content             | `src/editor/*`, `components/NoteEditor.tsx`              | `src/styles/document.css`                           |
-| Writing tools and menus  | `components/DesktopWritingToolbar.tsx`, editor menus     | `src/styles/writing.css`                            |
-| Command palette          | `components/CommandPalette.tsx`                          | `src/styles/palette.css`                            |
-| Settings                 | `src/app/Settings.tsx`                                   | `src/styles/settings.css`                           |
-| Android                  | `src/mobile/*`                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
-| PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
-| Projects and tasks       | `src/projects/*`                                         | `src/styles/projects.css`                           |
+| Area                     | Code                                                                     | Styles                                              |
+| ------------------------ | ------------------------------------------------------------------------ | --------------------------------------------------- |
+| Tokens, base, controls   | –                                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
+| Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`, `surfaceColors`) | `src/styles/theme-workspace.css`, `theme-color.css` |
+| Menus, popovers, dialogs | Radix + `components/*`                                                   | `src/styles/floating.css`, `dialogs.css`            |
+| Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`                              | `src/styles/shell.css`                              |
+| Activity rail            | `src/app/ActivityRail.tsx`                                               | `src/styles/sidebar.css`                            |
+| Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`                     | `src/styles/sidebar.css`                            |
+| Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows`                 | `src/styles/notelist.css`                           |
+| Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`                             | `src/styles/editor.css`                             |
+| Note content             | `src/editor/*`, `components/NoteEditor.tsx`                              | `src/styles/document.css`                           |
+| Writing tools and menus  | `components/DesktopWritingToolbar.tsx`, editor menus                     | `src/styles/writing.css`                            |
+| Command palette          | `components/CommandPalette.tsx`                                          | `src/styles/palette.css`                            |
+| Settings                 | `src/app/Settings.tsx`                                                   | `src/styles/settings.css`                           |
+| Android                  | `src/mobile/*`                                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
+| PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
+| Projects and tasks       | `src/projects/*`                                                         | `src/styles/projects.css`                           |
 
 All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
 `useApp()` and render; they don't own workspace logic. Panes are wrapped in `trackApp()`
@@ -103,10 +104,26 @@ Settings › Appearance › Theme. Native is the default.
 - **Color tones** (every theme, defined in `tokens.css`):
   `--tone-indigo|blue|teal|green|gold|orange|pink|purple|slate`, picked with `data-tone`. Sidebar view icons sit in tinted 19px tiles (All notes indigo, Today
   orange, To-do green, Uncategorized slate, Pinned gold, Quick Access purple). Tags get a stable
-  tone from `tagTone()` (`src/tags.ts`) in the sidebar and in note text. Notebook chips and the
-  notes-list notebook label take their notebook color through `--chip-color`. The rules live
+  tone from `tagTone()` (`src/tags.ts`) in the sidebar and in note text. Right-clicking a sidebar
+  tag picks another tone (or Automatic); picks live in `Appearance.tagColors` and apply through a
+  generated `#tag-colors` stylesheet matching `data-tag` / `data-body-tag`, so give every tag
+  chip `data-tag` next to `data-tone`. Menus with a color choice use `NoteAction.color` and
+  `checked`. Notebook chips and the notes-list notebook label take their notebook color through
+  `--chip-color`. The rules live
   in the area stylesheets (`controls.css`, `sidebar.css`, `editor.css`, `notelist.css`,
   `document.css`); themes change only the tone values.
+- **Accent** (Settings › Appearance › Accent color): Automatic (macOS or the theme accent), the
+  presets in `accents` (`src/appearance.ts`, macOS colors plus indigo and teal), or Custom, a
+  color-input swatch that stores `customAccent` as hex. `customAccentValue()` gives light picks
+  dark ink on filled controls and lifts very dark picks in dark mode.
+- **Surface color** (`theme-color.css`, `<html data-surface>`): Neutral, Tinted (the default) or
+  Vivid washes the theme's surfaces with the accent. Themes and Sepia define neutral surfaces as
+  `--base-window|sidebar|sidebar-translucent|content|elevated|elevated-solid|line|line-strong`;
+  `theme-color.css` derives the matching `--bg-*`/`--line*` tokens by mixing in
+  `--tint-frame|content|float|line`. Define new surface colors as `--base-*`, never `--bg-*`
+  directly, or the tint won't reach them. Vivid also fills the sidebar selection with the accent
+  and fills the view tiles with their tone. The writing surface stays near-white; headings and
+  text keep their own colors.
 - **Sepia** (`theme-sepia.css`) is a color mode next to Light, Dark and Auto, not a theme: warm
   paper surfaces and brown ink in every theme. Its floating surfaces are opaque, and it turns off
   vibrancy (the Translucent sidebar setting is disabled). The accent, tones and notebook colors
@@ -492,7 +509,8 @@ surfaces. Don't add colors there; use the tokens.
 
 ## Review checklist
 
-- Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors.
+- Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors,
+  a custom accent, and each Surface color.
 - For Android changes, check `?mobile=1` at 390×844 and 844×390 in light and dark, plus a short
   viewport (about 844×260) for the keyboard-open case.
 - Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, split notes, and

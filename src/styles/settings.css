@@ -285,11 +285,39 @@
 .accent-option.is-system {
   background: conic-gradient(#e0383e, #f7821b, #fcb827, #62ba46, #007aff, #953d96, #e0383e);
 }
-.accent-option[aria-checked='true'] {
+/* Custom: the picked color inside a spectrum ring; the native color input covers it. */
+.accent-option.is-custom {
+  position: relative;
+  background:
+    radial-gradient(circle, var(--swatch) 0 4px, transparent 4.5px),
+    conic-gradient(#e0383e, #f7821b, #fcb827, #62ba46, #0f8f8f, #007aff, #953d96, #e0383e);
+  cursor: pointer;
+}
+.accent-option.is-custom > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.accent-option.is-custom:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.accent-option.is-custom:has(input[aria-checked='true']) {
+  background: var(--swatch);
+}
+.accent-option[aria-checked='true'],
+.accent-option.is-custom:has(input[aria-checked='true']) {
   outline: 2px solid var(--swatch, var(--accent));
   outline-offset: 2px;
 }
-.accent-option[aria-checked='true']::after {
+.accent-option[aria-checked='true']::after,
+.accent-option.is-custom:has(input[aria-checked='true'])::after {
   content: '';
   display: block;
   width: 6px;

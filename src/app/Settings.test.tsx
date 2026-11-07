@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const native = vi.hoisted(() => ({ enabled: false, invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: native.invoke, isTauri: () => native.enabled }))
 import Settings from './Settings'
-import { accentColors, accents } from '../appearance'
+import { accentColors, accents, surfaceColors } from '../appearance'
 import type { Appearance } from '../model'
 import { platform } from '../platform'
 import { defaultAppearance, type LibraryState } from '../storage/library'
@@ -157,6 +157,7 @@ it('offers every accent color plus the macOS accent and changes only the accent'
   expect(radios('Accent color').map(radioName)).toEqual([
     'Multicolor (follow macOS)',
     ...accentColors.map((accent) => accents[accent].label),
+    'Custom color',
   ])
   expect(checkedRadios('Accent color')).toEqual(['Multicolor (follow macOS)'])
   expect(document.body.textContent).toContain('Follows your macOS accent color')
@@ -166,6 +167,25 @@ it('offers every accent color plus the macOS accent and changes only the accent'
   expect(document.body.textContent).not.toContain('Follows your macOS accent color')
   await act(() => radio('Accent color', 'Multicolor (follow macOS)').click())
   expect(current.accent).toBe('system')
+})
+
+it('picks a custom accent color and a surface color', async () => {
+  await render()
+  const picker = radio('Accent color', 'Custom color') as unknown as HTMLInputElement
+  await act(() => picker.click())
+  expect(current).toEqual({ ...defaultAppearance, accent: 'custom' })
+  await act(() => {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    setValue.call(picker, '#12ab34')
+    picker.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(current).toEqual({ ...defaultAppearance, accent: 'custom', customAccent: '#12ab34' })
+  expect(checkedRadios('Accent color')).toEqual(['Custom color'])
+
+  expect(checkedRadios('Surface color')).toEqual(['Tinted'])
+  await act(() => radio('Surface color', 'Vivid').click())
+  expect(current.surfaceColor).toBe('vivid')
+  expect(document.body.textContent).toContain(surfaceColors.vivid.description)
 })
 
 it('toggles switches with role=switch and aria-checked, changing one preference at a time', async () => {
@@ -272,7 +292,7 @@ it('searches settings and shortcuts across categories and clears back to the cat
   expect(control('Edit New note shortcut')).toBeNull()
 
   await type(control('Search settings')!, 'ACCENT')
-  expect(radios('Accent color')).toHaveLength(accentColors.length + 1)
+  expect(radios('Accent color')).toHaveLength(accentColors.length + 2)
   await act(() => radio('Accent color', 'Green').click())
   expect(current.accent).toBe('green')
 
@@ -331,7 +351,14 @@ it('shows the Sync category only when sync settings are provided', async () => {
   root = createRoot(host)
 
   await render({ syncSettings: <p>Sync form</p>, initialCategory: 'sync' })
-  expect(categories()).toEqual(['Appearance', 'Typography', 'Editor', 'Notifications', 'Shortcuts', 'Sync'])
+  expect(categories()).toEqual([
+    'Appearance',
+    'Typography',
+    'Editor',
+    'Notifications',
+    'Shortcuts',
+    'Sync',
+  ])
   expect(title()).toBe('Sync')
   expect(document.querySelector('[aria-current="page"]')?.textContent).toBe('Sync')
   expect(document.body.textContent).toContain('Sync form')

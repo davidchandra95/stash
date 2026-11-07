@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import FontPicker from '../components/FontPicker'
 import HeadingStyles from '../components/HeadingStyles'
+import { CustomAccentOption, SurfaceColorOptions } from '../components/ColorSettings'
 import KeyboardShortcuts from '../components/KeyboardShortcuts'
 import {
   accentColors,
@@ -17,6 +18,7 @@ import {
   layouts,
   newNoteTitles,
   interfaceThemes,
+  surfaceColors,
   themeAccents,
 } from '../appearance'
 import { notebookPath, orderedNotebooks } from '../notebooks'
@@ -361,7 +363,8 @@ export default function Settings({
       id: 'accent',
       category: 'appearance',
       group: '',
-      search: 'Accent color highlight selection blue purple pink red orange yellow green graphite',
+      search:
+        'Accent color highlight selection blue indigo purple pink red orange yellow green teal graphite custom picker',
       content: (
         <Row
           label="Accent color"
@@ -397,7 +400,19 @@ export default function Settings({
                 onClick={() => set('accent', accent)}
               />
             ))}
+            <CustomAccentOption value={value} onChange={onChange} />
           </span>
+        </Row>
+      ),
+    },
+    {
+      id: 'surface-color',
+      category: 'appearance',
+      group: '',
+      search: 'Surface color tint tinted vivid neutral colorful background window',
+      content: (
+        <Row label="Surface color" description={surfaceColors[value.surfaceColor].description}>
+          <SurfaceColorOptions value={value} onChange={onChange} />
         </Row>
       ),
     },
@@ -422,7 +437,9 @@ export default function Settings({
           <Switch
             label="Translucent sidebar"
             checked={value.translucentSidebar}
-            disabled={!nativeMac || value.interfaceTheme !== 'native' || value.colorMode === 'sepia'}
+            disabled={
+              !nativeMac || value.interfaceTheme !== 'native' || value.colorMode === 'sepia'
+            }
             onChange={(checked) => set('translucentSidebar', checked)}
           />
         </Row>
