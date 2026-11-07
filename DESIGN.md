@@ -361,7 +361,9 @@ Use the shared classes before writing new CSS:
 
 - Note typography is the user's: `--note-font`, `--title-font`, `--code-font`, `--note-size`,
   `--line-spacing`, `--paragraph-spacing`, `--list-item-spacing`, heading style variables, and
-  `--writing-width` (percentage of the scroll pane). Defaults: system fonts, 15px, 1.6.
+  `--writing-width` (percentage of the scroll pane). Defaults: system fonts, 15px, 1.6, and 8px
+  between paragraphs. Enter starts a new paragraph and Shift+Enter a new line inside it, so
+  paragraph spacing is what tells them apart.
 - Above the title: a meta line with the edited date, word count and save problems. Below the
   title: notebook chips and the "Notebook" menu chip.
 - The formatting toolbar floats beside the selection (above it, or below near the top edge) and
