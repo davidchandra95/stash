@@ -3,6 +3,7 @@
 @import './theme-workspace.css';
 @import './theme-sepia.css';
 @import './theme-color.css';
+@import './theme-density.css';
 @import './base.css';
 @import './controls.css';
 @import './floating.css';

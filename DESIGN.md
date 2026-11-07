@@ -17,7 +17,12 @@ lists what changes for touch. Shared components must keep working on both.
    from area styles flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
    mixing them with their own look.
 2. **Compact by default.** 28px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
-   to make something look important.
+   to make something look important. Settings › Appearance › Density (desktop only,
+   `theme-density.css`, `<html data-density>`) swaps these for Compact (24px rows, 22px menu
+   items, 5px note-row padding) or Comfortable (32px rows, 30px menu items, 13px note-row
+   padding). It never changes type sizes or the app and pane bars. Size rows with `--row`,
+   `--control`, `--control-sm`, `--menu-row`, `--settings-row` and `--note-row-pad-y` rather
+   than fixed pixels, so they follow the setting.
 3. **One way to do each thing.** Tokens and shared classes own geometry and color. Area
    stylesheets own layout only.
 4. **Quiet until needed.** Hover reveals secondary actions. Notices appear only for problems,
@@ -201,6 +206,13 @@ Settings › Appearance › Theme. Native is the default.
 - The app has two areas, Notes and Projects. The activity rail picks one, as do Show Notes (⌘1)
   and Show Projects (⌘2). The sidebar belongs to the active area. Switching to Projects reopens the
   project page last open there (Today by default).
+- The sidebar is customizable (`src/sidebarLayout.ts`, Settings › Appearance › Sidebar and
+  Projects sidebar). Today, To-do, Uncategorized, Pinned notes, Quick Access, the task views and
+  the task Tags section can be hidden; the Quick access, Notebooks, PDFs and Tags sections can be
+  hidden and moved up or down (`Appearance.sidebarOrder` / `sidebarHidden`, desktop only). All
+  notes, All projects, the Projects list and Completed/Trash always show. Quick access hides itself
+  once both its views are hidden. Right-clicking a section header offers Hide Section and Customize
+  Sidebar…; a new sidebar section goes in `sidebarSections` so it can be ordered and hidden too.
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
 - The bottom of the activity rail holds sync status, Recent reminders, Trash and Settings. There is no account menu.

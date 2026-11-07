@@ -8,6 +8,16 @@ import FontPicker from '../components/FontPicker'
 import HeadingStyles from '../components/HeadingStyles'
 import { CustomAccentOption, SurfaceColorOptions } from '../components/ColorSettings'
 import ThemePresets from '../components/ThemePresets'
+import {
+  moveSection,
+  notesViewItems,
+  setSidebarItemHidden,
+  sidebarSectionLabels,
+  sidebarSections,
+  taskViewItems,
+  type SidebarItem,
+  type SidebarSection,
+} from '../sidebarLayout'
 import KeyboardShortcuts from '../components/KeyboardShortcuts'
 import {
   accentColors,
@@ -15,6 +25,7 @@ import {
   autoSyncIntervals,
   autoSyncLabel,
   colorModes,
+  densities,
   layoutNames,
   layouts,
   newNoteTitles,
@@ -27,6 +38,8 @@ import { fontFamily } from '../fonts'
 import ReminderSettings from '../projects/ReminderSettings'
 import {
   Bell,
+  ChevronDown,
+  ChevronUp,
   Keyboard,
   Palette,
   PenLine,
@@ -36,7 +49,7 @@ import {
   X,
   type IconComponent,
 } from '../icons'
-import type { Appearance, ColorMode, InterfaceTheme, NewNoteTitle } from '../model'
+import type { Appearance, ColorMode, Density, InterfaceTheme, NewNoteTitle } from '../model'
 import { useMotionEnabled, useReducedMotion } from '../motion'
 import { noteListModes, type NoteListMode } from '../noteListPresentation'
 import { platform } from '../platform'
@@ -283,6 +296,112 @@ export default function Settings({
   const nativeMac = isTauri() && platform.platform === 'macos'
 
   const themeAccent = themeAccents[value.interfaceTheme]
+  const hidden = value.sidebarHidden
+  const showSwitch = (id: SidebarItem, label: string) => (
+    <Switch
+      label={`Show ${label} in sidebar`}
+      checked={!hidden.includes(id)}
+      onChange={(checked) =>
+        onChange({ ...value, sidebarHidden: setSidebarItemHidden(hidden, id, !checked) })
+      }
+    />
+  )
+  const sidebarItem = (
+    id: SidebarItem,
+    group: string,
+    label: string,
+    controls: ReactNode,
+    description?: string,
+  ): Item => ({
+    id: `sidebar-${group}-${id}`,
+    category: 'appearance',
+    group,
+    search: `${group} ${label} show hide reorder customize sections views`,
+    content: (
+      <Row label={label} description={description}>
+        {controls}
+      </Row>
+    ),
+  })
+  const order = value.sidebarOrder
+  const moveButtons = (id: SidebarSection) => (
+    <span className="sidebar-order-buttons">
+      {([-1, 1] as const).map((delta) => {
+        const Icon = delta < 0 ? ChevronUp : ChevronDown
+        const label = `Move ${sidebarSectionLabels[id]} ${delta < 0 ? 'up' : 'down'}`
+        const end = delta < 0 ? order[0] === id : order.at(-1) === id
+        return (
+          <button
+            key={delta}
+            type="button"
+            className="icon-btn icon-btn-sm"
+            aria-label={label}
+            title={label}
+            disabled={end}
+            onClick={() => onChange({ ...value, sidebarOrder: moveSection(order, id, delta) })}
+          >
+            <Icon aria-hidden="true" />
+          </button>
+        )
+      })}
+    </span>
+  )
+  const viewsIn = (section: SidebarSection | null) =>
+    (
+      Object.entries(notesViewItems) as [
+        keyof typeof notesViewItems,
+        (typeof notesViewItems)[keyof typeof notesViewItems],
+      ][]
+    ).filter(([, item]) => item.section === section)
+  const sidebarItems: Item[] = [
+    ...viewsIn(null).map(([id, item]) =>
+      sidebarItem(id, 'Sidebar', item.label, showSwitch(id, item.label)),
+    ),
+    ...order.flatMap((section) => [
+      sidebarItem(
+        section,
+        'Sidebar',
+        sidebarSectionLabels[section],
+        <>
+          {moveButtons(section)}
+          {showSwitch(section, sidebarSectionLabels[section])}
+        </>,
+        'Section',
+      ),
+      ...viewsIn(section).map(([id, item]) =>
+        sidebarItem(
+          id,
+          'Sidebar',
+          item.label,
+          showSwitch(id, item.label),
+          `In ${sidebarSectionLabels[section]}`,
+        ),
+      ),
+    ]),
+    ...(Object.entries(taskViewItems) as [keyof typeof taskViewItems, string][]).map(
+      ([id, label]) => sidebarItem(id, 'Projects sidebar', label, showSwitch(id, label)),
+    ),
+    {
+      id: 'sidebar-reset',
+      category: 'appearance',
+      group: 'Projects sidebar',
+      search: 'Sidebar reset default sections order views',
+      content: (
+        <Row label="Reset sidebar" description="Show every view and restore the section order">
+          <button
+            type="button"
+            className="btn"
+            disabled={!hidden.length && order.every((id, i) => id === sidebarSections[i])}
+            onClick={() =>
+              onChange({ ...value, sidebarHidden: [], sidebarOrder: [...sidebarSections] })
+            }
+          >
+            Reset
+          </button>
+        </Row>
+      ),
+    },
+  ]
   const items: Item[] = [
     {
       id: 'task-reminders',
@@ -499,6 +618,29 @@ export default function Settings({
       ),
     },
     {
+      id: 'density',
+      category: 'appearance',
+      group: 'Window',
+      search: 'Density compact comfortable default spacing row height dense roomy',
+      content: (
+        <Row label="Density" description="Row and control heights; text size stays the same">
+          <span className="segmented" role="radiogroup" aria-label="Density">
+            {(Object.keys(densities) as Density[]).map((density) => (
+              <button
+                key={density}
+                type="button"
+                role="radio"
+                aria-checked={value.density === density}
+                onClick={() => set('density', density)}
+              >
+                {densities[density]}
+              </button>
+            ))}
+          </span>
+        </Row>
+      ),
+    },
+    {
       id: 'sidebar-counts',
       category: 'appearance',
       group: 'Window',
@@ -513,6 +655,7 @@ export default function Settings({
         </Row>
       ),
     },
+    ...sidebarItems,
     {
       id: 'animations',
       category: 'appearance',

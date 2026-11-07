@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTagColor, tagColorRules } from './tags'
+import { normalizeSidebarHidden, normalizeSidebarOrder } from './sidebarLayout'
 import { BookOpen, Moon, Sun, SunMoon, type IconComponent } from './icons'
 import type {
   AccentColor,
   Appearance,
   ColorMode,
+  Density,
   InterfaceTheme,
   NewNoteTitle,
   SurfaceColor,
@@ -54,6 +56,13 @@ export const surfaceColors: Record<SurfaceColor, { label: string; description: s
   vivid: { label: 'Vivid', description: 'A stronger wash and accent-filled selection' },
 }
 const surfaceColorValues = Object.keys(surfaceColors) as SurfaceColor[]
+
+export const densities: Record<Density, string> = {
+  compact: 'Compact',
+  default: 'Default',
+  comfortable: 'Comfortable',
+}
+const densityValues = Object.keys(densities) as Density[]
 const hexColor = /^#[0-9a-f]{6}$/i
 
 export const interfaceThemes: Record<InterfaceTheme, string> = {
@@ -161,6 +170,11 @@ export function normalizeAppearance(
         .map(([tag, tone]) => [tag.toLowerCase(), tone]),
     ),
     themePresets: normalizePresets(rest.themePresets, defaults),
+    density: densityValues.includes(rest.density as Density)
+      ? (rest.density as Density)
+      : defaults.density,
+    sidebarOrder: normalizeSidebarOrder(rest.sidebarOrder),
+    sidebarHidden: normalizeSidebarHidden(rest.sidebarHidden),
     surfaceColor: surfaceColorValues.includes(rest.surfaceColor as SurfaceColor)
       ? (rest.surfaceColor as SurfaceColor)
       : defaults.surfaceColor,
@@ -281,13 +295,16 @@ export function accentValue(
  */
 export function useDocumentTheme(
   appearance: Pick<Appearance, 'colorMode' | 'accent'> &
-    Partial<Pick<Appearance, 'interfaceTheme' | 'customAccent' | 'surfaceColor' | 'tagColors'>>,
+    Partial<
+      Pick<Appearance, 'interfaceTheme' | 'customAccent' | 'surfaceColor' | 'tagColors' | 'density'>
+    >,
 ) {
   const dark = useResolvedDark(appearance.colorMode)
   const system = useSystemAccentValue()
   const theme = appearance.interfaceTheme ?? 'native'
   const sepia = appearance.colorMode === 'sepia'
   const surface = appearance.surfaceColor ?? 'neutral'
+  const density = appearance.density ?? 'default'
   const { color, ink } = accentValue(
     appearance.accent,
     dark,
@@ -300,13 +317,14 @@ export function useDocumentTheme(
     root.dataset.theme = dark ? 'dark' : 'light'
     root.dataset.ui = theme
     root.dataset.surface = surface
+    root.dataset.density = density
     // Sepia is a warm light mode: everything keyed to data-theme treats it as light.
     if (sepia) root.dataset.tint = 'sepia'
     else delete root.dataset.tint
     root.style.colorScheme = dark ? 'dark' : 'light'
     root.style.setProperty('--accent', color)
     root.style.setProperty('--on-accent', ink ?? '#ffffff')
-  }, [dark, sepia, color, ink, theme, surface])
+  }, [dark, sepia, color, ink, theme, surface, density])
   const tagRules = tagColorRules(appearance.tagColors ?? {})
   useLayoutEffect(() => {
     let style = document.getElementById('tag-colors')

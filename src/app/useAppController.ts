@@ -2,7 +2,15 @@ import { useDictation } from '../dictation/useDictation'
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
-import { colorModeIcons, colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
+import {
+  colorModeIcons,
+  colorModes,
+  densities,
+  layoutNames,
+  layouts,
+  useDocumentTheme,
+  useSystemAccent,
+} from '../appearance'
 import { platform } from '../platform'
 import { applyPreset, builtInPresets, currentPreset } from '../themePresets'
 import {
@@ -73,6 +81,7 @@ import {
   Settings2,
   Columns2,
   Palette,
+  Rows3,
   PanelLeft,
 } from '../icons'
 import {
@@ -91,7 +100,7 @@ import { useContentsResize } from '../useContentsResize'
 import type { NoteLinkContext } from '../editor/noteReferences'
 import type { PaletteCommand } from '../components/CommandPalette'
 import type { MatchNavigation } from '../search'
-import { matchesView, type ColorMode, type Note, type View } from '../model'
+import { matchesView, type ColorMode, type Density, type Note, type View } from '../model'
 import { useLibrarySelector, library as libraryStore } from '../storage/useLibrary'
 import { fontFamily } from '../fonts'
 import { headingStyleVariables } from '../headingStyles'
@@ -1211,6 +1220,14 @@ export function useAppController() {
       checked: currentPreset(appearance)?.id === preset.id,
       run: () => setAppearance(applyPreset(appearance, preset)),
     })),
+    ...(Object.entries(densities) as [Density, string][]).map(([density, name]) => ({
+      id: `density-${density}`,
+      label: `Density: ${name}`,
+      keywords: 'compact comfortable spacing rows',
+      icon: Rows3,
+      checked: appearance.density === density,
+      run: () => setAppearance({ ...appearance, density }),
+    })),
     ...(Object.entries(colorModes) as [ColorMode, string][]).map(([mode, name]) => ({
       id: `appearance-${mode}`,
       label: `Appearance: ${name}`,
@@ -1232,7 +1249,9 @@ export function useAppController() {
         active && (!activePdf || focusedPane === 'note') ? () => toggleContents(true) : undefined,
       editor: active
         ? () =>
-            document.querySelector<HTMLElement>('.editor-group.is-focused .note-scroll .tiptap')?.focus()
+            document
+              .querySelector<HTMLElement>('.editor-group.is-focused .note-scroll .tiptap')
+              ?.focus()
         : undefined,
       title: active
         ? () =>
@@ -1500,4 +1519,6 @@ function currentPlace(
   }
 }
 const projectPageExists = (id: string, projects: Project[]) =>
-  fixedProjectPages.includes(id) || id.startsWith('tag:') || projects.some((p) => p.id === id && p.deletedAt === null)
+  fixedProjectPages.includes(id) ||
+  id.startsWith('tag:') ||
+  projects.some((p) => p.id === id && p.deletedAt === null)

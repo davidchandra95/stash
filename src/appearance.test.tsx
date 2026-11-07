@@ -129,6 +129,16 @@ describe('normalizeAppearance', () => {
       )
   })
 
+  it.each(['compact', 'default', 'comfortable'])('keeps the density %s', (density) => {
+    expect(normalizeAppearance(saved({ density }), defaultAppearance).density).toBe(density)
+  })
+
+  it('replaces an unknown density with the default', () => {
+    expect(normalizeAppearance(saved({ density: 'tiny' }), defaultAppearance).density).toBe(
+      'default',
+    )
+  })
+
   it('keeps valid tag colors under lowercase names and drops the rest', () => {
     expect(
       normalizeAppearance(

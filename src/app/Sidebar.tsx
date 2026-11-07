@@ -1,5 +1,6 @@
 import { displayZone, subscribeDisplayZone } from '../projects/schedule'
 import {
+  Fragment,
   useCallback,
   useId,
   useState,
@@ -29,6 +30,13 @@ import {
 } from '../projects/model'
 import type { View } from '../model'
 import TagChip from '../components/TagChip'
+import NoteContextMenu from '../components/NoteContextMenu'
+import {
+  sectionVisible,
+  setSidebarItemHidden,
+  type SidebarItem,
+  type SidebarSection,
+} from '../sidebarLayout'
 import type { LibraryState } from '../storage/library'
 import {
   CalendarDays,
@@ -46,6 +54,8 @@ import {
   Plus,
   Search,
   Star,
+  EyeOff,
+  Settings,
 } from '../icons'
 import { trackApp, useApp, useBlocked } from './context'
 import { SidebarToggle } from './WindowControls'
@@ -53,29 +63,52 @@ import { SidebarToggle } from './WindowControls'
 function Section({
   title,
   action,
+  onHide,
   children,
 }: {
   title: string
   action?: ReactNode
+  /** Adds Hide Section and Customize Sidebar to the header's context menu. */
+  onHide?: () => void
   children: ReactNode
 }) {
+  const app = useApp()
   const [expanded, setExpanded] = useState(true)
   const contentId = useId()
+  const header = (
+    <div className="side-section-header">
+      <button
+        type="button"
+        className="side-section-toggle"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={() => setExpanded((open) => !open)}
+      >
+        <span>{title}</span>
+        <ChevronRight size={11} aria-hidden="true" />
+      </button>
+      {action}
+    </div>
+  )
   return (
     <section className="side-section">
-      <div className="side-section-header">
-        <button
-          type="button"
-          className="side-section-toggle"
-          aria-expanded={expanded}
-          aria-controls={contentId}
-          onClick={() => setExpanded((open) => !open)}
+      {onHide ? (
+        <NoteContextMenu
+          disabled={false}
+          actions={[
+            { label: 'Hide Section', icon: EyeOff, run: onHide },
+            {
+              label: 'Customize Sidebar…',
+              icon: Settings,
+              run: () => app.setAppearanceOpen(true),
+            },
+          ]}
         >
-          <span>{title}</span>
-          <ChevronRight size={11} aria-hidden="true" />
-        </button>
-        {action}
-      </div>
+          {header}
+        </NoteContextMenu>
+      ) : (
+        header
+      )}
       <div id={contentId} hidden={!expanded}>
         {children}
       </div>
@@ -152,6 +185,202 @@ export default trackApp(function Sidebar({
   }
   const pdfDisabled = app.pdfImporting || !pdfs.ready || blocked
 
+  const hidden = app.appearance.sidebarHidden
+  const shows = (id: SidebarItem) => !hidden.includes(id)
+  const hide = (id: SidebarItem) => () =>
+    app.setAppearance({
+      ...app.appearance,
+      sidebarHidden: setSidebarItemHidden(hidden, id, true),
+    })
+  const sections: Record<SidebarSection, () => ReactNode> = {
+    quick: () => (
+      <Section title="Quick access" onHide={hide('quick')}>
+        {shows('pinned') && row('pinned', <Pin aria-hidden="true" />, 'Pinned notes', 'gold')}
+        {shows('quickAccess') &&
+          row('quickAccess', <Star aria-hidden="true" />, 'Quick Access', 'purple')}
+      </Section>
+    ),
+    notebooks: () => (
+      <Section
+        title="Notebooks"
+        onHide={hide('notebooks')}
+        action={
+          <AppTooltip instant label="New notebook" disabled={blocked}>
+            <button
+              className="icon-btn icon-btn-sm side-section-action"
+              aria-label="New notebook"
+              disabled={blocked}
+              onClick={newNotebook}
+            >
+              <Plus aria-hidden="true" />
+            </button>
+          </AppTooltip>
+        }
+      >
+        <NotebookTree
+          books={notebooks}
+          dropTarget={app.drag.target}
+          active={view}
+          renderBook={(book) => {
+            const id = `book:${book.id}` as View
+            const total = count(id)
+            return (
+              <button
+                className="side-row-main"
+                aria-current={view === id ? 'page' : undefined}
+                onClick={() => select(id)}
+              >
+                <NotebookIconGlyph icon={book.icon} color={book.color} />
+                <span className="side-label">{book.name}</span>
+                {showCounts && total > 0 && (
+                  <span className="count">{total.toLocaleString('en-US')}</span>
+                )}
+              </button>
+            )
+          }}
+          createNote={(book) => app.addNote(book.id)}
+          edit={(book) => {
+            app.setBookParent(undefined)
+            app.setBookEditing(book)
+            app.setBookOpen(true)
+          }}
+          deleteNotebook={(book) => app.setBookToDelete(book)}
+          deleteDisabled={(book) => !!book.rootId}
+          deleteDisabledReason={() => 'Folder-linked notebooks cannot be deleted.'}
+          createChild={(book) => {
+            app.setBookParent(book)
+            app.setBookEditing(undefined)
+            app.setBookOpen(true)
+          }}
+          convert={(book) => app.setBookToConvert(book)}
+          refresh={(id) => void app.refreshFolder(id)}
+          reselect={(id) => void app.locateFolder(id)}
+          disabled={blocked}
+        />
+        {!notebooks.length && <p className="side-hint">No notebooks yet.</p>}
+        {app.folderBusy && (
+          <p role="status" className="side-hint">
+            Refreshing folder…
+          </p>
+        )}
+        {app.folderError && (
+          <p role="alert" className="side-hint is-error">
+            {app.folderError}
+          </p>
+        )}
+        {app.library.roots
+          .filter((root) => root.error)
+          .map((root) => (
+            <div className="side-hint is-error" role="alert" key={root.id}>
+              {root.error}
+              <span className="side-hint-actions">
+                <button className="btn-link" onClick={() => void app.locateFolder(root.id)}>
+                  Locate folder
+                </button>
+                <button className="btn-link" onClick={() => void app.refreshFolder(root.id)}>
+                  Retry
+                </button>
+              </span>
+            </div>
+          ))}
+        {Object.keys(app.library.conflicts).length > 0 && (
+          <div className="side-hint is-warning" role="status">
+            File changes need attention
+            <span className="side-hint-actions">
+              {Object.keys(app.library.conflicts).map((id) => (
+                <button key={id} className="btn-link" onClick={() => app.setConflictId(id)}>
+                  {app.notes.find((n) => n.id === id)?.title || 'Untitled'}
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
+      </Section>
+    ),
+    pdfs: () => (
+      <Section
+        title="PDFs"
+        onHide={hide('pdfs')}
+        action={
+          <AppTooltip instant label="Open PDF" disabled={pdfDisabled}>
+            <button
+              className="icon-btn icon-btn-sm side-section-action"
+              aria-label="Open PDF"
+              disabled={pdfDisabled}
+              onClick={openPdf}
+            >
+              <Plus aria-hidden="true" />
+            </button>
+          </AppTooltip>
+        }
+      >
+        <input
+          hidden
+          ref={app.pdfInput}
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) void app.importPdf(file)
+            event.target.value = ''
+          }}
+        />
+        {pdfs.documents.map((doc) => (
+          <AppTooltip label={doc.name} disabled={blocked} key={doc.id}>
+            <button
+              className={`side-row ${workspace.documentId === doc.id ? 'is-selected' : ''}`}
+              aria-current={workspace.documentId === doc.id ? 'true' : undefined}
+              disabled={blocked}
+              onClick={() => workspace.openPdf(doc.id)}
+            >
+              <FileText aria-hidden="true" className="ui-icon is-muted" />
+              <span className="side-label">{doc.name}</span>
+              {doc.unavailable && <span className="count">Missing</span>}
+            </button>
+          </AppTooltip>
+        ))}
+        {!pdfs.documents.length && <p className="side-hint">Open a PDF to read and annotate.</p>}
+        {app.library.preview && (
+          <p className="side-hint">Browser preview · PDFs last for this session only.</p>
+        )}
+        {app.pdfImporting && (
+          <p className="side-hint" role="status">
+            Importing PDF…
+          </p>
+        )}
+        {(app.pdfImportError || pdfs.error) && (
+          <div className="side-hint is-error" role="alert">
+            {app.pdfImportError || pdfs.error}
+            {pdfs.error && (
+              <span className="side-hint-actions">
+                <button className="btn-link" onClick={() => void pdfStore.open()}>
+                  Retry
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+      </Section>
+    ),
+    tags: () =>
+      app.tags.length > 0 && (
+        <Section title="Tags" onHide={hide('tags')}>
+          <div className="side-tags">
+            {app.tags.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                selected={view === `tag:${tag}`}
+                appearance={app.appearance}
+                setAppearance={app.setAppearance}
+                onSelect={() => select(`tag:${tag}`)}
+              />
+            ))}
+          </div>
+        </Section>
+      ),
+  }
+
   return (
     <aside {...presence} className="sidebar" id="notebook-sidebar" aria-label="Sidebar">
       <div className="pane-bar side-bar" data-tauri-drag-region>
@@ -166,192 +395,18 @@ export default trackApp(function Sidebar({
           <>
             <nav aria-label="Notes navigation" className="side-group">
               {row('all', <Files aria-hidden="true" />, 'All notes', 'indigo')}
-              {row('today', <CalendarDays aria-hidden="true" />, 'Today', 'orange')}
-              {row('todo', <ListTodo aria-hidden="true" />, 'To-do', 'green')}
-              {row('uncategorized', <Inbox aria-hidden="true" />, 'Uncategorized', 'slate')}
+              {shows('today') &&
+                row('today', <CalendarDays aria-hidden="true" />, 'Today', 'orange')}
+              {shows('todo') && row('todo', <ListTodo aria-hidden="true" />, 'To-do', 'green')}
+              {shows('uncategorized') &&
+                row('uncategorized', <Inbox aria-hidden="true" />, 'Uncategorized', 'slate')}
             </nav>
 
-            <Section title="Quick access">
-              {row('pinned', <Pin aria-hidden="true" />, 'Pinned notes', 'gold')}
-              {row('quickAccess', <Star aria-hidden="true" />, 'Quick Access', 'purple')}
-            </Section>
-
-            <Section
-              title="Notebooks"
-              action={
-                <AppTooltip instant label="New notebook" disabled={blocked}>
-                  <button
-                    className="icon-btn icon-btn-sm side-section-action"
-                    aria-label="New notebook"
-                    disabled={blocked}
-                    onClick={newNotebook}
-                  >
-                    <Plus aria-hidden="true" />
-                  </button>
-                </AppTooltip>
-              }
-            >
-              <NotebookTree
-                books={notebooks}
-                dropTarget={app.drag.target}
-                active={view}
-                renderBook={(book) => {
-                  const id = `book:${book.id}` as View
-                  const total = count(id)
-                  return (
-                    <button
-                      className="side-row-main"
-                      aria-current={view === id ? 'page' : undefined}
-                      onClick={() => select(id)}
-                    >
-                      <NotebookIconGlyph icon={book.icon} color={book.color} />
-                      <span className="side-label">{book.name}</span>
-                      {showCounts && total > 0 && (
-                        <span className="count">{total.toLocaleString('en-US')}</span>
-                      )}
-                    </button>
-                  )
-                }}
-                createNote={(book) => app.addNote(book.id)}
-                edit={(book) => {
-                  app.setBookParent(undefined)
-                  app.setBookEditing(book)
-                  app.setBookOpen(true)
-                }}
-                deleteNotebook={(book) => app.setBookToDelete(book)}
-                deleteDisabled={(book) => !!book.rootId}
-                deleteDisabledReason={() => 'Folder-linked notebooks cannot be deleted.'}
-                createChild={(book) => {
-                  app.setBookParent(book)
-                  app.setBookEditing(undefined)
-                  app.setBookOpen(true)
-                }}
-                convert={(book) => app.setBookToConvert(book)}
-                refresh={(id) => void app.refreshFolder(id)}
-                reselect={(id) => void app.locateFolder(id)}
-                disabled={blocked}
-              />
-              {!notebooks.length && <p className="side-hint">No notebooks yet.</p>}
-              {app.folderBusy && (
-                <p role="status" className="side-hint">
-                  Refreshing folder…
-                </p>
-              )}
-              {app.folderError && (
-                <p role="alert" className="side-hint is-error">
-                  {app.folderError}
-                </p>
-              )}
-              {app.library.roots
-                .filter((root) => root.error)
-                .map((root) => (
-                  <div className="side-hint is-error" role="alert" key={root.id}>
-                    {root.error}
-                    <span className="side-hint-actions">
-                      <button className="btn-link" onClick={() => void app.locateFolder(root.id)}>
-                        Locate folder
-                      </button>
-                      <button className="btn-link" onClick={() => void app.refreshFolder(root.id)}>
-                        Retry
-                      </button>
-                    </span>
-                  </div>
-                ))}
-              {Object.keys(app.library.conflicts).length > 0 && (
-                <div className="side-hint is-warning" role="status">
-                  File changes need attention
-                  <span className="side-hint-actions">
-                    {Object.keys(app.library.conflicts).map((id) => (
-                      <button key={id} className="btn-link" onClick={() => app.setConflictId(id)}>
-                        {app.notes.find((n) => n.id === id)?.title || 'Untitled'}
-                      </button>
-                    ))}
-                  </span>
-                </div>
-              )}
-            </Section>
-
-            <Section
-              title="PDFs"
-              action={
-                <AppTooltip instant label="Open PDF" disabled={pdfDisabled}>
-                  <button
-                    className="icon-btn icon-btn-sm side-section-action"
-                    aria-label="Open PDF"
-                    disabled={pdfDisabled}
-                    onClick={openPdf}
-                  >
-                    <Plus aria-hidden="true" />
-                  </button>
-                </AppTooltip>
-              }
-            >
-              <input
-                hidden
-                ref={app.pdfInput}
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void app.importPdf(file)
-                  event.target.value = ''
-                }}
-              />
-              {pdfs.documents.map((doc) => (
-                <AppTooltip label={doc.name} disabled={blocked} key={doc.id}>
-                  <button
-                    className={`side-row ${workspace.documentId === doc.id ? 'is-selected' : ''}`}
-                    aria-current={workspace.documentId === doc.id ? 'true' : undefined}
-                    disabled={blocked}
-                    onClick={() => workspace.openPdf(doc.id)}
-                  >
-                    <FileText aria-hidden="true" className="ui-icon is-muted" />
-                    <span className="side-label">{doc.name}</span>
-                    {doc.unavailable && <span className="count">Missing</span>}
-                  </button>
-                </AppTooltip>
+            {app.appearance.sidebarOrder
+              .filter((id) => sectionVisible(hidden, id))
+              .map((id) => (
+                <Fragment key={id}>{sections[id]()}</Fragment>
               ))}
-              {!pdfs.documents.length && (
-                <p className="side-hint">Open a PDF to read and annotate.</p>
-              )}
-              {app.library.preview && (
-                <p className="side-hint">Browser preview · PDFs last for this session only.</p>
-              )}
-              {app.pdfImporting && (
-                <p className="side-hint" role="status">
-                  Importing PDF…
-                </p>
-              )}
-              {(app.pdfImportError || pdfs.error) && (
-                <div className="side-hint is-error" role="alert">
-                  {app.pdfImportError || pdfs.error}
-                  {pdfs.error && (
-                    <span className="side-hint-actions">
-                      <button className="btn-link" onClick={() => void pdfStore.open()}>
-                        Retry
-                      </button>
-                    </span>
-                  )}
-                </div>
-              )}
-            </Section>
-
-            {app.tags.length > 0 && (
-              <Section title="Tags">
-                <div className="side-tags">
-                  {app.tags.map((tag) => (
-                    <TagChip
-                      key={tag}
-                      tag={tag}
-                      selected={view === `tag:${tag}`}
-                      appearance={app.appearance}
-                      setAppearance={app.setAppearance}
-                      onSelect={() => select(`tag:${tag}`)}
-                    />
-                  ))}
-                </div>
-              </Section>
-            )}
           </>
         )}
       </div>
@@ -366,6 +421,7 @@ function ProjectsNavigation() {
   const [othersOpen, setOthersOpen] = useState(false)
   const { projects, tasks, ready, error } = app.projects
   const showCounts = app.appearance.sidebarCounts
+  const hidden = app.appearance.sidebarHidden
   const live = projects.filter((project) => project.deletedAt === null)
   const tasksOf = new Map<string | null, Task[]>()
   for (const task of tasks)
@@ -438,25 +494,30 @@ function ProjectsNavigation() {
   return (
     <>
       <nav aria-label="Task views" className="side-group">
-        {pageRow(
-          'tasks:today',
-          <Calendar aria-hidden="true" />,
-          'Today',
-          'orange',
-          openIn(dueTodayGroups),
-          overdueCount > 0 ? 'is-late' : '',
-        )}
-        {pageRow(
-          'tasks:next7',
-          <CalendarClock aria-hidden="true" />,
-          'Next 7 Days',
-          'purple',
-          openIn(nextSevenDaysGroups(tasks, current)),
-          overdueCount > 0 ? 'is-late' : '',
-        )}
-        {pageRow('inbox', <Inbox aria-hidden="true" />, 'Inbox', 'indigo', inboxOpen)}
-        {pageRow('tasks:summary', <FileText aria-hidden="true" />, 'Summary', 'teal', 0)}
-        {pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
+        {!hidden.includes('tasks:today') &&
+          pageRow(
+            'tasks:today',
+            <Calendar aria-hidden="true" />,
+            'Today',
+            'orange',
+            openIn(dueTodayGroups),
+            overdueCount > 0 ? 'is-late' : '',
+          )}
+        {!hidden.includes('tasks:next7') &&
+          pageRow(
+            'tasks:next7',
+            <CalendarClock aria-hidden="true" />,
+            'Next 7 Days',
+            'purple',
+            openIn(nextSevenDaysGroups(tasks, current)),
+            overdueCount > 0 ? 'is-late' : '',
+          )}
+        {!hidden.includes('inbox') &&
+          pageRow('inbox', <Inbox aria-hidden="true" />, 'Inbox', 'indigo', inboxOpen)}
+        {!hidden.includes('tasks:summary') &&
+          pageRow('tasks:summary', <FileText aria-hidden="true" />, 'Summary', 'teal', 0)}
+        {!hidden.includes('tasks:calendar') &&
+          pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
         {pageRow(
           'all',
           <Briefcase aria-hidden="true" />,
@@ -505,8 +566,16 @@ function ProjectsNavigation() {
           </p>
         )}
       </Section>
-      {tags.length > 0 && (
-        <Section title="Tags">
+      {tags.length > 0 && !hidden.includes('tasks:tags') && (
+        <Section
+          title="Tags"
+          onHide={() =>
+            app.setAppearance({
+              ...app.appearance,
+              sidebarHidden: setSidebarItemHidden(hidden, 'tasks:tags', true),
+            })
+          }
+        >
           <div className="side-tags">
             {tags.map((tag) => (
               <TagChip

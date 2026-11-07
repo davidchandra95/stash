@@ -232,7 +232,11 @@ it('toggles switches with role=switch and aria-checked, changing one preference 
     [...document.querySelectorAll<HTMLButtonElement>('[role="switch"]')].map((el) =>
       el.getAttribute('aria-label'),
     )
-  expect(switches()).toEqual(['Translucent sidebar', 'Show note counts in sidebar', 'Animations'])
+  expect(
+    switches().filter(
+      (label) => !label?.endsWith(' in sidebar') || label.startsWith('Show note counts'),
+    ),
+  ).toEqual(['Translucent sidebar', 'Show note counts in sidebar', 'Animations'])
   const counts = control<HTMLButtonElement>('Show note counts in sidebar')!
   expect(counts.getAttribute('aria-checked')).toBe('true')
   await act(() => counts.click())
@@ -252,6 +256,33 @@ it('toggles switches with role=switch and aria-checked, changing one preference 
   expect(control('Smooth caret animation')!.getAttribute('aria-checked')).toBe('true')
   await act(() => control<HTMLButtonElement>('Always show formatting toolbar')!.click())
   expect(current.showFormattingToolbar).toBe(true)
+})
+
+it('switches density', async () => {
+  await render()
+  expect(checkedRadios('Density')).toEqual(['Default'])
+  await act(() => radio('Density', 'Compact').click())
+  expect(current).toEqual({ ...defaultAppearance, density: 'compact' })
+  expect(checkedRadios('Density')).toEqual(['Compact'])
+})
+
+it('hides sidebar views and sections, reorders sections and resets', async () => {
+  await render()
+  await act(() => control<HTMLButtonElement>('Show To-do in sidebar')!.click())
+  expect(current.sidebarHidden).toEqual(['todo'])
+  await act(() => control<HTMLButtonElement>('Show PDFs in sidebar')!.click())
+  expect(current.sidebarHidden).toEqual(['todo', 'pdfs'])
+  await act(() => control<HTMLButtonElement>('Show Calendar in sidebar')!.click())
+  expect(current.sidebarHidden).toEqual(['todo', 'pdfs', 'tasks:calendar'])
+
+  expect(control<HTMLButtonElement>('Move Quick access up')!.disabled).toBe(true)
+  await act(() => control<HTMLButtonElement>('Move Tags up')!.click())
+  expect(current.sidebarOrder).toEqual(['quick', 'notebooks', 'tags', 'pdfs'])
+  expect(control<HTMLButtonElement>('Move PDFs down')!.disabled).toBe(true)
+
+  await act(() => button('Reset')!.click())
+  expect(current).toEqual(defaultAppearance)
+  expect(button('Reset')!.disabled).toBe(true)
 })
 
 it('disables the translucent sidebar outside the Mac app', async () => {

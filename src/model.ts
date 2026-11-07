@@ -7,6 +7,7 @@ import { writingExtensions } from './editor/extensions'
 import type { CursorSettings } from './editor/cursor'
 import { tagFooterContent, tagsFromContent, type TagColor } from './tags'
 import type { HeadingStyles } from './headingStyles'
+import type { SidebarItem, SidebarSection } from './sidebarLayout'
 
 export type {
   CursorBlinking,
@@ -106,6 +107,8 @@ export type AccentColor =
   | 'custom'
 /** How strongly the accent washes the window surfaces. */
 export type SurfaceColor = 'neutral' | 'tinted' | 'vivid'
+/** Desktop row and control heights; Android keeps its touch sizes. */
+export type Density = 'compact' | 'default' | 'comfortable'
 
 export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
@@ -120,6 +123,12 @@ export interface Appearance extends CursorSettings {
   tagColors: Record<string, TagColor>
   /** Presets the user saved; built-in ones live in themePresets.ts. */
   themePresets: ThemePreset[]
+  /** Desktop only. */
+  density: Density
+  /** Desktop only. Order of the notes sidebar sections. */
+  sidebarOrder: SidebarSection[]
+  /** Desktop only. Sidebar views and sections that are hidden. */
+  sidebarHidden: SidebarItem[]
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
   /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */
