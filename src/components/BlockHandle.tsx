@@ -182,13 +182,25 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
   useEffect(() => highlightBlock(editor, active), [editor, active])
   useEffect(() => () => highlightBlock(editor, null), [editor])
 
+  // Tiptap's EditorContent moves every child of the editor's element into a detached div when it
+  // unmounts, so a portal straight into that element would leave React removing a node that is
+  // already gone, crashing the app. Portal into a holder this component owns instead.
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const holder = document.createElement('div')
+    holder.className = 'block-handle-host'
+    setHost(holder)
+    return () => holder.remove()
+  }, [editor])
+
   useLayoutEffect(() => {
     if (!block) return setPlacement(null)
     const view = editor.view
     const element = view.nodeDOM(block.pos)
     const body = view.dom.parentElement
     const scroll = view.dom.closest<HTMLElement>('.note-scroll')
-    if (!(element instanceof HTMLElement) || !body || !scroll) return setPlacement(null)
+    if (!(element instanceof HTMLElement) || !body || !scroll || !host) return setPlacement(null)
+    if (host.parentElement !== body) body.append(host)
     const rect = element.getBoundingClientRect()
     const origin = body.getBoundingClientRect()
     let middle = rect.top + 12
@@ -213,10 +225,9 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
       scroll.getBoundingClientRect().left - origin.left + 2,
     )
     setPlacement({ top: middle - origin.top - 12, left })
-  }, [block, editor])
+  }, [block, editor, host])
 
-  const body = editor.view.dom.parentElement
-  if (!block || !placement || !body) return null
+  if (!block || !placement || !host) return null
   const kind = blockKind(block)
   const KindIcon = kindIcons[kind]
   const numbered = kind.startsWith('h') && block.node.attrs.numbered
@@ -467,6 +478,6 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
         />
       )}
     </>,
-    body,
+    host,
   )
 }
