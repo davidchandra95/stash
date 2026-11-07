@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import HeadingStyles from '../components/HeadingStyles'
 import { CustomAccentOption, SurfaceColorOptions } from '../components/ColorSettings'
+import ThemePresets from '../components/ThemePresets'
 import {
   accentColors,
   accents,
@@ -252,6 +253,13 @@ export default function MobileSettings({
 
   const themeAccent = themeAccents[value.interfaceTheme]
   const items: Item[] = [
+    {
+      id: 'theme-presets',
+      category: 'appearance',
+      group: '',
+      search: 'Theme presets preset look save custom calm ocean sunset paper midnight',
+      content: <ThemePresets value={value} onChange={onChange} />,
+    },
     {
       id: 'interface-theme',
       category: 'appearance',

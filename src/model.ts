@@ -118,6 +118,8 @@ export interface Appearance extends CursorSettings {
   surfaceColor: SurfaceColor
   /** Tag colors picked by hand, keyed by lowercase tag name; other tags use tagTone(). */
   tagColors: Record<string, TagColor>
+  /** Presets the user saved; built-in ones live in themePresets.ts. */
+  themePresets: ThemePreset[]
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
   /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */
@@ -147,6 +149,24 @@ export interface Appearance extends CursorSettings {
   autoSyncMinutes: number
 }
 export type NewNoteTitle = 'field' | 'firstLine'
+/** A named look: the appearance settings it carries are applied together. */
+export type ThemePreset = {
+  id: string
+  name: string
+  settings: Partial<
+    Pick<
+      Appearance,
+      | 'interfaceTheme'
+      | 'colorMode'
+      | 'accent'
+      | 'customAccent'
+      | 'surfaceColor'
+      | 'titleFont'
+      | 'noteFont'
+      | 'codeFont'
+    >
+  >
+}
 const now = Date.now()
 export const initialNotebooks: Notebook[] = [
   { id: 'personal', name: 'Personal', color: '#688b60', icon: 'notebook' },

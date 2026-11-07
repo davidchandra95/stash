@@ -9,6 +9,7 @@ import type {
   InterfaceTheme,
   NewNoteTitle,
   SurfaceColor,
+  ThemePreset,
   WindowLayout,
 } from './model'
 
@@ -77,6 +78,48 @@ export const newNoteTitles: Record<NewNoteTitle, string> = {
   firstLine: 'First line',
 }
 
+/** The appearance settings a preset can carry. Built-in presets leave fonts alone. */
+export const presetKeys = [
+  'interfaceTheme',
+  'colorMode',
+  'accent',
+  'customAccent',
+  'surfaceColor',
+  'titleFont',
+  'noteFont',
+  'codeFont',
+] as const satisfies readonly (keyof ThemePreset['settings'])[]
+
+/** Saved presets with a usable id and name; settings that don't validate are dropped. */
+function normalizePresets(value: unknown, defaults: Appearance): ThemePreset[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  return value.flatMap((item) => {
+    const { id, name, settings } = (item ?? {}) as Record<string, unknown>
+    if (typeof id !== 'string' || !id || seen.has(id)) return []
+    if (typeof name !== 'string' || !name.trim()) return []
+    if (!settings || typeof settings !== 'object') return []
+    seen.add(id)
+    const saved = settings as Record<string, unknown>
+    // Validate through the appearance rules: a setting survives if they keep it as saved.
+    const valid = normalizeAppearance({ ...saved, themePresets: [] }, defaults)
+    const kept = presetKeys.filter((key) => {
+      const raw = saved[key]
+      if (typeof raw !== 'string' || !raw) return false
+      return (
+        key.endsWith('Font') || valid[key] === (key === 'customAccent' ? raw.toLowerCase() : raw)
+      )
+    })
+    return [
+      {
+        id,
+        name: name.trim().slice(0, 40),
+        settings: Object.fromEntries(kept.map((key) => [key, valid[key]])),
+      },
+    ]
+  })
+}
+
 /** Reads saved appearance, including preferences written before the v2 interface. */
 export function normalizeAppearance(
   saved: (Partial<Appearance> & { dark?: unknown }) | null | undefined,
@@ -117,6 +160,7 @@ export function normalizeAppearance(
         .filter(([tag, tone]) => tag && isTagColor(tone))
         .map(([tag, tone]) => [tag.toLowerCase(), tone]),
     ),
+    themePresets: normalizePresets(rest.themePresets, defaults),
     surfaceColor: surfaceColorValues.includes(rest.surfaceColor as SurfaceColor)
       ? (rest.surfaceColor as SurfaceColor)
       : defaults.surfaceColor,

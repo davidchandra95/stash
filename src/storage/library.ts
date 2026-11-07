@@ -78,6 +78,7 @@ export const defaultAppearance: Appearance = {
   customAccent: '#7c5cff',
   surfaceColor: 'tinted',
   tagColors: {},
+  themePresets: [],
   translucentSidebar: true,
   layout: 'standard',
   sidebarCounts: true,

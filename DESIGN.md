@@ -124,6 +124,14 @@ Settings › Appearance › Theme. Native is the default.
   directly, or the tint won't reach them. Vivid also fills the sidebar selection with the accent
   and fills the view tiles with their tone. The writing surface stays near-white; headings and
   text keep their own colors.
+- **Theme presets** (`src/themePresets.ts`, `ThemePresets.tsx`): preview cards at the top of
+  Settings › Appearance and `Theme:` commands in the palette. A preset carries some of
+  `presetKeys` (theme, color mode, accent, custom color, surface color, fonts) and applying it sets
+  only those. It is current while they all match, so changing any of them deselects it rather than
+  editing it. Built-in presets leave fonts alone except Paper; "Save current" stores the whole look,
+  fonts included, in `Appearance.themePresets` (per device). Right-click a saved preset to rename or
+  delete it. Card previews approximate the tokens in `presetPreview()`; update it when a theme's
+  base surfaces change.
 - **Sepia** (`theme-sepia.css`) is a color mode next to Light, Dark and Auto, not a theme: warm
   paper surfaces and brown ink in every theme. Its floating surfaces are opaque, and it turns off
   vibrancy (the Translucent sidebar setting is disabled). The accent, tones and notebook colors

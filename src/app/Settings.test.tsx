@@ -169,6 +169,44 @@ it('offers every accent color plus the macOS accent and changes only the accent'
   expect(current.accent).toBe('system')
 })
 
+it('applies a theme preset and saves, renames and deletes your own', async () => {
+  await render()
+  expect(radios('Theme preset').map(radioName)).toEqual([
+    'Calm',
+    'Ocean',
+    'Sunset',
+    'Paper',
+    'Midnight',
+  ])
+  await act(() => radio('Theme preset', 'Midnight').click())
+  expect(current).toEqual({
+    ...defaultAppearance,
+    colorMode: 'dark',
+    accent: 'indigo',
+    surfaceColor: 'vivid',
+  })
+  expect(checkedRadios('Theme preset')).toEqual(['Midnight'])
+  await act(() => radio('Accent color', 'Pink').click())
+  expect(checkedRadios('Theme preset')).toEqual([])
+
+  await act(() => button('Save current')!.click())
+  const name = control('New preset name')!
+  await type(name, 'Night pink')
+  await act(() => name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+  expect(current.themePresets).toEqual([
+    {
+      id: expect.any(String),
+      name: 'Night pink',
+      settings: expect.objectContaining({
+        colorMode: 'dark',
+        accent: 'pink',
+        surfaceColor: 'vivid',
+      }),
+    },
+  ])
+  expect(checkedRadios('Theme preset')).toEqual(['Night pink'])
+})
+
 it('picks a custom accent color and a surface color', async () => {
   await render()
   const picker = radio('Accent color', 'Custom color') as unknown as HTMLInputElement

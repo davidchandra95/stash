@@ -56,13 +56,16 @@ const render = (props: Parameters<typeof Harness>[0] = {}) =>
   act(() => root.render(<Harness {...props} />))
 
 beforeEach(() => {
+  // Every query shares this object, so keep every listener (reduce motion, color scheme).
+  const listeners = new Set<() => void>()
   media = {
     matches: false,
     addEventListener: (_event, callback) => {
-      notifyMedia = callback
+      listeners.add(callback)
     },
     removeEventListener: () => {},
   }
+  notifyMedia = () => listeners.forEach((listener) => listener())
   vi.stubGlobal('matchMedia', () => media)
   onCategory = vi.fn<(category: SettingsCategory) => void>()
   onSync = vi.fn<() => void>()

@@ -7,6 +7,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import FontPicker from '../components/FontPicker'
 import HeadingStyles from '../components/HeadingStyles'
 import { CustomAccentOption, SurfaceColorOptions } from '../components/ColorSettings'
+import ThemePresets from '../components/ThemePresets'
 import KeyboardShortcuts from '../components/KeyboardShortcuts'
 import {
   accentColors,
@@ -302,6 +303,13 @@ export default function Settings({
           },
         ]
       : []),
+    {
+      id: 'theme-presets',
+      category: 'appearance',
+      group: '',
+      search: 'Theme presets preset look save custom calm ocean sunset paper midnight',
+      content: <ThemePresets value={value} onChange={onChange} />,
+    },
     {
       id: 'interface-theme',
       category: 'appearance',

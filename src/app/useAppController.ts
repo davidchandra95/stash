@@ -4,6 +4,7 @@ import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentatio
 import { useDesktopWindowAppearance } from '../useDesktopWindowAppearance'
 import { colorModeIcons, colorModes, layoutNames, layouts, useDocumentTheme, useSystemAccent } from '../appearance'
 import { platform } from '../platform'
+import { applyPreset, builtInPresets, currentPreset } from '../themePresets'
 import {
   available,
   currentLocation,
@@ -71,6 +72,7 @@ import {
   RefreshCw,
   Settings2,
   Columns2,
+  Palette,
   PanelLeft,
 } from '../icons'
 import {
@@ -1200,6 +1202,14 @@ export function useAppController() {
       icon: Columns2,
       checked: appearance.layout === layout,
       run: () => setAppearance({ ...appearance, layout }),
+    })),
+    ...[...builtInPresets, ...appearance.themePresets].map((preset) => ({
+      id: `theme-preset-${preset.id}`,
+      label: `Theme: ${preset.name}`,
+      keywords: 'theme preset look switch colors',
+      icon: Palette,
+      checked: currentPreset(appearance)?.id === preset.id,
+      run: () => setAppearance(applyPreset(appearance, preset)),
     })),
     ...(Object.entries(colorModes) as [ColorMode, string][]).map(([mode, name]) => ({
       id: `appearance-${mode}`,

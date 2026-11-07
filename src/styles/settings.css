@@ -508,3 +508,101 @@
   color: var(--text);
   font-size: var(--text-sm);
 }
+
+/* ───────── Theme presets: preview cards ───────── */
+
+.theme-presets {
+  padding: var(--space-4) var(--space-5);
+}
+.preset-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--space-4);
+}
+.preset-card {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.preset-card[aria-checked='true'] {
+  color: var(--text);
+  font-weight: 600;
+}
+.preset-preview {
+  display: flex;
+  gap: 4px;
+  height: 52px;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: var(--preview-frame);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.preset-card:hover .preset-preview {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.preset-card[aria-checked='true'] .preset-preview {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.preset-card:focus-visible {
+  outline: none;
+}
+.preset-card:focus-visible .preset-preview {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.preset-preview-side,
+.preset-preview-page {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+.preset-preview-side {
+  width: 30%;
+}
+.preset-preview-page {
+  flex: 1;
+  border-radius: var(--radius-xs);
+  background: var(--preview-content);
+}
+.preset-preview i {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--preview-ink) 22%, transparent);
+}
+.preset-preview-side i:first-child {
+  background: var(--preview-accent);
+}
+.preset-preview-page i:first-child {
+  width: 60%;
+  background: color-mix(in srgb, var(--preview-ink) 70%, transparent);
+}
+.preset-preview-page i:last-child {
+  width: 80%;
+}
+.preset-preview.is-new {
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-3);
+}
+.preset-preview.is-new .ui-icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+.preset-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preset-name-field {
+  min-width: 0;
+  height: var(--control-sm);
+  font-size: var(--text-xs);
+}

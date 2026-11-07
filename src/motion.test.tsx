@@ -25,10 +25,13 @@ let notify: () => void
 let animations: { finish: () => void; cancel: ReturnType<typeof vi.fn> }[]
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  // Every query shares this object, so keep every listener (reduce motion, color scheme).
+  const listeners = new Set<() => void>()
+  notify = () => listeners.forEach((listener) => listener())
   media = {
     matches: false,
     addEventListener: vi.fn((_event, callback) => {
-      notify = callback
+      listeners.add(callback)
     }),
     removeEventListener: vi.fn(),
   }
