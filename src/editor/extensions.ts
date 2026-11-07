@@ -2,6 +2,9 @@ import { KeyboardShortcuts } from './shortcuts'
 import { FindInNote, NavigationReveal } from './noteTools'
 import Code from '@tiptap/extension-code'
 import { Collapsible, CollapsibleHeader, CollapsibleBody } from './collapsibles'
+import { HeadingFolds } from './headingFolds'
+import { HeadingNumbers } from './headingNumbers'
+import { BlockHighlight } from './blocks'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 import TextAlign from '@tiptap/extension-text-align'
 import Subscript from '@tiptap/extension-subscript'
@@ -33,6 +36,9 @@ export const writingExtensions = [
   SelectionHighlight,
   FindInNote,
   NavigationReveal,
+  HeadingFolds,
+  HeadingNumbers,
+  BlockHighlight,
   StarterKit.configure({
     codeBlock: false,
     code: false,

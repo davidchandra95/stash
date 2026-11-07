@@ -11,6 +11,8 @@ import {
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import * as Context from '@radix-ui/react-context-menu'
 import AppTooltip from '../components/AppTooltip'
+import { motion, useAnimatedItems } from '../motion'
+import { TaskRowsMotion, useTaskToggle } from './useTaskToggle'
 import { trackApp, useApp, useBlocked } from '../app/context'
 import { notebookColorValue } from '../notebookColors'
 import {
@@ -70,18 +72,19 @@ const groups: { id: TaskGroup; label: string }[] = [
 ]
 
 export function TaskCheckbox({ task, disabled }: { task: Task; disabled?: boolean }) {
-  const done = task.status === 'done'
+  const { status, ticking, toggle } = useTaskToggle(task)
+  const done = status === 'done'
   return (
     <button
       type="button"
-      className={`task-check is-${task.status}`}
+      className={`task-check is-${status}${ticking ? ' is-ticking' : ''}`}
       role="checkbox"
       aria-checked={done}
       aria-label={done ? `Reopen “${task.title}”` : `Complete “${task.title}”`}
       disabled={disabled}
       onClick={(event) => {
         event.stopPropagation()
-        toggleTask(task)
+        toggle()
       }}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -144,10 +147,26 @@ export default trackApp(function ProjectPane() {
       {project && <ProjectMenu project={project} />}
     </div>
   )
-  if (calendar) return <section className={`project-pane ${selected ? 'has-detail' : ''}`} aria-label="Calendar" data-pane="project">
-    <div className="project-main"><TaskCalendar tasks={tasks} projects={projects} disabled={blocked} selectedId={app.selectedTaskId} onSelect={app.setSelectedTaskId} notify={app.setProjectNotice} /></div>
-    {selected && <ResizableTaskDetail task={selected} />}
-  </section>
+  if (calendar)
+    return (
+      <section
+        className={`project-pane ${selected ? 'has-detail' : ''}`}
+        aria-label="Calendar"
+        data-pane="project"
+      >
+        <div className="project-main">
+          <TaskCalendar
+            tasks={tasks}
+            projects={projects}
+            disabled={blocked}
+            selectedId={app.selectedTaskId}
+            onSelect={app.setSelectedTaskId}
+            notify={app.setProjectNotice}
+          />
+        </div>
+        {selected && <ResizableTaskDetail task={selected} />}
+      </section>
+    )
   if (dateView)
     return (
       <section
@@ -187,7 +206,12 @@ export default trackApp(function ProjectPane() {
             <TaskBoard key={projectId ?? 'inbox'} tasks={own} disabled={blocked} />
           </div>
         ) : (
-          <TaskList key={projectId ?? 'inbox'} projectId={projectId} tasks={own} disabled={blocked} />
+          <TaskList
+            key={projectId ?? 'inbox'}
+            projectId={projectId}
+            tasks={own}
+            disabled={blocked}
+          />
         )}
       </div>
       {selected && <ResizableTaskDetail task={selected} />}
@@ -336,6 +360,13 @@ function TaskList({
   const [doneOpen, setDoneOpen] = useState(false)
   const [drag, setDrag] = useState<Drag | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const animateRows = useAnimatedItems(
+    listRef,
+    '[data-motion-key]',
+    projectId ?? '',
+    motion.reorder,
+  )
+  const beforeChange = () => animateRows()
   const suppressClick = useRef(false)
   const byGroup = (group: TaskGroup) => tasks.filter((t) => groupOf(t) === group)
   const visible = groups.flatMap((g) => (g.id === 'done' && !doneOpen ? [] : byGroup(g.id)))
@@ -356,9 +387,14 @@ function TaskList({
     const at = siblings.findIndex((t) => t.id === task.id)
     if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
       event.preventDefault()
-      if (event.key === 'ArrowUp' && at > 0) reorderTask(task, siblings[at - 2], siblings[at - 1])
-      if (event.key === 'ArrowDown' && at < siblings.length - 1)
+      if (event.key === 'ArrowUp' && at > 0) {
+        animateRows()
+        reorderTask(task, siblings[at - 2], siblings[at - 1])
+      }
+      if (event.key === 'ArrowDown' && at < siblings.length - 1) {
+        animateRows()
         reorderTask(task, siblings[at + 1], siblings[at + 2])
+      }
       focusRow(task.id)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
@@ -368,6 +404,7 @@ function TaskList({
       select(visible[index + 1])
     } else if (event.key === ' ') {
       event.preventDefault()
+      animateRows()
       toggleTask(task)
     } else if (event.key === 'Enter') {
       event.preventDefault()
@@ -377,6 +414,7 @@ function TaskList({
     } else if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault()
       const next = visible[index + 1] ?? visible[index - 1]
+      animateRows()
       deleteTask(task, app.setProjectNotice)
       if (selectedId === task.id) app.setSelectedTaskId(next?.id ?? null)
       if (next) focusRow(next.id)
@@ -386,8 +424,9 @@ function TaskList({
   // Dragging reorders within a group, after the pointer moves 6px.
   useEffect(() => {
     if (!drag) return
-    const rows = () =>
-      [...(listRef.current?.querySelectorAll<HTMLElement>(`[data-group="${drag.group}"]`) ?? [])]
+    const rows = () => [
+      ...(listRef.current?.querySelectorAll<HTMLElement>(`[data-group="${drag.group}"]`) ?? []),
+    ]
     const move = (event: PointerEvent) => {
       if (!drag.active && Math.abs(event.clientY - drag.startY) < 6) return
       const others = rows().filter((row) => row.dataset.taskId !== drag.id)
@@ -402,7 +441,10 @@ function TaskList({
         suppressClick.current = true
         const siblings = byGroup(drag.group).filter((t) => t.id !== drag.id)
         const task = tasks.find((t) => t.id === drag.id)
-        if (task) reorderTask(task, siblings[drag.index - 1], siblings[drag.index])
+        if (task) {
+          animateRows()
+          reorderTask(task, siblings[drag.index - 1], siblings[drag.index])
+        }
       }
       setDrag(null)
     }
@@ -439,6 +481,7 @@ function TaskList({
           aria-selected={selectedId === task.id}
           tabIndex={selectedId === task.id || (!selectedId && position === 0) ? 0 : -1}
           data-task-id={task.id}
+          data-motion-key={task.id}
           data-group={groupOf(task)}
           onClick={() => {
             if (suppressClick.current) {
@@ -492,39 +535,41 @@ function TaskList({
     drag.index === byGroup(group).filter((t) => t.id !== drag.id).length
 
   return (
-    <div className="task-scroll">
-      <NewTask projectId={projectId} disabled={disabled} />
-      <div className="task-list" ref={listRef} role="listbox" aria-label="Tasks">
-        {groups.map((group) => {
-          const items = byGroup(group.id)
-          if (!items.length) return null
-          const collapsible = group.id === 'done'
-          const open = !collapsible || doneOpen
-          return (
-            <div role="group" aria-label={group.label} key={group.id} className="task-group">
-              <button
-                type="button"
-                className="task-group-header"
-                aria-expanded={open}
-                disabled={!collapsible}
-                onClick={() => setDoneOpen((value) => !value)}
-              >
-                {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-                {group.label}
-                <span className="count">{items.length}</span>
-              </button>
-              {open && items.map((task) => row(task, visible.indexOf(task)))}
-              {open && endIndicator(group.id) && <div className="drop-end" />}
-            </div>
-          )
-        })}
-        {!tasks.length && (
-          <p className="task-empty">
-            {projectId ? 'No tasks yet. Add the first one above.' : 'Nothing in the Inbox.'}
-          </p>
-        )}
+    <TaskRowsMotion.Provider value={beforeChange}>
+      <div className="task-scroll">
+        <NewTask projectId={projectId} disabled={disabled} />
+        <div className="task-list" ref={listRef} role="listbox" aria-label="Tasks">
+          {groups.map((group) => {
+            const items = byGroup(group.id)
+            if (!items.length) return null
+            const collapsible = group.id === 'done'
+            const open = !collapsible || doneOpen
+            return (
+              <div role="group" aria-label={group.label} key={group.id} className="task-group">
+                <button
+                  type="button"
+                  className="task-group-header"
+                  aria-expanded={open}
+                  disabled={!collapsible}
+                  onClick={() => setDoneOpen((value) => !value)}
+                >
+                  {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+                  {group.label}
+                  <span className="count">{items.length}</span>
+                </button>
+                {open && items.map((task) => row(task, visible.indexOf(task)))}
+                {open && endIndicator(group.id) && <div className="drop-end" />}
+              </div>
+            )
+          })}
+          {!tasks.length && (
+            <p className="task-empty">
+              {projectId ? 'No tasks yet. Add the first one above.' : 'Nothing in the Inbox.'}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </TaskRowsMotion.Provider>
   )
 }
 

@@ -18,14 +18,18 @@ import ProjectDialog from '../projects/ProjectDialog'
 import DeleteProjectDialog from '../projects/DeleteProjectDialog'
 import { projectStore } from '../projects/store'
 import { trackApp, useApp, useBlocked } from './context'
+import { useRef } from 'react'
+import { motion, useSlidingChildren } from '../motion'
 
 /** Transient status at the bottom of the window: errors, undo and progress. */
 function Notices() {
   const app = useApp()
   const blocked = useBlocked()
   const { notebookMove, actionError, drag, library } = app
+  const stack = useRef<HTMLDivElement>(null)
+  useSlidingChildren(stack, motion.notice)
   return (
-    <div className="notices">
+    <div className="notices" ref={stack}>
       <SaveFeedback syncNow={app.syncNow} />
       {actionError && (
         <div className="notice" role="alert">

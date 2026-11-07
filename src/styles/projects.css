@@ -233,6 +233,10 @@
 
 /* ───────── Task list ───────── */
 
+.task-list {
+  /* Rows leaving the list fade out as absolutely placed copies (useAnimatedItems). */
+  position: relative;
+}
 .task-scroll {
   flex: 1;
   min-height: 0;
@@ -509,6 +513,17 @@
   height: 11px;
   stroke-width: 3;
 }
+/* Completing a task draws the check (the Check path is about 23 units long). */
+[data-motion='on'] .task-check.is-ticking .ui-icon path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: task-tick var(--motion-tick) var(--ease) forwards;
+}
+@keyframes task-tick {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 .priority-bars {
   display: inline-flex;
   align-items: flex-end;
@@ -658,10 +673,14 @@
   box-shadow: none;
   font-size: var(--text-sm);
 }
-.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:hover:not(:disabled, :focus) {
+.task-detail
+  :is(.task-props, .schedule-fields, .repeat-editor)
+  .field:hover:not(:disabled, :focus) {
   background-color: var(--fill-1);
 }
-.task-detail :is(.task-props, .schedule-fields, .repeat-editor) .field:is(:focus, [aria-expanded='true']) {
+.task-detail
+  :is(.task-props, .schedule-fields, .repeat-editor)
+  .field:is(:focus, [aria-expanded='true']) {
   box-shadow:
     inset 0 0 0 1px var(--accent),
     0 0 0 3px var(--accent-soft);

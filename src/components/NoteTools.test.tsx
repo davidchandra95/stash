@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import NoteTools from './NoteTools'
 import { getEditor, clearSessions } from '../editor/session'
 import type { Note } from '../model'
+import { foldedHeadings, toggleHeadingFold } from '../editor/headingFolds'
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 Element.prototype.scrollIntoView = vi.fn()
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList
@@ -170,4 +171,39 @@ it('focuses an empty overlay close control and dismisses even when a tooltip con
   menu.remove()
   await act(async () => host.dispatchEvent(new Event('pointerdown', { bubbles: true })))
   expect(dismiss).toHaveBeenCalledWith(false)
+})
+it('collapses sections folded in the note and unfolds them from the contents', async () => {
+  const outlined: Note = {
+    ...note,
+    id: 'folded-outline',
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'One' }] },
+        { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Sub' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'body' }] },
+      ],
+    },
+  }
+  await mount()
+  await act(async () =>
+    root.render(
+      <NoteTools
+        note={outlined}
+        contentsOpen
+        findOpen={false}
+        onFindOpenChange={vi.fn()}
+        disabled={false}
+      />,
+    ),
+  )
+  const disclosure = () =>
+    host.querySelector<HTMLButtonElement>('.outline-disclosure[aria-label$=" One"]')!
+  expect(disclosure().getAttribute('aria-expanded')).toBe('true')
+  const e = getEditor(outlined.id, outlined.content)
+  await act(async () => toggleHeadingFold(e, 0))
+  expect(disclosure().getAttribute('aria-expanded')).toBe('false')
+  await act(async () => disclosure().click())
+  expect(foldedHeadings(e.state)).toEqual([])
+  expect(disclosure().getAttribute('aria-expanded')).toBe('true')
 })

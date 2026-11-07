@@ -940,6 +940,11 @@ select {
   padding: 0 var(--space-5) var(--space-4);
 }
 
+/* The header is the drag handle: pull a sheet down, or the drawer left, to dismiss. */
+.mobile-sheet-handle {
+  touch-action: none;
+}
+
 @keyframes drawer-in {
   from {
     transform: translateX(-100%);

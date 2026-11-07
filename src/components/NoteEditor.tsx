@@ -14,6 +14,7 @@ import WritingTools from './WritingTools'
 import DatePicker from './DatePicker'
 import DrawingDialog from '../drawing/Dialog'
 import DesktopWritingToolbar from './DesktopWritingToolbar'
+import BlockHandle from './BlockHandle'
 import { contextPresentation, portablePresentation, samePresentation } from './editorPresentation'
 import { EditorContent, useEditorState, type Editor, type JSONContent } from '@tiptap/react'
 import { useLayoutEffect } from 'react'
@@ -273,6 +274,7 @@ const EditorSurface = memo(function EditorSurface({
   return (
     <>
       <EditorContent editor={editor} className="editor-body" />
+      {!platform.mobile && !readOnly && <BlockHandle editor={editor} />}
       <DatePicker editor={editor} readOnly={readOnly} appearance={appearance} />
       {!linked && (
         <DrawingDialog

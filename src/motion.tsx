@@ -25,6 +25,8 @@ export const motion = {
   collapse: 180,
   chip: 120,
   notice: 140,
+  tick: 160,
+  sheet: 200,
 } as const
 export const motionEase = 'cubic-bezier(0.2, 0, 0, 1)'
 const listeners = new Set<() => void>()
@@ -88,6 +90,53 @@ export function animate(
   }
   animation.finished.then(settle, settle)
   return animation
+}
+
+const checkedSegment = (group: Element) =>
+  group.querySelector<HTMLElement>(
+    ":scope > button:is([aria-checked='true'], [aria-pressed='true'], [data-state='on'])",
+  )
+
+/**
+ * Segmented controls are plain button groups across the app. A click records the
+ * selected option before React handles it; once the new option renders, its pill
+ * (the `::after` layer) slides over from the old one.
+ */
+export function installSegmentedMotion() {
+  let from: { group: Element; button: HTMLElement; rect: DOMRect } | null = null
+  const before = (event: Event) => {
+    from = null
+    const group = (event.target as Element | null)?.closest?.('.segmented')
+    const button = group && enabled ? checkedSegment(group) : null
+    if (group && button) from = { group, button, rect: button.getBoundingClientRect() }
+  }
+  // React flushes a click's update in a microtask queued during its own listener, so a
+  // microtask queued here runs after the new option has rendered and before paint.
+  const after = () => queueMicrotask(slide)
+  const slide = () => {
+    const start = from
+    from = null
+    if (!start || !enabled) return
+    const next = checkedSegment(start.group)
+    if (!next || next === start.button || !next.animate) return
+    const rect = next.getBoundingClientRect()
+    const animation = next.animate(
+      [
+        { left: `${start.rect.left - rect.left}px`, right: `${rect.right - start.rect.right}px` },
+        { left: '0px', right: '0px' },
+      ],
+      { duration: motion.control, easing: motionEase, pseudoElement: '::after' },
+    )
+    running.add(animation)
+    const settle = () => running.delete(animation)
+    animation.finished.then(settle, settle)
+  }
+  document.addEventListener('click', before, true)
+  window.addEventListener('click', after)
+  return () => {
+    document.removeEventListener('click', before, true)
+    window.removeEventListener('click', after)
+  }
 }
 
 /** Retain only presentation during exit; closed controls are immediately inert. */
@@ -329,6 +378,8 @@ export function useAnimatedItems(
         clone.removeAttribute('id')
         clone.removeAttribute('data-motion-key')
         clone.removeAttribute('data-note-id')
+        clone.removeAttribute('data-task-id')
+        clone.removeAttribute('data-group')
         clone.querySelectorAll('[id]').forEach((child) => child.removeAttribute('id'))
         clone.setAttribute('inert', '')
         clone.setAttribute('aria-hidden', 'true')
@@ -363,6 +414,39 @@ export function useAnimatedItems(
   useLayoutEffect(() => cleanup, [])
   return request
 }
+
+/**
+ * A stack whose children come and go on their own (each from a different store):
+ * when the container's size changes, children that stay slide from where they were.
+ * ResizeObserver runs after layout and before paint, so nothing jumps first.
+ */
+export function useSlidingChildren(ref: RefObject<HTMLElement | null>, duration: number) {
+  useLayoutEffect(() => {
+    const parent = ref.current
+    if (!parent || typeof ResizeObserver === 'undefined') return
+    let tops = new Map<Element, number>()
+    const measure = () => new Map([...parent.children].map((child) => [child, offsetTop(child)]))
+    const observer = new ResizeObserver(() => {
+      const next = measure()
+      for (const [child, top] of next) {
+        const before = tops.get(child)
+        if (before === undefined || before === top || !(child instanceof HTMLElement)) continue
+        animate(
+          child,
+          [{ transform: `translateY(${before - top}px)` }, { transform: 'translateY(0)' }],
+          duration,
+        )
+      }
+      tops = next
+    })
+    tops = measure()
+    observer.observe(parent)
+    return () => observer.disconnect()
+  }, [ref, duration])
+}
+// Screen position, not offsetTop: a bottom-anchored stack moves the rows above a
+// removed one even though their offset inside it stays the same.
+const offsetTop = (element: Element) => element.getBoundingClientRect().top
 
 /** Editor menus own their DOM and cannot use React presence. */
 export function hideMenu(menu: HTMLElement) {

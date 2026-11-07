@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import MobileApp from './MobileApp'
+import { motion } from '../motion'
 import { library } from '../storage/useLibrary'
 import { clearSessions, getEditor } from '../editor/session'
 import { platform } from '../platform'
@@ -416,7 +417,9 @@ it('schedules a task from smart input and lists it under Next 7 Days with its pr
   await drawerProject('Inbox')
   const input = page().querySelector<HTMLInputElement>('.new-task-input')!
   await setText(input, 'Call vendor tomorrow @2pm')
-  expect(page().querySelector('.new-task [role="status"]')!.textContent).toContain('Tomorrow, 14:00')
+  expect(page().querySelector('.new-task [role="status"]')!.textContent).toContain(
+    'Tomorrow, 14:00',
+  )
   await act(async () => input.form!.requestSubmit())
   await vi.waitFor(() => expect(storedTask('Call vendor').schedule?.kind).toBe('point'))
   await drawerProject('Next 7 Days')
@@ -528,6 +531,9 @@ it('creates, edits, completes and deletes a task, with undo', async () => {
   await act(async () =>
     taskRow('Water the big ferns').querySelector<HTMLElement>('[role="checkbox"]')!.click(),
   )
+  // The check draws first; the task completes after a short hold.
+  expect(storedTask('Water the big ferns').status).toBe('doing')
+  await act(() => new Promise((resolve) => setTimeout(resolve, motion.tick * 2 + 20)))
   expect(storedTask('Water the big ferns').status).toBe('done')
   // Done is collapsed by default.
   expect(document.querySelector('section[aria-label="Done"]')?.textContent).not.toContain('ferns')

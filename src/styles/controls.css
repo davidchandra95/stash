@@ -292,6 +292,8 @@ textarea.field {
   background: var(--fill-2);
 }
 .segmented > button {
+  position: relative;
+  isolation: isolate;
   min-height: 20px;
   padding: 1px 10px;
   border-radius: var(--radius-sm);
@@ -305,13 +307,23 @@ textarea.field {
 .segmented > button[aria-checked='true'],
 .segmented > button[aria-pressed='true'],
 .segmented > button[data-state='on'] {
-  background: var(--bg-control);
-  box-shadow: var(--shadow-control);
   color: var(--text);
 }
-:root[data-theme='dark'] .segmented > button[aria-checked='true'],
-:root[data-theme='dark'] .segmented > button[aria-pressed='true'],
-:root[data-theme='dark'] .segmented > button[data-state='on'] {
+/* The selection pill is a layer so it can slide between options (installSegmentedMotion). */
+.segmented > button[aria-checked='true']::after,
+.segmented > button[aria-pressed='true']::after,
+.segmented > button[data-state='on']::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bg-control);
+  box-shadow: var(--shadow-control);
+}
+:root[data-theme='dark'] .segmented > button[aria-checked='true']::after,
+:root[data-theme='dark'] .segmented > button[aria-pressed='true']::after,
+:root[data-theme='dark'] .segmented > button[data-state='on']::after {
   background: rgba(255, 255, 255, 0.17);
 }
 

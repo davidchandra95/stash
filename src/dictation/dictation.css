@@ -67,13 +67,26 @@
   height: 4px;
   accent-color: var(--accent);
 }
+/* A highlight sweeps across the working label; without motion it stays plain text. */
 [data-motion='on'] .dictation-status .is-working {
-  animation: dictation-pulse 1.4s var(--ease) infinite alternate;
+  background: linear-gradient(90deg, var(--text-3) 35%, var(--text) 50%, var(--text-3) 65%) 0 0 /
+    300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dictation-shimmer 1.6s linear infinite;
 }
-@keyframes dictation-pulse {
-  to {
-    opacity: 0.5;
+@keyframes dictation-shimmer {
+  from {
+    background-position: 100% 0;
   }
+  to {
+    background-position: 0 0;
+  }
+}
+/* Copy turns into a check: the new icon fades in place. */
+[data-motion='on'] .dictation-copied {
+  animation: fade-in var(--motion-chip) var(--ease);
 }
 .dictation-text {
   flex: 1;

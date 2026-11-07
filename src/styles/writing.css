@@ -594,3 +594,99 @@
   color: var(--danger);
   font-size: var(--text-sm);
 }
+
+/* ───────── Block handle (type, grip and block menu beside the hovered block) ───────── */
+
+.block-handle {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  width: 44px;
+  height: 24px;
+  padding: 0 4px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-content);
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+  animation: fade-in var(--fast) var(--ease);
+}
+.block-handle:hover,
+.block-handle[data-open] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.block-handle-kind {
+  width: 16px;
+  height: 16px;
+}
+.block-handle-grip {
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.block-menu {
+  min-width: 232px;
+}
+.block-types {
+  display: grid;
+  grid-template-columns: repeat(6, 32px);
+  gap: 4px;
+  padding: 2px 3px;
+}
+.block-type {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  outline: none;
+  cursor: pointer;
+}
+.block-type .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+.block-type[data-highlighted] {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.block-type[data-current] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.block-type[data-disabled] {
+  color: var(--text-4);
+  cursor: default;
+}
+.block-color {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  font: 600 12px/1 var(--font-ui);
+}
+.block-color[data-highlight] {
+  color: var(--text);
+}
+.block-label-icon {
+  display: none;
+}
+.tiptap .block-highlighted {
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  /* Pads the shading past the text without moving it. */
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.block-drop-indicator {
+  position: absolute;
+  z-index: 2;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}

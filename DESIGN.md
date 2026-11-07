@@ -192,7 +192,8 @@ Use the shared classes before writing new CSS:
   buttons (the shell owns the border, the inner input has none). Labels `.field-label`, help
   `.field-help`, errors `.field-error`.
 - Toggles: `button.switch[role=switch][aria-checked]`. Segmented control `.segmented` with
-  `aria-pressed` buttons. Native `<select>` in Settings (`.select-native`); `.select` for a
+  `aria-pressed` buttons. The selection pill is the selected button's `::after` layer and
+  slides from the previous option in 100ms (`motion.control`, `installSegmentedMotion`). Native `<select>` in Settings (`.select-native`); `.select` for a
   custom popup trigger.
 - Menus: Radix content `.menu`, items `.menu-item` containing `.menu-icon`, `.menu-text`,
   optional `.menu-shortcut`; `.menu-separator`, `.menu-label`. `MenuActionContent` renders icon
@@ -204,7 +205,9 @@ Use the shared classes before writing new CSS:
 - Popovers `.popover`; dialogs `.dialog` with `.dialog-header`, `.dialog-title`,
   `.dialog-description`, `.dialog-body`, `.dialog-footer` (buttons right-aligned, primary last).
 - Notices: `.notice` inside `.notices` at the bottom of the window, for errors with Retry,
-  progress, and Undo.
+  progress, and Undo. When one appears or leaves, the others slide to their new places
+  (`useSlidingChildren`, `motion.notice`). Notices never collapse into a pile, since failures
+  must stay readable.
 - Chips `.chip` for tags and notebook memberships; counts `.count`; key hints `kbd`.
 - Icons are Lucide through `src/icons.tsx` (stroke 1.6, sized by CSS). On macOS, note and
   notebook context menus, Note actions and writing action lists use native menus
@@ -264,7 +267,12 @@ Use the shared classes before writing new CSS:
   6px dot when at risk (`--warning`) or overdue (`--danger`). Inactive projects sit under a
   collapsed "Other projects" row.
 - Task checkboxes: empty for to do, half-filled with the accent for doing, accent-filled for
-  done. Done and cancelled titles are struck through in `--text-3`.
+  done. Done and cancelled titles are struck through in `--text-3`. Completing a task with the
+  checkbox draws the check (160ms, `motion.tick`) and holds the row for 320ms before it moves
+  to Done; clicking again during the hold cancels (`useTaskToggle`). Reopening, the Space key
+  and Animations off apply at once.
+- In a project's task list, drops, Option+Up/Down, completion and deletion slide the other
+  rows into place in 120ms (`motion.reorder`); a removed row fades and collapses.
 - Task rows are 34px with inset dividers; selection uses the notes-list treatment
   (`--accent-soft` with an accent hairline). Due dates turn `--warning` within two days and
   `--danger` when late. Priority is three bars; high is `--danger`.
@@ -353,7 +361,9 @@ Use the shared classes before writing new CSS:
 
 - Note typography is the user's: `--note-font`, `--title-font`, `--code-font`, `--note-size`,
   `--line-spacing`, `--paragraph-spacing`, `--list-item-spacing`, heading style variables, and
-  `--writing-width` (percentage of the scroll pane). Defaults: system fonts, 15px, 1.6.
+  `--writing-width` (percentage of the scroll pane). Defaults: system fonts, 15px, 1.6, and 8px
+  between paragraphs. Enter starts a new paragraph and Shift+Enter a new line inside it, so
+  paragraph spacing is what tells them apart.
 - Above the title: a meta line with the edited date, word count and save problems. Below the
   title: notebook chips and the "Notebook" menu chip.
 - The formatting toolbar floats beside the selection (above it, or below near the top edge) and
@@ -375,10 +385,32 @@ Use the shared classes before writing new CSS:
   Discard, Copy, Dictate more and Insert (Return inserts, Shift+Return adds a line). Text goes in
   at the note's cursor. The microphone button or shortcut starts and stops; Escape cancels.
   Model and language choices live only in Settings › Editor › Dictation.
+- While dictation transcribes, a highlight sweeps across its status label (1.6s loop); without
+  motion the label is plain `--text-2`. Copy changes to a check that fades in.
 - Note information is a dialog from Note actions (a sheet on Android) showing dates, length,
   notebooks and backlinks. Backlinks are `--row` rows with the title and a `--text-3` notebook.
 - Find in note sits under the editor bar; the table of contents docks on the right or overlays
   when the pane is narrow.
+- Top-level headings fold (`src/editor/headingFolds.ts`): a chevron in the left gutter
+  (`--text-3`, accent on hover) shows on heading hover and stays, turned right, while folded.
+  A fold hides the blocks up to the next heading of the same or a higher level. Folding is view
+  state, remembered per note on the device; it never edits the note or its undo history. The
+  caret skips folded sections, edits that land in one unfold it, find and the table of contents
+  unfold what they navigate to, and Enter on a folded heading starts a new heading after it.
+  Without hover (touch) the chevron is always shown at reduced opacity.
+- Numbered headings show an automatic number (`1.`) in the accent color before the text, and
+  the table of contents shows it too. Each level counts on its own and restarts under a higher
+  heading. The number is a widget, not text. Markdown notes can't store numbering.
+- Desktop editable notes show a block handle beside the block under the pointer
+  (`components/BlockHandle.tsx`, `src/editor/blocks.ts`): a 44×24 chip with the block's type
+  icon and a grip, left of the fold chevron. Blocks are top-level nodes and every list item.
+  Clicking opens the block menu: a turn-into grid (Text, H1–H4, numbered list or Number
+  heading, bullet list, checklist, code block, quote, collapsible section), Align and Indent,
+  Color Options, Cut, Copy, Delete and Insert Below. Dragging the grip past 6px moves the block
+  instead, with a 2px accent line at the drop gap. While the menu is open or the block is
+  being dragged, the block is shaded `--accent-soft` (view state, never saved). List items can land in any list, or become
+  a one-item list between top-level blocks. Unsupported Lark actions (comments, translate,
+  share, sub-docs, templates, block links) are left out until they exist.
 
 ## Behavior that must not regress
 
@@ -432,6 +464,9 @@ surfaces. Don't add colors there; use the tokens.
   the keyboard and center at 560px wide on wide screens. Dialogs stay centered in the space
   above the keyboard. Note actions lead with a row of four 64px icon tiles (Pin, Quick Access,
   Duplicate, Copy link).
+- Sheets and the drawer dismiss by dragging their header: a sheet down, the drawer left. The
+  surface follows the finger directly; past 30% of its size, or on a flick, it slides out in
+  200ms (`motion.sheet`), otherwise it settles back. Scrolling content is not a drag handle.
 - **Note:** the formatting bar floats above the keyboard on `--bg-elevated-solid` (no blur, so
   the writing-tools sheet inside it isn't clipped) and scrolls sideways. The table of contents
   is an overlay panel. Mobile keeps the native caret and selection.

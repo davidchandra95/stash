@@ -87,7 +87,8 @@ export const defaultAppearance: Appearance = {
   // Keep normal-text carets close to the font's visual height. Native carets
   // follow the line box, so the previous 1.8× default looked oversized.
   lineSpacing: 1.6,
-  paragraphSpacing: 0,
+  // Enter starts a paragraph and Shift+Enter a line, so paragraphs need visible space.
+  paragraphSpacing: 8,
   listItemSpacing: 0,
   editorBottomSpace: 112,
   showFormattingToolbar: false,

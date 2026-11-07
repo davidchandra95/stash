@@ -9,6 +9,7 @@ import type { Mark } from '@tiptap/pm/model'
 import { findKey, revealKey } from './noteTools'
 import { registerEditorLifetime, retainEditorOperation } from './lifecycle'
 import { pendingFragments } from './fileNavigation'
+import { HeadingFolds } from './headingFolds'
 
 // Views are bounded; edited documents and their session undo stay authoritative.
 // History-free editors can be reconstructed from the caller's note model.
@@ -159,14 +160,17 @@ export function getSessionStats() {
   }
 }
 function createEditor(
+  id: string,
   content: JSONContent,
   markdown: boolean,
   onUpdate: (props: { editor: Editor }) => void = () => {},
 ) {
   return new Editor({
-    extensions: (markdown ? markdownExtensions : writingExtensions).filter(
-      (extension) => !platform.mobile || !mobileExcludedExtensions.has(extension.name),
-    ),
+    extensions: (markdown ? markdownExtensions : writingExtensions)
+      .filter((extension) => !platform.mobile || !mobileExcludedExtensions.has(extension.name))
+      .map((extension) =>
+        extension.name === HeadingFolds.name ? HeadingFolds.configure({ noteId: id }) : extension,
+      ),
     coreExtensionOptions: { clipboardTextSerializer: { blockSeparator: '\n' } },
     content,
     onUpdate,
@@ -226,7 +230,7 @@ export function getSplitEditor(
   const current = splitViews.get(id)
   if (current?.source === source && !current.editor.isDestroyed) return current.editor
   disposeSplitView(id)
-  const editor = createEditor(source.getJSON(), markdown)
+  const editor = createEditor(id, source.getJSON(), markdown)
   const release = retainEditorOperation(source)
   const unlink = [linkViews(source, editor), linkViews(editor, source)]
   const split: SplitView = {
@@ -282,7 +286,7 @@ export function getEditor(id: string, content: JSONContent, onChange?: Change, m
   const currentSession = session
   if (onChange) session.onChange = onChange
   if (!session.editor) {
-    const editor = createEditor(content, markdown, ({ editor: current }) => {
+    const editor = createEditor(id, content, markdown, ({ editor: current }) => {
       currentSession.changed = true
       currentSession.onChange?.(current.getJSON(), current.getText())
     })

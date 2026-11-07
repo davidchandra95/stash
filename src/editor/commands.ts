@@ -52,6 +52,12 @@ const writingCommands: WritingCommand[] = [
     label: `Heading ${level}`,
     run: (c: ChainedCommands) => c.setHeading({ level }),
   })),
+  {
+    id: 'heading-number',
+    label: 'Number heading',
+    keywords: 'numbered heading numbering',
+    run: (c) => c.toggleHeadingNumber(),
+  },
   { id: 'bullet', label: 'Bullet list', run: (c) => c.toggleListKind('bullet') },
   { id: 'number', label: 'Numbered list', run: (c) => c.toggleListKind('number') },
   { id: 'task', label: 'Checklist', run: (c) => c.toggleListKind('task') },
