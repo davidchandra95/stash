@@ -414,6 +414,7 @@ fn save_task(id: &str, title: &str, project: Option<&str>, revision: i64) -> pro
         repeat: None,
         reminders: None,
         tags: vec![],
+        checklist: vec![],
         sort: 1.0,
         deleted: false,
         expected_revision: revision,
@@ -487,7 +488,7 @@ fn existing_projects_queue_on_upgrade() {
     })
     .unwrap();
     s.conn
-        .execute_batch("DROP TRIGGER sync_projects_insert; DROP TRIGGER sync_projects_update; DROP TRIGGER sync_tasks_insert; DROP TRIGGER sync_tasks_update; DELETE FROM sync_dirty; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=13;")
+        .execute_batch("DROP TRIGGER sync_projects_insert; DROP TRIGGER sync_projects_update; DROP TRIGGER sync_tasks_insert; DROP TRIGGER sync_tasks_update; DELETE FROM sync_dirty; ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=13;")
         .unwrap();
     drop(s);
     let s = Store::open(dir.path()).unwrap();
@@ -511,6 +512,25 @@ fn tags_upload_and_apply_from_other_devices() {
     download(&mut s, vec![Entity { kind: "task".into(), id: "remote".into(), revision: 1, deleted: false, data: remote }]);
     let tasks = s.project_data().unwrap().tasks;
     assert_eq!(tasks.iter().find(|t| t.id == "remote").unwrap().tags, vec!["home"]);
+}
+
+#[test]
+fn checklist_uploads_and_applies_from_other_devices() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Store::open(dir.path()).unwrap();
+    identity(&s);
+    let mut local = save_task("local", "Local", None, 0);
+    local.checklist = vec![projects::ChecklistItem { id: "i1".into(), title: "Outline".into(), done: true }];
+    s.save_project_changes(&projects::ProjectChanges { projects: vec![], tasks: vec![local] }).unwrap();
+    s.prepare_sync().unwrap();
+    assert_eq!(outbox(&s)[0].data["checklist"], json!([{"id":"i1","title":"Outline","done":true}]));
+
+    let remote = json!({"id":"remote","title":"Remote","description":"","status":"todo","projectId":null,"priority":0,"startDate":null,"dueDate":null,"dueTime":null,"checklist":[{"id":"r1","title":"Call","done":false}],"completedAt":null,"sort":1.0,"deletedAt":null,"created":1,"updated":2,"revision":9});
+    download(&mut s, vec![Entity { kind: "task".into(), id: "remote".into(), revision: 1, deleted: false, data: remote }]);
+    let tasks = s.project_data().unwrap().tasks;
+    let checklist = &tasks.iter().find(|t| t.id == "remote").unwrap().checklist;
+    assert_eq!(checklist.len(), 1);
+    assert_eq!((checklist[0].title.as_str(), checklist[0].done), ("Call", false));
 }
 
 #[test]

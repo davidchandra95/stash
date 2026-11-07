@@ -41,6 +41,9 @@ pub struct Task {
     /// Omitted when empty, so an untagged task reads the same as one from before tags.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// Subtasks. Omitted when empty, like tags.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checklist: Vec<ChecklistItem>,
     #[serde(default)]
     pub repeat: Option<TaskRepeat>,
     pub completed_at: Option<i64>,
@@ -50,6 +53,17 @@ pub struct Task {
     pub updated: i64,
     pub revision: i64,
 }
+/// One subtask: a checklist line inside its task, completed on its own.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChecklistItem {
+    pub id: String,
+    pub title: String,
+    pub done: bool,
+}
+pub(super) const MAX_CHECKLIST_ITEMS: usize = 100;
+pub(super) const MAX_CHECKLIST_TITLE: usize = 500;
+
 /// The schedule is task-owned; all-day ends and timed range ends are exclusive.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase", deny_unknown_fields)]
@@ -116,6 +130,8 @@ pub struct SaveTask {
     pub reminders: Option<Vec<i64>>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub checklist: Vec<ChecklistItem>,
     pub repeat: Option<TaskRepeat>,
     pub sort: f64,
     pub deleted: bool,
@@ -131,7 +147,7 @@ pub struct ProjectChanges {
 }
 
 const PROJECT_COLUMNS: &str = "id,name,description,status,start_date,end_date,completed_at,notebook_id,color,sort,deleted_at,created,updated,revision";
-const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags";
+const TASK_COLUMNS: &str = "id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags,checklist";
 
 fn project_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
@@ -169,6 +185,8 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(17, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         tags: serde_json::from_str(&r.get::<_, String>(19)?)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, Box::new(error)))?,
+        checklist: serde_json::from_str(&r.get::<_, String>(20)?)
+            .map_err(|error| rusqlite::Error::FromSqlConversionFailure(20, rusqlite::types::Type::Text, Box::new(error)))?,
         reminders: r.get::<_, Option<String>>(18)?.map(|json| serde_json::from_str(&json)
             .map_err(|error| rusqlite::Error::FromSqlConversionFailure(18, rusqlite::types::Type::Text, Box::new(error)))).transpose()?,
         completed_at: r.get(8)?,
@@ -328,6 +346,18 @@ fn validate_task(t: &SaveTask) -> Result<()> {
     {
         return Err("A task can have up to 20 different tags of up to 50 characters, without spaces.".into());
     }
+    let item_ids: std::collections::HashSet<_> = t.checklist.iter().map(|item| &item.id).collect();
+    if t.checklist.len() > MAX_CHECKLIST_ITEMS
+        || item_ids.len() != t.checklist.len()
+        || t.checklist.iter().any(|item| {
+            !valid_record_id(&item.id)
+                || item.title.trim().is_empty()
+                || item.title.chars().count() > MAX_CHECKLIST_TITLE
+                || item.title.contains(['\n', '\r'])
+        })
+    {
+        return Err("A task can have up to 100 subtasks, each one line of up to 500 characters.".into());
+    }
     if t.project_id.as_deref().is_some_and(|id| !valid_record_id(id)) {
         return Err("Invalid project ID.".into());
     }
@@ -447,6 +477,7 @@ pub(super) fn apply_synced_task(conn: &Connection, id: &str, data: Value) -> Res
         repeat: t.repeat.clone(),
         reminders: t.reminders.clone(),
         tags: t.tags.clone(),
+        checklist: t.checklist.clone(),
         sort: t.sort,
         deleted: t.deleted_at.is_some(),
         expected_revision: 0,
@@ -455,13 +486,13 @@ pub(super) fn apply_synced_task(conn: &Connection, id: &str, data: Value) -> Res
         return Err("Invalid synced task.".into());
     }
     conn.execute(
-        "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)
+        "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags,checklist)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
          project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,
          completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,created=excluded.created,
-         updated=excluded.updated,revision=tasks.revision+1,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags",
-        params![t.id, t.title, t.description, t.status, t.project_id, t.priority, t.start_date, t.due_date, t.completed_at, t.sort, t.deleted_at, t.created, t.updated, t.due_time, t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.due_linked, t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, serde_json::to_string(&t.tags).map_err(db_err)?],
+         updated=excluded.updated,revision=tasks.revision+1,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags,checklist=excluded.checklist",
+        params![t.id, t.title, t.description, t.status, t.project_id, t.priority, t.start_date, t.due_date, t.completed_at, t.sort, t.deleted_at, t.created, t.updated, t.due_time, t.schedule.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.due_linked, t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?, serde_json::to_string(&t.tags).map_err(db_err)?, serde_json::to_string(&t.checklist).map_err(db_err)?],
     )
     .map_err(db_err)?;
     Ok(())
@@ -589,10 +620,10 @@ impl Store {
                 .deleted
                 .then(|| current.as_ref().and_then(|c| c.4).unwrap_or(at));
             tx.execute(
-                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                "INSERT INTO tasks(id,title,description,status,project_id,priority,start_date,due_date,completed_at,sort,deleted_at,created,updated,revision,due_time,schedule,due_linked,repeat,reminders,tags,checklist)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,status=excluded.status,
-                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags,
+                 project_id=excluded.project_id,priority=excluded.priority,start_date=excluded.start_date,due_date=excluded.due_date,due_time=excluded.due_time,schedule=excluded.schedule,due_linked=excluded.due_linked,repeat=excluded.repeat,reminders=excluded.reminders,tags=excluded.tags,checklist=excluded.checklist,
                  completed_at=excluded.completed_at,sort=excluded.sort,deleted_at=excluded.deleted_at,
                  updated=excluded.updated,revision=excluded.revision",
                 params![
@@ -615,7 +646,8 @@ impl Store {
                     t.due_linked,
                     t.repeat.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
                     t.reminders.as_ref().map(serde_json::to_string).transpose().map_err(db_err)?,
-                    serde_json::to_string(&t.tags).map_err(db_err)?
+                    serde_json::to_string(&t.tags).map_err(db_err)?,
+                    serde_json::to_string(&t.checklist).map_err(db_err)?
                 ],
             )
             .map_err(db_err)?;

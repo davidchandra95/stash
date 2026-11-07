@@ -216,6 +216,24 @@ func TestConflictCopyOfRepeatingTaskDoesNotRepeat(t *testing.T) {
 	}
 }
 
+func TestValidateChecklist(t *testing.T) {
+	for _, value := range []string{``, `null`, `[]`, `[{"id":"a","title":"Call","done":false}]`, `[{"id":"a","title":"深度","done":true},{"id":"b","title":"x","done":false}]`} {
+		if !validateChecklist(json.RawMessage(value)) {
+			t.Errorf("rejected %s", value)
+		}
+	}
+	for _, value := range []string{`{}`, `[1]`, `[{"id":"a","title":"","done":false}]`, `[{"id":"a","title":"  ","done":false}]`,
+		`[{"id":"a","title":"x\ny","done":false}]`, `[{"id":"a","title":"x"}]`, `[{"title":"x","done":false}]`,
+		`[{"id":"bad id","title":"x","done":false}]`, `[{"id":"a","title":"x","done":false},{"id":"a","title":"y","done":true}]`} {
+		if validateChecklist(json.RawMessage(value)) {
+			t.Errorf("accepted %s", value)
+		}
+	}
+	if validateProjectRecord(taskOp("t", "T", 0, map[string]any{"checklist": []map[string]any{{"id": "a", "title": "", "done": false}}})) == nil {
+		t.Error("accepted a task with an invalid subtask")
+	}
+}
+
 func TestValidateTags(t *testing.T) {
 	for _, value := range []string{``, `null`, `[]`, `["work"]`, `["深度","a-b"]`} {
 		if !validateTags(json.RawMessage(value)) {

@@ -1873,6 +1873,27 @@ select {
 .mobile-task-page .mobile-task-heading + .mobile-task-props {
   margin-top: 0;
 }
+/* Subtasks use the shared editor with touch-sized rows; remove buttons always show on touch. */
+.mobile-task-page .subtask {
+  min-height: 44px;
+  gap: var(--space-5);
+}
+.mobile-task-page .subtask-check {
+  width: 20px;
+  height: 20px;
+}
+.mobile-task-page .subtask-title {
+  font-size: 16px;
+}
+.mobile-task-page .subtask-remove {
+  width: 36px;
+  height: 36px;
+  opacity: 1;
+}
+.mobile-task-page .subtask-add {
+  min-height: 44px;
+  font-size: 16px;
+}
 .mobile-task-description {
   display: block;
   width: 100%;

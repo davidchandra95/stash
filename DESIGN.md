@@ -304,6 +304,13 @@ Use the shared classes before writing new CSS:
   The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
   ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
   over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
+- Subtasks are one-line checklist items in the inspector's Subtasks section, between Reminders and
+  Description, headed by a `.count` of done/total. Rows are `--row` high with a 14px `.task-check`
+  and an inline title that saves on blur or Return; done items are struck through in `--text-3`.
+  The remove button appears on hover or focus (always on Android, where rows are 44px). Return in
+  the "Add subtask" field keeps it open; pasting several lines adds one per line; Option+Up/Down
+  reorders; Backspace in an empty item removes it. Task rows and Board cards show a `ListChecks`
+  "done/total" mark in the metadata, `--text-3` once all are done. Subtasks never complete the task.
 - Task tags are separate from note tags, but share `.chip` and `tagTone()`. Only tags in use are
   listed, in the `.side-tags` chips on desktop and a "Task tags" drawer section on Android; each opens
   a page grouped Overdue, To do, Completed, and a task added there starts with that tag. Task rows

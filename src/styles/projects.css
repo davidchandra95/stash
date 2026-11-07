@@ -467,6 +467,12 @@
 .task-due.is-soon {
   color: var(--warning);
 }
+.task-subtasks {
+  font-variant-numeric: tabular-nums;
+}
+.task-subtasks.is-complete {
+  color: var(--text-3);
+}
 .task-priority {
   display: inline-flex;
 }
@@ -725,6 +731,61 @@
   color: var(--text-3);
   font-size: var(--text-xs);
   font-weight: 600;
+}
+
+/* ───────── Subtasks ───────── */
+
+.subtasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.subtask {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--row);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.subtask:hover,
+.subtask:focus-within {
+  background: var(--fill-1);
+}
+.subtask-check {
+  width: 14px;
+  height: 14px;
+}
+.subtask-check .ui-icon {
+  width: 10px;
+  height: 10px;
+}
+.subtask-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.subtask.is-done .subtask-title {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-4);
+}
+.subtask-remove {
+  opacity: 0;
+}
+.subtask:hover .subtask-remove,
+.subtask:focus-within .subtask-remove {
+  opacity: 1;
+}
+.field.subtask-add {
+  width: 100%;
+  margin-top: var(--space-2);
 }
 .task-detail .task-description {
   display: block;

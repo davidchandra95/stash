@@ -1,4 +1,5 @@
 import { nextOccurrence, repeatAnchor, shiftSchedule } from './repeat'
+import { reopenChecklist, type ChecklistItem } from './checklist'
 import { addDays, dayAt, effectiveDueDate, schedulePatch, type TaskSchedule } from './schedule'
 import { newId, projectStore } from './store'
 import {
@@ -58,6 +59,7 @@ function completeOccurrence(original: Task, next: Task) {
     dueDate: dated ? (shift(next.dueDate) ?? occurrence.date) : null,
     schedule: next.schedule ? shiftSchedule(next.schedule, days) : next.schedule,
     repeat: occurrence.repeat,
+    checklist: reopenChecklist(next.checklist),
   }
   const history: Task = {
     ...next,
@@ -83,6 +85,7 @@ function completeOccurrence(original: Task, next: Task) {
             dueDate: original.dueDate,
             schedule: original.schedule ?? null,
             repeat: original.repeat,
+            checklist: original.checklist,
           },
           { ...finished, deletedAt: Date.now() },
         ],
@@ -99,6 +102,13 @@ export function updateTask(task: Task, patch: Partial<Task>) {
   if (next.status === 'done' && original.status !== 'done' && next.repeat)
     completeOccurrence(original, next)
   else save({ tasks: [next] })
+}
+/** Edits the subtasks of the latest version of a task, so quick edits don't overwrite each other. */
+export function editChecklist(task: Task, change: (list: ChecklistItem[]) => ChecklistItem[]) {
+  const current = latest(task)
+  const list = current.checklist ?? []
+  const next = change(list)
+  if (next !== list) save({ tasks: [{ ...current, checklist: next }] })
 }
 export function setTaskStatus(task: Task, status: TaskStatus) {
   updateTask(task, { status })

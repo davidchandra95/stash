@@ -195,6 +195,7 @@ func validateProjectRecord(op Operation) error {
 		Repeat                         json.RawMessage `json:"repeat"`
 		Reminders                      json.RawMessage `json:"reminders"`
 		Tags                           json.RawMessage `json:"tags"`
+		Checklist                      json.RawMessage `json:"checklist"`
 		CompletedAt                    *int64          `json:"completedAt"`
 		Sort                           *float64        `json:"sort"`
 		DeletedAt                      *int64          `json:"deletedAt"`
@@ -235,6 +236,9 @@ func validateProjectRecord(op Operation) error {
 	if !validateTags(t.Tags) {
 		return errors.New("invalid task tags")
 	}
+	if !validateChecklist(t.Checklist) {
+		return errors.New("invalid task subtasks")
+	}
 	hasSchedule := len(t.Schedule) != 0 && string(t.Schedule) != "null"
 	if t.DueLinked != nil && *t.DueLinked && (!hasSchedule || t.DueDate != nil || t.DueTime != nil) {
 		return errors.New("invalid linked deadline")
@@ -257,6 +261,30 @@ func validateTags(raw json.RawMessage) bool {
 			return false
 		}
 		seen[tag] = true
+	}
+	return true
+}
+
+// validateChecklist mirrors the client's rule: up to 100 one-line subtasks with unique IDs.
+func validateChecklist(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var items []struct {
+		ID    *string `json:"id"`
+		Title *string `json:"title"`
+		Done  *bool   `json:"done"`
+	}
+	if json.Unmarshal(raw, &items) != nil || items == nil || len(items) > 100 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		if item.ID == nil || item.Title == nil || item.Done == nil || !recordIDPattern.MatchString(*item.ID) || seen[*item.ID] ||
+			strings.TrimSpace(*item.Title) == "" || utf8.RuneCountInString(*item.Title) > 500 || strings.ContainsAny(*item.Title, "\r\n") {
+			return false
+		}
+		seen[*item.ID] = true
 	}
 	return true
 }

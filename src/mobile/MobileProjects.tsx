@@ -40,6 +40,8 @@ import {
   restoreTask,
 } from '../projects/actions'
 import TaskTagsEditor from '../projects/TaskTags'
+import TaskChecklist from '../projects/TaskChecklist'
+import { checklistProgress } from '../projects/checklist'
 import { findTaskMentions } from '../projects/mentions'
 import {
   boardColumns,
@@ -293,6 +295,7 @@ function TaskRow({
           task.repeat ||
           task.priority > 0 ||
           task.tags?.length ||
+          task.checklist?.length ||
           project) && (
           <span className="mobile-row-meta">
             {(effectiveDueDate(task) || task.schedule) && (
@@ -302,6 +305,11 @@ function TaskRow({
               </span>
             )}
             {task.repeat && <span>{formatRepeat(task.repeat)}</span>}
+            {!!task.checklist?.length && (
+              <span aria-label={`${checklistProgress(task).done} of ${task.checklist.length} subtasks done`}>
+                {checklistProgress(task).done}/{task.checklist.length}
+              </span>
+            )}
             {task.priority > 0 && <span>{priority?.label}</span>}
             {task.tags?.map((tag) => (
               <span key={tag}>#{tag}</span>
@@ -863,6 +871,7 @@ function TaskFields({
       </div>
       <h3 className="mobile-task-heading">Tags</h3>
       <TaskTagsEditor id="mobile-task-tags" task={task} disabled={disabled} />
+      <TaskChecklist task={task} disabled={disabled} headingClassName="mobile-task-heading" />
       <h3 className="mobile-task-heading">Repeat</h3>
       <RepeatEditor
         task={task}

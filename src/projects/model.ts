@@ -1,5 +1,6 @@
 import { effectiveDueDate, clockAt, displayZone, calendarDate, dayAt, type TaskSchedule } from './schedule'
 import type { TaskRepeat } from './repeat'
+import type { ChecklistItem } from './checklist'
 export { effectiveDueDate } from './schedule'
 export type ProjectStatus = 'planned' | 'active' | 'on_hold' | 'done' | 'cancelled'
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'cancelled'
@@ -41,6 +42,8 @@ export interface Task {
   repeat?: TaskRepeat | null
   /** Normalized names (see `taskTagName`); separate from the tags in note bodies. */
   tags?: string[]
+  /** Subtasks, in order; see `checklist.ts`. */
+  checklist?: ChecklistItem[]
   completedAt: number | null
   sort: number
   deletedAt: number | null
