@@ -104,7 +104,7 @@ func (s *Server) Handler() http.Handler {
 			s.fail(w, err)
 			return
 		}
-		writeJSON(w, map[string]any{"libraryId": id, "protocolVersion": 2})
+		writeJSON(w, map[string]any{"libraryId": id, "protocolVersion": 3})
 	}))
 	mux.HandleFunc("POST /v1/push", s.auth(s.push))
 	mux.HandleFunc("GET /v1/pull", s.auth(s.pull))

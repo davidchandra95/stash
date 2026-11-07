@@ -297,19 +297,45 @@ Use the shared classes before writing new CSS:
   turns `--danger` on failure. Tooltips open to the right.
 - Add an area only when a real domain ships; the rail is not a launcher.
 
+## Export and version history
+
+- Export actions sit after Note information in the note menu (Export as Markdown…, Export as HTML…,
+  Version history…), Export notebook… sits before Delete notebook, and Export all notes… is a
+  command. Results and failures are a `.notice` with Dismiss; success stays quiet otherwise.
+- Version history is an 880×640 `.dialog`: a 240px list (day labels in `--text-3`, rows with time,
+  size and a one-line preview, selection as `--accent-soft` with a 2px accent edge) beside a
+  read-only preview on `--bg-content` in the note typography. Restore is the primary button and
+  stays disabled until an earlier version is selected.
+
 ## Projects and tasks
 
 - The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,
-  Inbox, Summary and Calendar, then All projects, the Projects section, Filters, Tags, then Completed and Trash.
+  Inbox, Summary, Calendar and Habits, then All projects, the Projects section, Filters, Tags, then Completed and Trash.
   The Android drawer keeps that order around its own rows. Next 7 Days runs through the sixth day
   ahead and repeats Overdue; later tasks stay in their project and in Calendar. Summary is read-only
   over the last 7 or 30 days. Trash rows only offer Restore, and the rail's Trash stays the notes one.
+- Subtasks are one-line checklist items in the inspector's Subtasks section, between Reminders and
+  Description, headed by a `.count` of done/total. Rows are `--row` high with a 14px `.task-check`
+  and an inline title that saves on blur or Return; done items are struck through in `--text-3`.
+  The remove button appears on hover or focus (always on Android, where rows are 44px). Return in
+  the "Add subtask" field keeps it open; pasting several lines adds one per line; Option+Up/Down
+  reorders; Backspace in an empty item removes it. Task rows and Board cards show a `ListChecks`
+  "done/total" mark in the metadata, `--text-3` once all are done. Subtasks never complete the task.
 - Task tags are separate from note tags, but share `.chip` and `tagTone()`. Only tags in use are
   listed, in the `.side-tags` chips on desktop and a "Task tags" drawer section on Android; each opens
   a page grouped Overdue, To do, Completed, and a task added there starts with that tag. Task rows
   show two tag chips and "+N"; Board cards and calendar blocks show none. The inspector's Tags row
   edits them in place: Return, comma or space adds, Backspace on an empty field removes the last, and
   matching tags appear below while focused.
+- Habits (`src/habits/*`, `src/styles/habits.css`) is a Projects page: a table of the last seven
+  days (36px columns, 44px rows, inset `--line` dividers) and a Flame streak in `--warning` while
+  active, `--text-4` at zero. A day is a 24px ring in the habit's notebook color at 45%, filled
+  with that color once done (check in `--bg-content`); days a weekday habit isn't due use a 1px
+  `--line` ring; a note is a 7px `--text-2` dot at the corner. Clicking a day checks it and opens a
+  `.popover` with the note field focused; clicking a done day opens the note with Mark not done.
+  The inspector shares the task inspector's resizable slot and saved width, and in a pane under
+  520px the grid tightens to 30px days and drops the streak column. Android shows one `--fill-1`
+  card per habit with 36px days, and the habit page reuses the inspector body.
 - Filters are saved smart lists (desktop only, stored per device in `Appearance.taskFilters`). Rows
   use the `ListFilter` icon and an open-task count; their context menu edits, duplicates and
   deletes (with Undo). The dialog uses the project form grid with toggle chips (`.filter-option`,

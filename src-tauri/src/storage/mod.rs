@@ -311,13 +311,13 @@ impl Store {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(db_err)?;
-        if version > 17 {
+        if version > 20 {
             return Err(
                 "This library needs a newer version of Stash. Your files have not been changed."
                     .into(),
             );
         }
-        if version > 0 && version < 17 {
+        if version > 0 && version < 20 {
             let backups = dir.join("backups");
             fs::create_dir_all(&backups).map_err(db_err)?;
             let backup = backups.join(format!(
@@ -448,6 +448,21 @@ impl Store {
         if version < 17 {
             let tx = store.conn.transaction().map_err(db_err)?;
             tx.execute_batch(include_str!("task_tags_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 18 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("task_checklist_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 19 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("habits_schema.sql")).map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+        }
+        if version < 20 {
+            let tx = store.conn.transaction().map_err(db_err)?;
+            tx.execute_batch(include_str!("note_versions_schema.sql")).map_err(db_err)?;
             tx.commit().map_err(db_err)?;
         }
         store.recover_pdf_imports()?;
@@ -760,6 +775,9 @@ impl Store {
         };
         let body = input.content.as_ref().map(Value::to_string);
         let tasks = input.content.as_ref().map(has_tasks);
+        if let (Some(_), Some(next)) = (&current, &body) {
+            versions::before_body_change(tx, &input.id, next, false)?;
+        }
         if current.is_some() {
             tx.execute("UPDATE notes SET title=?1,quick_access=?2,body=coalesce(?3,body),plain_text=?4,has_tasks=coalesce(?5,has_tasks),pinned=?6,trashed_at=?7,updated=?8,revision=?9,last_op=?10 WHERE id=?11",params![input.title,input.quick_access,body,input.text,tasks,input.pinned,trashed_at,timestamp,revision+1,input.operation_id,input.id]).map_err(db_err)?;
         } else {
@@ -1097,6 +1115,12 @@ fn validate_document(value: &Value) -> Result<()> {
 pub mod bridge;
 pub mod pdf;
 pub mod projects;
+pub mod habits;
+pub mod versions;
+#[cfg(test)]
+mod versions_tests;
+#[cfg(test)]
+mod habits_tests;
 #[cfg(test)]
 mod projects_tests;
 pub mod conversion;

@@ -180,6 +180,9 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     'Duplicate',
     'Copy link to note',
     'Note information',
+    'Export as Markdown…',
+    'Export as HTML…',
+    'Version history…',
     'Move to another notebook',
     'Add to notebooks',
     'Move to trash',
@@ -187,7 +190,7 @@ it('targets inactive notes, separates Quick Access and pinning, copies links and
     'Move down',
   ])
   const items = [...document.querySelectorAll<HTMLElement>('.menu [role="menuitem"]')]
-  expect(items).toHaveLength(11)
+  expect(items).toHaveLength(14)
   expect(
     items.every(
       (item) =>

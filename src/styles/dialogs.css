@@ -356,3 +356,110 @@
 .note-link-context {
   min-width: 180px;
 }
+
+/* Version history: versions on the left, the selected one read-only on the right. */
+.dialog.version-dialog {
+  width: min(880px, calc(100vw - 32px));
+  height: min(640px, calc(100vh - 64px));
+}
+.version-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  border-block: 1px solid var(--line);
+}
+.version-list {
+  overflow-y: auto;
+  padding: var(--space-3);
+  border-right: 1px solid var(--line);
+}
+.version-day {
+  padding: var(--space-5) var(--space-4) var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.version-row {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.version-row:hover {
+  background: var(--fill-1);
+}
+.version-row[aria-selected='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.version-when {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.version-meta,
+.version-preview-text {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.version-preview {
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-8, 32px);
+  background: var(--bg-content);
+}
+.version-preview .tiptap {
+  color: var(--text);
+  font-family: var(--note-font);
+  font-size: var(--note-size);
+  line-height: var(--line-spacing, 1.5);
+  overflow-wrap: anywhere;
+}
+.version-preview img {
+  max-width: 100%;
+}
+.version-title {
+  margin: 0 0 var(--space-5);
+  font-size: 20px;
+}
+.version-empty {
+  padding: var(--space-4);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.version-error {
+  margin: var(--space-4) var(--space-6) 0;
+}
+/* The preview has no editor node views, so list markers come from the item's kind. */
+.version-preview ul[data-type='mixedList'] {
+  margin: 0;
+  padding-left: 1.5em;
+}
+.version-preview li[data-kind='bullet'] {
+  list-style: disc;
+}
+.version-preview li[data-kind='ordered'] {
+  list-style: decimal;
+}
+.version-preview li[data-kind='task'] {
+  list-style: none;
+}
+.version-preview li[data-kind='task'] > p::before {
+  content: '☐';
+  display: inline-block;
+  width: 1.4em;
+  margin-left: -1.4em;
+  color: var(--text-3);
+}
+.version-preview li[data-kind='task'][data-checked='true'] > p::before {
+  content: '☑';
+  color: var(--accent);
+}
+.version-preview li[data-kind='task'][data-checked='true'] > p {
+  color: var(--text-3);
+  text-decoration: line-through;
+}

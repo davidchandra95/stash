@@ -371,6 +371,32 @@ pub async fn save_projects(
     work(service.inner().clone(), move |s| s.save_project_changes(&changes)).await
 }
 #[tauri::command]
+pub async fn note_versions(
+    note_id: String,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<Vec<versions::NoteVersionSummary>> {
+    work(service.inner().clone(), move |s| s.note_versions(&note_id)).await
+}
+#[tauri::command]
+pub async fn note_version(id: i64, service: tauri::State<'_, Arc<Service>>) -> Result<versions::NoteVersion> {
+    work(service.inner().clone(), move |s| s.note_version(id)).await
+}
+#[tauri::command]
+pub async fn keep_note_version(note_id: String, service: tauri::State<'_, Arc<Service>>) -> Result<()> {
+    work(service.inner().clone(), move |s| s.keep_note_version(&note_id)).await
+}
+#[tauri::command]
+pub async fn list_habits(service: tauri::State<'_, Arc<Service>>) -> Result<habits::HabitData> {
+    work(service.inner().clone(), |s| s.habit_data()).await
+}
+#[tauri::command]
+pub async fn save_habits(
+    changes: habits::HabitChanges,
+    service: tauri::State<'_, Arc<Service>>,
+) -> Result<habits::HabitData> {
+    work(service.inner().clone(), move |s| s.save_habit_changes(&changes)).await
+}
+#[tauri::command]
 pub async fn task_mentions(
     task_id: String,
     service: tauri::State<'_, Arc<Service>>,

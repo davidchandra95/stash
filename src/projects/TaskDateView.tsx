@@ -9,6 +9,7 @@ import AppTooltip from '../components/AppTooltip'
 import ProjectRing from './ProjectRing'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
 import { RepeatMark } from './RepeatEditor'
+import { SubtaskMark } from './TaskChecklist'
 import { deleteTask, restoreTask, toggleTask } from './actions'
 import NewTask from './NewTask'
 import {
@@ -218,6 +219,7 @@ export default function TaskDateView({ view }: { view: DateView }) {
                           </span>
                         )}
                         {task.repeat && <RepeatMark repeat={task.repeat} />}
+                        <SubtaskMark task={task} />
                         <TaskTagChips task={task} />
                         {task.priority > 0 && (
                           <AppTooltip label={`${priorities[task.priority].label} priority`}>

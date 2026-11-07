@@ -54,12 +54,28 @@ pub struct Outcome {
 }
 
 /// Servers at protocol 1 store notes and notebooks only, so projects and tasks wait for an update.
-const PROJECT_KINDS: [&str; 2] = ["project", "task"];
+/// Habits and check-ins likewise wait for protocol 3. These kinds delete softly, never by tombstone.
+const PROJECT_KINDS: [&str; 4] = ["project", "task", "habit", "habitCheckin"];
 fn is_project_kind(kind: &str) -> bool {
     PROJECT_KINDS.contains(&kind)
 }
+fn is_habit_kind(kind: &str) -> bool {
+    matches!(kind, "habit" | "habitCheckin")
+}
+/// The newest protocol whose records a server stores.
+const PROTOCOL: i64 = 3;
 fn supported_protocol(info: &Value) -> Option<i64> {
-    info["protocolVersion"].as_i64().filter(|version| matches!(version, 1 | 2))
+    info["protocolVersion"].as_i64().filter(|version| (1..=PROTOCOL).contains(version))
+}
+/// Whether a server at `protocol` stores records of `kind`.
+fn kind_supported(kind: &str, protocol: i64) -> bool {
+    if is_habit_kind(kind) {
+        protocol >= 3
+    } else if is_project_kind(kind) {
+        protocol >= 2
+    } else {
+        true
+    }
 }
 fn add_warning(conn: &Connection, warning: String) -> Result<()> {
     let raw: String = conn
@@ -137,7 +153,7 @@ impl Store {
         let pending = self
             .conn
             .query_row(
-                "SELECT (SELECT count(*) FROM sync_dirty d WHERE (d.kind='note' AND (d.id NOT IN(SELECT note_id FROM linked_notes) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR (d.kind='notebook' AND d.id NOT IN(SELECT id FROM sync_local_notebooks) AND (d.id NOT IN(SELECT id FROM notebooks WHERE root_id IS NOT NULL) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR d.kind IN('project','task'))+(SELECT count(*) FROM sync_outbox)",
+                "SELECT (SELECT count(*) FROM sync_dirty d WHERE (d.kind='note' AND (d.id NOT IN(SELECT note_id FROM linked_notes) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR (d.kind='notebook' AND d.id NOT IN(SELECT id FROM sync_local_notebooks) AND (d.id NOT IN(SELECT id FROM notebooks WHERE root_id IS NOT NULL) OR EXISTS(SELECT 1 FROM sync_versions v WHERE v.kind=d.kind AND v.id=d.id))) OR d.kind IN('project','task','habit','habitCheckin'))+(SELECT count(*) FROM sync_outbox)",
                 [],
                 |r| r.get(0),
             )
@@ -227,8 +243,8 @@ impl Store {
                 "Sync server identity or protocol changed. Local notes were not uploaded.".into(),
             );
         }
-        let projects_supported = protocol == Some(2);
-        self.prepare_cycle(projects_supported)?;
+        let protocol = protocol.unwrap_or(1);
+        self.prepare_cycle(protocol)?;
         loop {
             let next: Option<(i64, String)> = self
                 .conn
@@ -295,14 +311,21 @@ impl Store {
         }
         progress("Saving synced notes…");
         self.finish_sync()?;
-        let held: bool = self
-            .conn
-            .query_row("SELECT EXISTS(SELECT 1 FROM sync_dirty WHERE kind IN('project','task'))", [], |r| r.get(0))
-            .map_err(db_err)?;
-        if !projects_supported && held {
+        let held = |kinds: &str| -> Result<bool> {
+            self.conn
+                .query_row(&format!("SELECT EXISTS(SELECT 1 FROM sync_dirty WHERE kind IN({kinds}))"), [], |r| r.get(0))
+                .map_err(db_err)
+        };
+        if protocol < 2 && held("'project','task'")? {
             add_warning(
                 &self.conn,
                 "Projects and tasks stay on this device until the sync server is updated.".into(),
+            )?;
+        }
+        if protocol < 3 && held("'habit','habitCheckin'")? {
+            add_warning(
+                &self.conn,
+                "Habits stay on this device until the sync server is updated.".into(),
             )?;
         }
         Ok(Outcome {
@@ -311,9 +334,9 @@ impl Store {
         })
     }
     pub fn prepare_sync(&mut self) -> Result<()> {
-        self.prepare_cycle(true)
+        self.prepare_cycle(PROTOCOL)
     }
-    pub(super) fn prepare_cycle(&mut self, projects_supported: bool) -> Result<()> {
+    pub(super) fn prepare_cycle(&mut self, protocol: i64) -> Result<()> {
         let active: bool = self
             .conn
             .query_row("SELECT active FROM sync_state", [], |r| r.get(0))
@@ -330,9 +353,7 @@ impl Store {
                 .map_err(db_err)?;
             items
         };
-        if !projects_supported {
-            dirty.retain(|(kind, _)| !is_project_kind(kind));
-        }
+        dirty.retain(|(kind, _)| kind_supported(kind, protocol));
         let mut books = self.notebooks()?;
         let local_only = {
             let mut q = self
@@ -384,6 +405,10 @@ impl Store {
                 projects::synced_project(&self.conn, &id)?
             } else if kind == "task" {
                 projects::synced_task(&self.conn, &id)?
+            } else if kind == "habit" {
+                habits::synced_habit(&self.conn, &id)?
+            } else if kind == "habitCheckin" {
+                habits::synced_checkin(&self.conn, &id)?
             } else if kind == "note" {
                 let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM notes WHERE id=? AND id NOT IN(SELECT note_id FROM linked_notes))",[&id],|r|r.get(0)).map_err(db_err)?;
                 if exists {
@@ -427,7 +452,7 @@ impl Store {
         ops.sort_by_key(|op| {
             if op.kind == "notebook" && op.deleted {
                 2
-            } else if matches!(op.kind.as_str(), "note" | "task") {
+            } else if matches!(op.kind.as_str(), "note" | "task" | "habitCheckin") {
                 1
             } else {
                 0
@@ -441,12 +466,16 @@ impl Store {
             )
             .map_err(db_err)?;
         }
-        if projects_supported {
-            tx.execute("DELETE FROM sync_dirty", []).map_err(db_err)?;
-        } else {
-            tx.execute("DELETE FROM sync_dirty WHERE kind NOT IN('project','task')", [])
-                .map_err(db_err)?;
-        }
+        // Kinds the server can't store stay queued for a later, updated server.
+        let held: Vec<&str> = PROJECT_KINDS.into_iter().filter(|kind| !kind_supported(kind, protocol)).collect();
+        tx.execute(
+            &format!(
+                "DELETE FROM sync_dirty WHERE kind NOT IN('{}')",
+                held.join("','")
+            ),
+            [],
+        )
+        .map_err(db_err)?;
         tx.execute("UPDATE sync_state SET active=1,target=NULL,page_cursor=cursor,warnings='[]'", [])
             .map_err(db_err)?;
         tx.commit().map_err(db_err)
@@ -472,7 +501,7 @@ impl Store {
         for e in &page.changes {
             if e.revision != last + 1
                 || e.revision > page.target
-                || !matches!(e.kind.as_str(), "note" | "notebook" | "project" | "task")
+                || !matches!(e.kind.as_str(), "note" | "notebook" | "project" | "task" | "habit" | "habitCheckin")
             {
                 return Err("Incomplete or unsupported sync changes.".into());
             }
@@ -518,7 +547,7 @@ impl Store {
         // parent ordering across pages.
         let mut records = records;
         records.sort_by_key(|e| match e.kind.as_str() {
-            "notebook" => 0,
+            "notebook" | "habit" => 0,
             "project" => 1,
             _ => 2,
         });
@@ -557,10 +586,11 @@ impl Store {
                     if e.deleted {
                         return Err("Unsupported synced project or task deletion.".into());
                     }
-                    if e.kind == "project" {
-                        projects::apply_synced_project(&tx, &e.id, e.data)?;
-                    } else {
-                        projects::apply_synced_task(&tx, &e.id, e.data)?;
+                    match e.kind.as_str() {
+                        "project" => projects::apply_synced_project(&tx, &e.id, e.data)?,
+                        "task" => projects::apply_synced_task(&tx, &e.id, e.data)?,
+                        "habit" => habits::apply_synced_habit(&tx, &e.id, e.data)?,
+                        _ => habits::apply_synced_checkin(&tx, &e.id, e.data)?,
                     }
                 } else if e.kind == "notebook" {
                     if e.deleted {
@@ -604,6 +634,8 @@ impl Store {
                     }
                     let body = n.content.ok_or("Missing synced document.")?;
                     validate_document(&body)?;
+                    // A remote change never silently replaces a local body: keep it as a version.
+                    versions::before_body_change(&tx, &n.id, &body.to_string(), true)?;
                     tx.execute("INSERT INTO notes(id,title,body,document_version,plain_text,has_tasks,pinned,trashed_at,created,updated,revision,last_op,quick_access) VALUES(?,?,?,1,?,?,?,?,?,?,1,'sync',?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,plain_text=excluded.plain_text,has_tasks=excluded.has_tasks,pinned=excluded.pinned,trashed_at=excluded.trashed_at,created=excluded.created,updated=excluded.updated,revision=notes.revision+1,last_op='sync',quick_access=excluded.quick_access",params![n.id,n.title,body.to_string(),n.text,has_tasks(&body),n.pinned,if n.trashed{Some(n.trashed_at.unwrap_or(n.updated))}else{None},n.created,n.updated,n.quick_access]).map_err(db_err)?;
                     tx.execute("DELETE FROM note_tags WHERE note_id=?", [&n.id])
                         .map_err(db_err)?;

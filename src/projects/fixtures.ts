@@ -79,6 +79,11 @@ export function previewProjectData(now = new Date()): ProjectData {
         dueDate: shift(5),
         description: 'Hero, three feature blocks and the pricing teaser.',
         tags: ['writing', 'launch'],
+        checklist: [
+          { id: 'preview-subtask-hero', title: 'Hero headline', done: true },
+          { id: 'preview-subtask-features', title: 'Three feature blocks', done: false },
+          { id: 'preview-subtask-pricing', title: 'Pricing teaser', done: false },
+        ],
       }),
       task('Pick a typeface pairing', web, { status: 'doing', priority: 1, dueDate: shift(8) }),
       task('Migrate blog posts from the old CMS', web, { priority: 2, dueDate: shift(-3), tags: ['launch'] }),

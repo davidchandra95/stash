@@ -29,7 +29,11 @@ const (
 	maxInstant = 253_402_300_799_999
 )
 
-func isProjectKind(kind string) bool { return kind == "project" || kind == "task" }
+// isProjectKind covers the record kinds that delete softly and are validated field by field:
+// projects and tasks (protocol 2), habits and their check-ins (protocol 3).
+func isProjectKind(kind string) bool {
+	return kind == "project" || kind == "task" || kind == "habit" || kind == "habitCheckin"
+}
 
 func validDate(date *string) bool {
 	if date == nil {
@@ -150,6 +154,9 @@ func validateProjectRecord(op Operation) error {
 	if !recordIDPattern.MatchString(op.ID) {
 		return errors.New("invalid record ID")
 	}
+	if op.Kind == "habit" || op.Kind == "habitCheckin" {
+		return validateHabitRecord(op)
+	}
 	if op.Kind == "project" {
 		var p struct {
 			ID, Name, Description, Status, Color *string
@@ -195,6 +202,7 @@ func validateProjectRecord(op Operation) error {
 		Repeat                         json.RawMessage `json:"repeat"`
 		Reminders                      json.RawMessage `json:"reminders"`
 		Tags                           json.RawMessage `json:"tags"`
+		Checklist                      json.RawMessage `json:"checklist"`
 		CompletedAt                    *int64          `json:"completedAt"`
 		Sort                           *float64        `json:"sort"`
 		DeletedAt                      *int64          `json:"deletedAt"`
@@ -235,6 +243,9 @@ func validateProjectRecord(op Operation) error {
 	if !validateTags(t.Tags) {
 		return errors.New("invalid task tags")
 	}
+	if !validateChecklist(t.Checklist) {
+		return errors.New("invalid task subtasks")
+	}
 	hasSchedule := len(t.Schedule) != 0 && string(t.Schedule) != "null"
 	if t.DueLinked != nil && *t.DueLinked && (!hasSchedule || t.DueDate != nil || t.DueTime != nil) {
 		return errors.New("invalid linked deadline")
@@ -261,6 +272,30 @@ func validateTags(raw json.RawMessage) bool {
 	return true
 }
 
+// validateChecklist mirrors the client's rule: up to 100 one-line subtasks with unique IDs.
+func validateChecklist(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return true
+	}
+	var items []struct {
+		ID    *string `json:"id"`
+		Title *string `json:"title"`
+		Done  *bool   `json:"done"`
+	}
+	if json.Unmarshal(raw, &items) != nil || items == nil || len(items) > 100 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		if item.ID == nil || item.Title == nil || item.Done == nil || !recordIDPattern.MatchString(*item.ID) || seen[*item.ID] ||
+			strings.TrimSpace(*item.Title) == "" || utf8.RuneCountInString(*item.Title) > 500 || strings.ContainsAny(*item.Title, "\r\n") {
+			return false
+		}
+		seen[*item.ID] = true
+	}
+	return true
+}
+
 // sameProjectContent ignores ordering and bookkeeping, which never justify a visible conflict.
 func sameProjectContent(a, b map[string]any) bool {
 	strip := func(record map[string]any) map[string]any {
@@ -279,7 +314,8 @@ func sameProjectContent(a, b map[string]any) bool {
 	return reflect.DeepEqual(strip(a), strip(b))
 }
 
-// resolveProjectConflict keeps the accepted record. Different content from a stale device becomes
+// resolveProjectConflict keeps the accepted record. Check-ins merge instead, since the same day
+// checked on two devices is the same record. Different content from a stale device becomes
 // a visible copy, except a stale deletion, which never removes another device's newer edit.
 func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision *int64, op Operation, currentData []byte, result *Receipt) error {
 	var incoming, current map[string]any
@@ -295,9 +331,17 @@ func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision
 			return nil
 		}
 	}
+	if op.Kind == "habitCheckin" {
+		merged, err := json.Marshal(mergeCheckins(current, incoming))
+		if err != nil {
+			return err
+		}
+		result.Conflict = false
+		return s.put(ctx, tx, revision, Entity{Kind: op.Kind, ID: op.ID, Data: merged})
+	}
 	noun, field, limit := "task", "title", 500
-	if op.Kind == "project" {
-		noun, field, limit = "project", "name", 200
+	if op.Kind == "project" || op.Kind == "habit" {
+		noun, field, limit = op.Kind, "name", 200
 	}
 	if incoming["deletedAt"] != nil {
 		result.Message = "Deleted here but changed on another device; the changed " + noun + " was kept."
@@ -327,6 +371,9 @@ func (s *Server) resolveProjectConflict(ctx context.Context, tx pgx.Tx, revision
 	result.Message = "Both " + noun + " versions were kept."
 	if op.Kind == "project" {
 		result.Message += " Tasks stay with the original."
+	}
+	if op.Kind == "habit" {
+		result.Message += " Check-ins stay with the original."
 	}
 	return nil
 }

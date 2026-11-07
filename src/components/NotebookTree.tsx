@@ -12,6 +12,7 @@ import {
   SquarePen,
   Trash2,
   Unlink2,
+  FolderDown,
 } from '../icons'
 import type { Notebook } from '../model'
 import { notebookPath } from '../notebooks'
@@ -34,6 +35,7 @@ export default function NotebookTree({
   refresh,
   reselect,
   convert,
+  exportNotebook,
   disabled,
   dropTarget,
 }: {
@@ -50,6 +52,8 @@ export default function NotebookTree({
   refresh: (id: string) => void
   reselect: (id: string) => void
   convert?: (book: Notebook) => void
+  /** Exports the notebook and its sub-notebooks as Markdown files. */
+  exportNotebook?: (book: Notebook) => void
   disabled?: boolean
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -104,6 +108,8 @@ export default function NotebookTree({
         run: () => reselect(book.rootId!),
       })
     }
+    if (exportNotebook)
+      actions.push({ label: 'Export notebook…', icon: FolderDown, separator: true, run: () => exportNotebook(book) })
     actions.push({
       label: 'Delete notebook',
       icon: Trash2,

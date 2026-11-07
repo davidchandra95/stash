@@ -13,6 +13,12 @@ Completing a repeating task, from any surface or a note mention, keeps its ID an
 
 Only the next occurrence exists, so Calendar and Next 7 Days don't show later ones. Reopening a finished occurrence after the notice has gone makes it a one-off task and doesn't affect the routine. Cancelling a repeating task stops it without creating an occurrence. Turning on a repeat for a dateless task sets its due date to today. Rules live in `src/projects/repeat.ts`; the roll-forward is `completeOccurrence` in `actions.ts`. Smart input doesn't recognize repeat phrases yet, so they stay in the title.
 
+## Subtasks
+
+A task can hold up to 100 subtasks: one-line checklist items, each up to 500 characters, in the order you arrange them. Add them in the Subtasks section of task details (desktop) or the task page (Android). Return in "Add subtask" adds one and keeps the field open, and pasting several lines adds one per line. Edit a title in place; clearing it, or Backspace in an empty one, removes it. Option+Up/Down reorders on desktop. Task rows and Board cards show how many are done.
+
+Subtasks complete on their own and never complete or reopen the task. When a repeating task rolls forward, the finished occurrence keeps its ticked subtasks and the next occurrence starts with all of them open. Subtasks are stored as a JSON list on the task (schema 18, `task_checklist_schema.sql`); limits are shared by `validate_task` (`storage/projects.rs`), `validateChecklist` on the sync server and `src/projects/checklist.ts`.
+
 ## Tags
 
 Tasks have their own tags, separate from the hashtags in note bodies: up to 20 per task, each up to 50 characters, stored lowercase with spaces turned into hyphens. Add them from task details, or by typing `#tag` in any new-task field. A tag exists while a task that isn't deleted uses it, so removing it from its last task retires it. There is no rename or merge yet. Rules live in `validate_task` (`storage/projects.rs`), `validateTags` on the sync server, and `taskTagName` (`src/tags.ts`).

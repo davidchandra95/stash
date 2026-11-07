@@ -1,4 +1,8 @@
 import { useDictation } from '../dictation/useDictation'
+import { startVersionHistory } from '../history/versions'
+import { exportNote, exportNotes } from '../export/exporter'
+import { habitStore, useHabits } from '../habits/store'
+import type { Habit } from '../habits/model'
 import { filterView, isFilterView, type TaskFilter } from '../projects/filters'
 import { type VirtualNoteRowsApi } from '../components/VirtualNoteRows'
 import { normalizeNoteListMode, type NoteListMode } from '../noteListPresentation'
@@ -61,6 +65,10 @@ import { fileTitleError, notebookPath } from '../notebooks'
 import type { Notebook as NotebookModel } from '../model'
 import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import {
+  FileCode,
+  FileDown,
+  History,
+  FolderDown,
   Files,
   Pin,
   PinOff,
@@ -215,6 +223,34 @@ export function useAppController() {
     launcher: HTMLElement | null
   } | null>(null)
   const [informationId, setInformationId] = useState<string | null>(null)
+  /** The note whose version history is open. */
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  useEffect(startVersionHistory, [])
+  /** The outcome of the last export, until dismissed. */
+  const [exportNotice, setExportNotice] = useState<{ message: string; error?: boolean } | null>(null)
+  const exportFailed = (error: unknown) =>
+    setExportNotice({ message: `Couldn’t export. ${String(error).replace(/^Error: /, '')}`, error: true })
+  const exportOneNote = (id: string, format: 'markdown' | 'html') => {
+    const note = libraryStore.getSnapshot().notes.find((n) => n.id === id)
+    if (!note) return
+    exportNote(note, format, libraryStore.readSearchNote).then(
+      (result) => result && setExportNotice({ message: `Exported “${note.title || 'Untitled'}”.` }),
+      exportFailed,
+    )
+  }
+  const exportMany = (scope: { notebook: NotebookModel } | { all: true }) => {
+    const { notes: all, notebooks: books } = libraryStore.getSnapshot()
+    exportNotes(scope, all, books, libraryStore.readSearchNote).then((result) => {
+      if (!result) return
+      const count = `${result.count} ${result.count === 1 ? 'note' : 'notes'}`
+      setExportNotice({
+        message: `Exported ${count} to ${result.location}.${
+          result.failed.length ? ` ${result.failed.length} couldn’t be read: ${result.failed.slice(0, 3).join('; ')}` : ''
+        }`,
+        error: result.failed.length > 0,
+      })
+    }, exportFailed)
+  }
   const organizationOpen = !!organization
   const setOrganization = (
     next: { id: string; destination?: string; launcher?: HTMLElement } | null,
@@ -303,6 +339,11 @@ export function useAppController() {
   useEffect(() => libraryStore.registerFlush(pdfStore.flush), [])
   const projects = useProjects(library.ready)
   useEffect(() => libraryStore.registerFlush(projectStore.flush), [])
+  const habits = useHabits(library.ready)
+  useEffect(() => libraryStore.registerFlush(habitStore.flush), [])
+  /** The habit open in the Habits page's detail panel. */
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null)
+  const [habitEditing, setHabitEditing] = useState<Habit | 'new' | null>(null)
   /** The open project page: a project ID, 'inbox', 'all' (the overview), or null for notes. */
   const [projectView, setProjectView] = useState<string | null>(null)
   const projectViewRef = useRef(projectView)
@@ -1025,6 +1066,15 @@ export function useAppController() {
       icon: Info,
       run: () => setInformationId(note.id),
     }
+    const exports: NoteAction[] = [
+      {
+        label: 'Export as Markdown…',
+        icon: FileDown,
+        separator: true,
+        run: () => exportOneNote(note.id, 'markdown'),
+      },
+      { label: 'Export as HTML…', icon: FileCode, run: () => exportOneNote(note.id, 'html') },
+    ]
     if (note.trashed)
       return [
         open,
@@ -1076,6 +1126,10 @@ export function useAppController() {
           }),
       },
       information,
+      ...exports,
+      ...(note.source
+        ? []
+        : [{ label: 'Version history…', icon: History, run: () => setHistoryId(note.id) }]),
       {
         label: note.source ? 'Move file to notebook' : 'Move to another notebook',
         icon: FolderInput,
@@ -1236,6 +1290,17 @@ export function useAppController() {
       icon: RefreshCw,
       run: syncNow,
     },
+    ...(isTauri()
+      ? [
+          {
+            id: 'export-all',
+            label: 'Export all notes…',
+            keywords: 'backup markdown folder save',
+            icon: FolderDown,
+            run: () => exportMany({ all: true }),
+          },
+        ]
+      : []),
     ...layouts.map((layout) => ({
       id: `layout-${layout}`,
       label: `Layout: ${layoutNames[layout]}`,
@@ -1390,6 +1455,11 @@ export function useAppController() {
     setNoteMenuOpen,
     informationId,
     setInformationId,
+    exportNotice,
+    setExportNotice,
+    historyId,
+    setHistoryId,
+    exportNotebook: (book: NotebookModel) => exportMany({ notebook: book }),
     organization,
     storeOrganization,
     addOrganization,
@@ -1435,6 +1505,11 @@ export function useAppController() {
     setProjectEditing,
     projectToDelete,
     setProjectToDelete,
+    habits,
+    selectedHabitId,
+    setSelectedHabitId,
+    habitEditing,
+    setHabitEditing,
     filterEditing,
     setFilterEditing,
     saveFilter,
@@ -1535,6 +1610,7 @@ const fixedProjectPages = [
   'tasks:completed',
   'tasks:trash',
   'tasks:calendar',
+  'habits',
 ]
 /** Where the app is right now, as a stop on the Back/Forward timeline. */
 function currentPlace(

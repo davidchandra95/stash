@@ -198,6 +198,46 @@ it('completing a repeating task moves it forward and leaves a done occurrence', 
   }
 })
 
+it('saves subtasks and reopens them on the next occurrence of a repeating task', async () => {
+  vi.useFakeTimers({ now: new Date('2026-11-04T12:00:00'), toFake: ['Date'] })
+  try {
+    const { projectStore, createTask, editChecklist, toggleTask, setRepeatNotify } = await load()
+    const notices: Parameters<Parameters<typeof setRepeatNotify>[0]>[0][] = []
+    setRepeatNotify((notice) => notices.push(notice))
+    const task = createTask(null, 'Weekly review', {
+      dueDate: '2026-11-04',
+      repeat: { unit: 'week', interval: 1, weekdays: [3], from: 'schedule' },
+    })
+    editChecklist(task, () => [
+      { id: 'a', title: 'Inbox zero', done: false },
+      { id: 'b', title: 'Plan', done: false },
+    ])
+    // A second edit from the same stale task object still sees the first.
+    editChecklist(task, (list) => list.map((i) => (i.id === 'a' ? { ...i, done: true } : i)))
+    await projectStore.flush()
+    const saved = () => projectStore.getSnapshot().tasks.find((t) => t.id === task.id)!
+    expect(saved().checklist).toEqual([
+      { id: 'a', title: 'Inbox zero', done: true },
+      { id: 'b', title: 'Plan', done: false },
+    ])
+    await expect(
+      projectStore.save({ tasks: [{ ...saved(), checklist: [{ id: 'c', title: ' ', done: false }] }] }),
+    ).rejects.toThrow(/subtasks/)
+    projectStore.clearSaveError()
+
+    toggleTask(saved())
+    await projectStore.flush()
+    expect(saved().checklist?.map((i) => i.done)).toEqual([false, false])
+    const history = projectStore.getSnapshot().tasks.find((t) => t.title === 'Weekly review' && t.id !== task.id)!
+    expect(history.checklist?.map((i) => i.done)).toEqual([true, false])
+    notices[0]!.undo!()
+    await projectStore.flush()
+    expect(saved().checklist?.map((i) => i.done)).toEqual([true, false])
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it('moves linked schedules and start dates, and dates a dateless repeat on completion', async () => {
   vi.useFakeTimers({ now: new Date('2026-11-04T12:00:00'), toFake: ['Date'] })
   try {

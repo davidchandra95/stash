@@ -1,4 +1,7 @@
 import Settings from './Settings'
+import VersionHistory from '../history/VersionHistory'
+import HabitDialog from '../habits/HabitDialog'
+import { habitStore } from '../habits/store'
 import NotebookConvertDialog from '../components/NotebookConvertDialog'
 import NotebookDialog from '../components/NotebookDialog'
 import {
@@ -67,6 +70,22 @@ function Notices() {
             onClick={notebookMove.dismiss}
           >
             <X aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {app.exportNotice && (
+        <div className="notice" role={app.exportNotice.error ? 'alert' : 'status'} aria-live="polite">
+          <span>{app.exportNotice.message}</span>
+          <button className="btn" onClick={() => app.setExportNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {app.habits.saveError && (
+        <div className="notice" role="alert">
+          <span>Couldn’t save the habit change. {app.habits.saveError}</span>
+          <button className="btn" onClick={habitStore.clearSaveError}>
+            Dismiss
           </button>
         </div>
       )}
@@ -145,6 +164,16 @@ export default trackApp(function Overlays() {
         notebooks={notebooks}
         onClose={() => app.setProjectEditing(null)}
         onCreated={(project) => app.openProject(project.id)}
+      />
+      {app.historyId && <VersionHistory noteId={app.historyId} onClose={() => app.setHistoryId(null)} />}
+      <HabitDialog
+        open={!!app.habitEditing}
+        habit={app.habitEditing === 'new' ? undefined : (app.habitEditing ?? undefined)}
+        onClose={() => app.setHabitEditing(null)}
+        onCreated={(habit) => {
+          app.openProject('habits')
+          app.setSelectedHabitId(habit.id)
+        }}
       />
       <FilterDialog
         open={!!app.filterEditing}

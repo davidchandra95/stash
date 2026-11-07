@@ -1,4 +1,5 @@
 import { effectiveDueDate } from './schedule'
+import HabitsPane from '../habits/HabitsPane'
 import { ReminderMark } from './TaskReminders'
 import {
   useEffect,
@@ -65,6 +66,7 @@ import {
   updateTask,
 } from './actions'
 import { RepeatMark } from './RepeatEditor'
+import { SubtaskMark } from './TaskChecklist'
 
 const groups: { id: TaskGroup; label: string }[] = [
   { id: 'doing', label: 'Doing' },
@@ -111,6 +113,7 @@ export default trackApp(function ProjectPane() {
   const overview = app.projectView === 'all'
   const inbox = app.projectView === 'inbox'
   const calendar = app.projectView === 'tasks:calendar'
+  const habits = app.projectView === 'habits'
   const project =
     inbox || overview
       ? undefined
@@ -118,7 +121,7 @@ export default trackApp(function ProjectPane() {
   const dateView = isDateView(app.projectView) ? app.projectView : null
   const filter = filterOf(app.appearance.taskFilters, app.projectView)
   const missing =
-    (!inbox && !overview && !dateView && !calendar && !project) ||
+    (!inbox && !overview && !dateView && !calendar && !habits && !project) ||
     (isFilterView(app.projectView) && !filter)
 
   useEffect(() => {
@@ -151,6 +154,7 @@ export default trackApp(function ProjectPane() {
       {project && <ProjectMenu project={project} />}
     </div>
   )
+  if (habits) return <HabitsPane />
   if (calendar)
     return (
       <section
@@ -521,6 +525,7 @@ function TaskList({
               </span>
             )}
             {task.repeat && <RepeatMark repeat={task.repeat} />}
+            <SubtaskMark task={task} />
             {task.priority > 0 && (
               <AppTooltip label={`${priorities[task.priority].label} priority`}>
                 <span className="task-priority">

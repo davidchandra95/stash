@@ -5,6 +5,7 @@ import { useApp } from '../app/context'
 import { Calendar } from '../icons'
 import { PriorityBars, TaskCheckbox, TaskMenu } from './ProjectPane'
 import { RepeatMark } from './RepeatEditor'
+import { SubtaskMark } from './TaskChecklist'
 import { deleteTask, toggleTask, updateTask } from './actions'
 import {
   boardColumns,
@@ -159,6 +160,7 @@ export default function TaskBoard({ tasks, disabled }: { tasks: Task[]; disabled
                             </span>
                           )}
                           {task.repeat && <RepeatMark repeat={task.repeat} />}
+                          <SubtaskMark task={task} />
                           {task.priority > 0 && <PriorityBars priority={task.priority} />}
                         </div>
                       )}

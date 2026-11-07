@@ -2,6 +2,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useEffect, useSyncExternalStore } from 'react'
 import { previewProjectData } from './fixtures'
 import { validateRepeat } from './repeat'
+import { validateChecklist } from './checklist'
 import { validateSchedule } from './schedule'
 import type { Project, ProjectData, Task } from './model'
 
@@ -67,6 +68,7 @@ function saveRequest(changes: Changes) {
       dueLinked: t.dueLinked ?? false,
       reminders: t.reminders ?? null,
       tags: t.tags ?? [],
+      checklist: t.checklist ?? [],
       repeat: t.repeat ?? null,
       sort: t.sort,
       deleted: t.deletedAt !== null,
@@ -129,6 +131,7 @@ export const projectStore = {
       try {
         validateSchedule(task.schedule)
         validateRepeat(task.repeat)
+        validateChecklist(task.checklist)
         if (task.dueLinked && (!task.schedule || task.dueDate || task.dueTime))
           throw Error('A linked deadline must use its schedule only.')
       } catch (error) {

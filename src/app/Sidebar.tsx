@@ -1,4 +1,5 @@
 import { displayZone, subscribeDisplayZone } from '../projects/schedule'
+import { checkinId, isDue, liveHabits } from '../habits/model'
 import {
   Fragment,
   useCallback,
@@ -59,6 +60,7 @@ import {
   EyeOff,
   Settings,
   ListFilter,
+  Target,
   Pencil,
   Copy,
 } from '../icons'
@@ -258,6 +260,7 @@ export default trackApp(function Sidebar({
             app.setBookOpen(true)
           }}
           convert={(book) => app.setBookToConvert(book)}
+          exportNotebook={isTauri() ? (book) => app.exportNotebook(book) : undefined}
           refresh={(id) => void app.refreshFolder(id)}
           reselect={(id) => void app.locateFolder(id)}
           disabled={blocked}
@@ -440,6 +443,14 @@ function ProjectsNavigation() {
   const current = today()
   const dueTodayGroups = todayGroups(tasks, current)
   const overdueCount = dueTodayGroups.find((g) => g.id === 'overdue')?.tasks.length ?? 0
+  // Habits due today and not yet checked off; weekly ones have no single due day.
+  const habitsLeft = liveHabits(app.habits.habits).filter(
+    (habit) =>
+      habit.archivedAt === null &&
+      habit.frequency.kind !== 'weekly' &&
+      isDue(habit, current) &&
+      !app.habits.checkins.some((c) => c.id === checkinId(habit.id, current) && c.done),
+  ).length
   const openIn = (groups: { tasks: Task[] }[]) =>
     groups.reduce(
       (sum, group) =>
@@ -523,6 +534,8 @@ function ProjectsNavigation() {
           pageRow('tasks:summary', <FileText aria-hidden="true" />, 'Summary', 'teal', 0)}
         {!hidden.includes('tasks:calendar') &&
           pageRow('tasks:calendar', <Calendar aria-hidden="true" />, 'Calendar', 'blue', 0)}
+        {!hidden.includes('habits') &&
+          pageRow('habits', <Target aria-hidden="true" />, 'Habits', 'green', habitsLeft)}
         {pageRow(
           'all',
           <Briefcase aria-hidden="true" />,

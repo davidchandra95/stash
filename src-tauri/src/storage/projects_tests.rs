@@ -31,6 +31,7 @@ fn task(id: &str, project_id: Option<&str>) -> SaveTask {
         due_linked: false,
         reminders: None,
         tags: vec![],
+        checklist: vec![],
         repeat: None,
         sort: 1.0,
         deleted: false,
@@ -43,7 +44,7 @@ fn version_sixteen_upgrade_backs_up_and_keeps_tasks_untagged() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
     store.save_project_changes(&changes(vec![], vec![task("kept", None)])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN tags; DELETE FROM sync_dirty; PRAGMA user_version=16;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; DELETE FROM sync_dirty; PRAGMA user_version=16;").unwrap();
     drop(store);
 
     let store = Store::open(dir.path()).unwrap();
@@ -56,6 +57,54 @@ fn version_sixteen_upgrade_backs_up_and_keeps_tasks_untagged() {
     assert_eq!(dirty, 0);
     let backups: Vec<_> = std::fs::read_dir(dir.path().join("backups")).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
     assert!(backups.iter().any(|name| name.starts_with("library-v16-")), "{backups:?}");
+}
+
+#[test]
+fn version_seventeen_upgrade_backs_up_and_keeps_tasks_without_subtasks() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    store.save_project_changes(&changes(vec![], vec![task("kept", None)])).unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN checklist; DELETE FROM sync_dirty; PRAGMA user_version=17;").unwrap();
+    drop(store);
+
+    let store = Store::open(dir.path()).unwrap();
+    let tasks = store.project_data().unwrap().tasks;
+    assert_eq!(tasks.len(), 1);
+    assert!(tasks[0].checklist.is_empty());
+    let dirty: i64 = store.conn.query_row("SELECT COUNT(*) FROM sync_dirty", [], |r| r.get(0)).unwrap();
+    assert_eq!(dirty, 0);
+    let backups: Vec<_> = std::fs::read_dir(dir.path().join("backups")).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    assert!(backups.iter().any(|name| name.starts_with("library-v17-")), "{backups:?}");
+}
+
+#[test]
+fn checklist_round_trips_in_order_and_rejects_invalid_items() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let item = |id: &str, title: &str, done: bool| ChecklistItem { id: id.into(), title: title.into(), done };
+    let list = vec![item("b", "Second first", true), item("a", "Then this", false)];
+    let input = SaveTask { checklist: list.clone(), ..task("listed", None) };
+    let saved = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
+    assert_eq!(saved.tasks[0].checklist, list);
+    assert_eq!(store.project_data().unwrap().tasks[0].checklist, list);
+    let cleared = SaveTask { expected_revision: 1, ..task("listed", None) };
+    let saved = store.save_project_changes(&changes(vec![], vec![cleared])).unwrap();
+    assert!(saved.tasks[0].checklist.is_empty());
+    // An empty checklist serializes without the field, so it can't look changed to the server.
+    assert!(serde_json::to_value(&saved.tasks[0]).unwrap().get("checklist").is_none());
+    let many: Vec<_> = (0..101).map(|n| item(&format!("i{n}"), "x", false)).collect();
+    for checklist in [
+        vec![item("a", "", false)],
+        vec![item("a", "   ", false)],
+        vec![item("a", "two\nlines", false)],
+        vec![item("a", &"x".repeat(501), false)],
+        vec![item("a", "one", false), item("a", "two", false)],
+        vec![item("bad id!", "x", false)],
+        many,
+    ] {
+        let input = SaveTask { checklist, ..task("bad", None) };
+        assert!(store.save_project_changes(&changes(vec![], vec![input])).unwrap_err().contains("subtasks"));
+    }
 }
 
 #[test]
@@ -183,13 +232,13 @@ fn repeats_round_trip_reject_invalid_rules_and_upgrade_from_version_fourteen() {
     }
 
     let before = store.project_data().unwrap().tasks;
-    store.conn.execute_batch("UPDATE tasks SET repeat=NULL; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=14;").unwrap();
+    store.conn.execute_batch("UPDATE tasks SET repeat=NULL; ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; PRAGMA user_version=14;").unwrap();
     drop(store);
     let store = Store::open(dir.path()).unwrap();
     let after = store.project_data().unwrap().tasks;
     assert_eq!(after.len(), before.len());
     assert!(after.iter().all(|t| t.repeat.is_none()));
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 17);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 20);
     let path = fs::read_dir(dir.path().join("backups")).unwrap().next().unwrap().unwrap().path();
     let backup = Connection::open(path).unwrap();
     assert_eq!(backup.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 14);
@@ -202,7 +251,7 @@ fn version_twelve_schedule_upgrade_preserves_legacy_wall_times_and_backup() {
     let mut input = task("legacy-time", None);
     input.due_time = Some("14:00".into());
     let before = store.save_project_changes(&changes(vec![], vec![input])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
     drop(store);
     let store = Store::open(dir.path()).unwrap();
     assert_eq!(store.project_data().unwrap().tasks, before.tasks);
@@ -218,7 +267,7 @@ fn schedule_upgrade_backup_failure_and_migration_failure_preserve_version_twelve
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path()).unwrap();
         store.save_project_changes(&changes(vec![], vec![task("kept", None)])).unwrap();
-        store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
+        store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; PRAGMA user_version=12;").unwrap();
         if !backup_failure { store.conn.execute_batch("ALTER TABLE tasks ADD COLUMN due_linked TEXT;").unwrap(); }
         drop(store);
         if backup_failure { fs::write(dir.path().join("backups"), b"blocked").unwrap(); }
@@ -284,13 +333,13 @@ fn version_eleven_migration_preserves_tasks_and_backs_up_before_adding_due_time(
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
     let before = store.save_project_changes(&changes(vec![project("p")], vec![task("t", Some("p"))])).unwrap();
-    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
+    store.conn.execute_batch("ALTER TABLE tasks DROP COLUMN checklist; ALTER TABLE tasks DROP COLUMN tags; ALTER TABLE tasks DROP COLUMN reminders; ALTER TABLE tasks DROP COLUMN repeat; ALTER TABLE tasks DROP COLUMN due_linked; ALTER TABLE tasks DROP COLUMN schedule; ALTER TABLE tasks DROP COLUMN due_time; PRAGMA user_version=11;").unwrap();
     drop(store);
     let mut store = Store::open(dir.path()).unwrap();
     let after = store.project_data().unwrap();
     assert_eq!(after.projects, before.projects);
     assert_eq!(after.tasks, before.tasks);
-    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 17);
+    assert_eq!(store.conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 20);
     let backups: Vec<_> = fs::read_dir(dir.path().join("backups")).unwrap().map(|entry| entry.unwrap().path()).collect();
     assert_eq!(backups.len(), 1);
     let backup = Connection::open(&backups[0]).unwrap();
@@ -438,7 +487,7 @@ fn version_ten_libraries_gain_project_tables_after_a_backup() {
 
     let mut store = Store::open(dir.path()).unwrap();
     let version: i64 = store.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 17);
+    assert_eq!(version, 20);
     assert_eq!(store.note("a", false).unwrap().title, "Kept");
     store
         .save_project_changes(&changes(vec![project("p")], vec![]))
