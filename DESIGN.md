@@ -12,7 +12,7 @@ lists what changes for touch. Shared components must keep working on both.
 ## Principles
 
 1. **Native first, by default.** The Native theme uses macOS conventions: system font, traffic
-   lights, translucent sidebar, native context menus, 42px unified toolbar rows. Color comes
+   lights, translucent sidebar, native context menus, a 34px app bar over 36px pane bars. Color comes
    from the shared tones and the user's Surface color setting (see [Themes](#themes)), never
    from area styles flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
    mixing them with their own look.
@@ -62,7 +62,7 @@ when a token exists.
 - **Type:** `--text-xs` 12 (counts, dates, section headers), `--text-sm` 13 (secondary),
   `--text-md` 14 (default UI), `--text-lg` 16, `--text-xl` 18 (palette input).
   `--font-ui` is the system font. The interface font is not configurable.
-- **Geometry:** `--bar` 42px (pane title bars), `--rail` 44px (activity rail), `--row` 28px (sidebar rows), `--control` 28px
+- **Geometry:** `--app-bar` 34px (the global app bar), `--bar` 36px (pane title bars), `--rail` 44px (activity rail), `--row` 28px (sidebar rows), `--control` 28px
   (buttons, fields, icon buttons), `--control-sm` 22px, `--icon` 17px, `--icon-sm` 15px.
 - **Spacing:** `--space-1…8` = 2, 4, 6, 8, 12, 16, 20, 24px.
 - **Radii:** `--radius-xs` 4 (menu items), `-sm` 5 (rows), `-md` 6 (controls), `-lg` 8 (groups,
@@ -189,15 +189,25 @@ Settings › Appearance › Theme. Native is the default.
 
 - Four columns: activity rail (44px, fixed), sidebar (default 232px), notes list (300px), editor.
   Widths are saved; pane resizers are invisible until focused.
-- A full-width 42px `.app-bar` (`app/AppBar.tsx`) sits above every pane and holds what is global.
+- A full-width 34px `.app-bar` (`app/AppBar.tsx`, `--app-bar`) sits above every pane and holds what
+  is global. Its search field is `--control-sm` tall; the traffic lights are centered on it
+  (`trafficLightPosition` in `src-tauri/tauri.conf.json`).
   Left: 70px traffic-light clearance in the native app (`--window-controls`), the sidebar toggle,
   and the notes-list toggle while that list is hidden. Center: Back/Forward and the search field.
   Right: the Appearance menu (Light, Sepia, Dark, Auto), whose icon shows the current mode.
   The panes and the content card start below it.
-- Each pane also has a 42px `.pane-bar`; the sidebar's shows the active area's name. App and pane bars are window drag regions
+- Each pane also has a 36px `.pane-bar`; the sidebar's shows the active area's name. App and pane bars are window drag regions
   (`data-tauri-drag-region` on the bar and on empty filler elements).
 - Notes bar: view title, count, "Sort and view options" menu, New note. Editor bar: tabs, note
   controls (Focus mode, Table of contents, Find in note, Note actions).
+- The editor bar is a tab strip shaded halfway from `--bg-content` to `--bg-sidebar` (`--tab-strip`),
+  its bottom rule an inset `--line` shadow.
+  Tabs start flush left, fill the bar's height, have square corners and a `--line` right
+  separator. The active tab is painted `--bg-content` over the rule, so it joins the note below.
+  In the Cards layout tabs sit flush in the card's top edge with its
+  `--radius-xl` top corners, so the card outline is the active tab's top (and left, when first).
+  The active tab adds 1px `--line` sides only; inactive tabs are split by short 14px dividers,
+  hidden beside the active or hovered tab.
 - Back/Forward follow one timeline across notes, PDFs, project pages and tasks (`timeline.ts`).
   Stops that no longer exist are skipped, and a stop whose tab was closed reopens in a new tab.
 - The editor can split into two groups side by side, each with its own tabs and tab bar. See
@@ -265,7 +275,7 @@ Use the shared classes before writing new CSS:
 - A group closes when it loses its last tab. Divider, keyboard and drag resizing use the PDF split
   divider; groups keep 240px each when the pane allows it. The layout is saved.
 - Clicking or tabbing into a group focuses it. Note lists, the palette and shortcuts act on the
-  focused group. Its active tab is `--fill-2`, and the other group's is `--fill-1`. Find and the
+  focused group. Both active tabs join their notes; the other group's active tab text is `--text-2`. Find and the
   table of contents show only in the focused group. Both bars keep the same controls, so moving
   focus never shifts tabs under the pointer.
 - The same note can be open on both sides. Each side has its own scroll, selection and undo, and

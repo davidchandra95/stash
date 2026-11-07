@@ -16,7 +16,8 @@
   --leading: 19px;
 
   /* Geometry */
-  --bar: 42px;
+  --app-bar: 34px;
+  --bar: 36px;
   --rail: 44px;
   --row: 28px;
   --control: 28px;

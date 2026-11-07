@@ -12,7 +12,7 @@
   position: relative;
   display: grid;
   grid-template-columns: var(--rail-col) var(--sidebar-col) var(--list-col) minmax(0, 1fr);
-  grid-template-rows: var(--bar) minmax(0, 1fr);
+  grid-template-rows: var(--app-bar) minmax(0, 1fr);
   height: 100%;
   background: var(--bg-content);
 }
@@ -108,7 +108,7 @@
   gap: var(--space-3);
   width: clamp(200px, 36vw, 480px);
   min-width: 0;
-  height: 26px;
+  height: var(--control-sm);
   padding: 0 var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -154,7 +154,7 @@
 .pane-resizer {
   position: absolute;
   z-index: 20;
-  top: var(--bar);
+  top: var(--app-bar);
   bottom: 0;
   width: 7px;
   margin-left: -4px;
