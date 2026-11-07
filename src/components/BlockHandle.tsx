@@ -46,6 +46,7 @@ import {
   copyBlock,
   deleteBlock,
   dropTargets,
+  highlightBlock,
   insertBlockBelow,
   moveBlock,
   nearestDrop,
@@ -121,9 +122,10 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
   const [placement, setPlacement] = useState<Placement | null>(null)
   const [open, setOpen] = useState(false)
   const [indicator, setIndicator] = useState<Indicator | null>(null)
+  const [dragging, setDragging] = useState(false)
   const handle = useRef<HTMLButtonElement>(null)
   const frozen = useRef(false)
-  frozen.current = open || indicator !== null
+  frozen.current = open || dragging
   const markdown = isMarkdownEditor(editor)
   const allowed = (id: string) => !markdown || markdownCommandAllowed(id)
 
@@ -174,6 +176,11 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
     editor.on('update', update)
     return () => void editor.off('update', update)
   }, [editor])
+
+  // Shade the block the menu or drag acts on, like the selection it stands for.
+  const active = (open || dragging) && block ? block.pos : null
+  useEffect(() => highlightBlock(editor, active), [editor, active])
+  useEffect(() => () => highlightBlock(editor, null), [editor])
 
   useLayoutEffect(() => {
     if (!block) return setPlacement(null)
@@ -240,6 +247,7 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
           return
         targets = dropTargets(editor.view, block)
         release = holdDragCursor()
+        setDragging(true)
       }
       target = nearestDrop(targets, moveEvent.clientY)
       if (!target) return setIndicator(null)
@@ -257,6 +265,8 @@ export default function BlockHandle({ editor }: { editor: Editor }) {
       button.removeEventListener('pointercancel', end)
       release?.()
       setIndicator(null)
+      setDragging(false)
+      highlightBlock(editor, null)
       if (endEvent.type === 'pointercancel') return
       if (!targets) return setOpen(true)
       if (target) act(() => moveBlock(editor, block, target!.pos, target!.listItem))

@@ -407,7 +407,8 @@ Use the shared classes before writing new CSS:
   Clicking opens the block menu: a turn-into grid (Text, H1–H4, numbered list or Number
   heading, bullet list, checklist, code block, quote, collapsible section), Align and Indent,
   Color Options, Cut, Copy, Delete and Insert Below. Dragging the grip past 6px moves the block
-  instead, with a 2px accent line at the drop gap. List items can land in any list, or become
+  instead, with a 2px accent line at the drop gap. While the menu is open or the block is
+  being dragged, the block is shaded `--accent-soft` (view state, never saved). List items can land in any list, or become
   a one-item list between top-level blocks. Unsupported Lark actions (comments, translate,
   share, sub-docs, templates, block links) are left out until they exist.
 

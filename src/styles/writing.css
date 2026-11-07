@@ -675,6 +675,12 @@
 .block-label-icon {
   display: none;
 }
+.tiptap .block-highlighted {
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  /* Pads the shading past the text without moving it. */
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
 .block-drop-indicator {
   position: absolute;
   z-index: 2;

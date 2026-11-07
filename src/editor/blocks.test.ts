@@ -6,6 +6,8 @@ import {
   blockAt,
   blockKind,
   deleteBlock,
+  highlightBlock,
+  highlightedBlock,
   insertBlockBelow,
   moveBlock,
   turnBlockInto,
@@ -87,4 +89,17 @@ it('inserts below: list items in the list, other types after the top-level block
   expect(e.state.doc.firstChild!.child(1).attrs.kind).toBe('task')
   insertBlockBelow(e, find(e, 'one'), 'h2')
   expect(tops(e)).toEqual(['mixedList:onetwo', 'heading:', 'paragraph:tail'])
+})
+
+it('highlights a block as view state that follows edits and clears when it is removed', () => {
+  const e = editor('<p>first</p><p>second</p>')
+  const second = find(e, 'second')
+  highlightBlock(e, second.pos)
+  expect(e.view.dom.querySelector('.block-highlighted')?.textContent).toBe('second')
+  expect(e.can().undo()).toBe(false)
+  e.chain().setTextSelection(1).insertContent('new ').run()
+  expect(highlightedBlock(e)).toBe(second.pos + 4)
+  deleteBlock(e, find(e, 'second'))
+  expect(highlightedBlock(e)).toBe(null)
+  expect(e.view.dom.querySelector('.block-highlighted')).toBe(null)
 })

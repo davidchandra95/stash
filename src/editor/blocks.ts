@@ -1,7 +1,7 @@
-import type { Editor } from '@tiptap/core'
+import { Extension, type Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import type { EditorView } from '@tiptap/pm/view'
+import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { runCommand } from './commands'
 
 /**
@@ -272,3 +272,49 @@ export function insertBlockBelow(editor: Editor, block: Block, id: string) {
   editor.view.focus()
   return id === 'paragraph' || runCommand(editor, id)
 }
+
+/**
+ * Shades the block the handle is acting on while its menu is open or it is being dragged.
+ * View state only: it never enters the document or the undo history.
+ */
+const highlightKey = new PluginKey<number | null>('blockHighlight')
+export const BlockHighlight = Extension.create({
+  name: 'blockHighlight',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<number | null>({
+        key: highlightKey,
+        state: {
+          init: () => null,
+          apply(tr, previous) {
+            const next = tr.getMeta(highlightKey)
+            if (next !== undefined) return next as number | null
+            if (previous === null || !tr.docChanged) return previous
+            const mapped = tr.mapping.mapResult(previous, 1)
+            return mapped.deleted ? null : mapped.pos
+          },
+        },
+        props: {
+          decorations(state) {
+            const pos = highlightKey.getState(state)
+            const node = pos === null || pos === undefined ? null : state.doc.nodeAt(pos)
+            if (pos === null || pos === undefined || !node) return null
+            return DecorationSet.create(state.doc, [
+              Decoration.node(pos, pos + node.nodeSize, { class: 'block-highlighted' }),
+            ])
+          },
+        },
+      }),
+    ]
+  },
+})
+export function highlightBlock(editor: Editor, pos: number | null) {
+  if (editor.isDestroyed || highlightKey.getState(editor.state) === pos) return
+  editor.view.dispatch(
+    editor.state.tr
+      .setMeta(highlightKey, pos)
+      .setMeta('addToHistory', false)
+      .setMeta('skipTrailingNode', true),
+  )
+}
+export const highlightedBlock = (editor: Editor) => highlightKey.getState(editor.state) ?? null
