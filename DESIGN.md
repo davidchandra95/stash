@@ -297,6 +297,11 @@ Use the shared classes before writing new CSS:
   turns `--danger` on failure. Tooltips open to the right.
 - Add an area only when a real domain ships; the rail is not a launcher.
 
+## Export
+
+- Export actions sit after Note information in the note menu (Export as Markdown…, Export as
+  HTML…), Export notebook… sits before Delete notebook, and Export all notes… is a command. Results and failures are a `.notice` with Dismiss; success stays quiet otherwise.
+
 ## Projects and tasks
 
 - The Projects sidebar follows TickTick's order: Today (with its Overdue section), Next 7 Days,

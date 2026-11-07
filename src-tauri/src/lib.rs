@@ -1,5 +1,6 @@
 mod credentials;
 mod dictation;
+mod export;
 #[cfg(target_os = "macos")]
 mod macos_quit;
 mod native_menu;
@@ -225,6 +226,7 @@ pub fn run() {
             storage::bridge::ensure_pdf_companion,
             storage::bridge::list_projects,
             storage::bridge::save_projects,
+            export::export_files,
             storage::bridge::list_habits,
             storage::bridge::save_habits,
             storage::bridge::task_mentions,

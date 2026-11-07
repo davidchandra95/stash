@@ -48,3 +48,7 @@ The three writing phases are implemented in the session-only prototype: typing/s
 ## Offline storage scope update - September 9, 2026
 
 David approved backend phases 1 and 2: persistent local notes/settings and reliable autosave. This supersedes the historical session-only boundary above for the native Mac app. The browser preview remains temporary. See [LOCAL_STORAGE.md](LOCAL_STORAGE.md) for implementation, acceptance evidence and deferred phases.
+
+## Export update - November 7, 2026
+
+David asked for export, without print, from the deferred backup and sharing section. See [EXPORT.md](EXPORT.md). Print, version history, backups, restore from backup, import, web sharing, accounts and subscriptions remain deferred.

@@ -72,6 +72,14 @@ function Notices() {
           </button>
         </div>
       )}
+      {app.exportNotice && (
+        <div className="notice" role={app.exportNotice.error ? 'alert' : 'status'} aria-live="polite">
+          <span>{app.exportNotice.message}</span>
+          <button className="btn" onClick={() => app.setExportNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {app.habits.saveError && (
         <div className="notice" role="alert">
           <span>Couldn’t save the habit change. {app.habits.saveError}</span>

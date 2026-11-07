@@ -260,6 +260,7 @@ export default trackApp(function Sidebar({
             app.setBookOpen(true)
           }}
           convert={(book) => app.setBookToConvert(book)}
+          exportNotebook={isTauri() ? (book) => app.exportNotebook(book) : undefined}
           refresh={(id) => void app.refreshFolder(id)}
           reselect={(id) => void app.locateFolder(id)}
           disabled={blocked}
