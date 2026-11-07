@@ -118,6 +118,38 @@ export function taskTagName(value: string): string | undefined {
 /** Color tones for tags; themes that color tags define `--tone-<name>` for each. */
 export const tagTones = ['indigo', 'blue', 'teal', 'green', 'gold', 'orange', 'pink', 'purple']
 
+/** Tones someone can pick for a tag: the automatic ones plus slate. */
+export const tagColorChoices = [...tagTones, 'slate'] as const
+export type TagColor = (typeof tagColorChoices)[number]
+export const tagColorLabels: Record<TagColor, string> = {
+  indigo: 'Indigo',
+  blue: 'Blue',
+  teal: 'Teal',
+  green: 'Green',
+  gold: 'Gold',
+  orange: 'Orange',
+  pink: 'Pink',
+  purple: 'Purple',
+  slate: 'Slate',
+}
+export const isTagColor = (value: unknown): value is TagColor =>
+  tagColorChoices.includes(value as TagColor)
+
+/**
+ * CSS that recolors tags someone picked a color for. Chips carry `data-tag` and tags in note
+ * text `data-body-tag`; matching ignores case like tagTone, and beats the plain `[data-tone]`
+ * rule, so every place a tag appears follows without re-rendering.
+ */
+export function tagColorRules(colors: Record<string, TagColor>) {
+  return Object.entries(colors)
+    .filter(([, tone]) => isTagColor(tone))
+    .map(([tag, tone]) => {
+      const name = JSON.stringify(tag)
+      return `:is([data-tag=${name} i], [data-body-tag=${name} i])[data-tone] { --tone: var(--tone-${tone}); }`
+    })
+    .join('\n')
+}
+
 /** A stable tone for a tag, so it keeps its color everywhere it appears. */
 export function tagTone(tag: string) {
   // FNV-1a spreads short, similar words across tones better than a plain rolling hash.

@@ -32,6 +32,10 @@ export type NoteAction = {
   run: (launcher?: HTMLElement) => void
   separator?: boolean
   disabled?: boolean
+  /** A color row: shows a swatch of this CSS color instead of the icon. */
+  color?: string
+  /** Shows a checkmark; set it on every row of a choice so the rows line up. */
+  checked?: boolean
 }
 export default function NoteContextMenu({
   children,
@@ -136,7 +140,12 @@ export default function NoteContextMenu({
                   disabled={disabled || action.disabled}
                   onSelect={(event) => action.run(event.currentTarget as HTMLElement)}
                 >
-                  <MenuActionContent icon={action.icon} label={action.label} />
+                  <MenuActionContent
+                    icon={action.icon}
+                    label={action.label}
+                    color={action.color}
+                    checked={action.checked}
+                  />
                   {action.shortcutId && shortcutLabel(action.shortcutId) !== 'Unassigned' && (
                     <span className="menu-shortcut" aria-hidden="true">
                       {shortcutLabel(action.shortcutId)}

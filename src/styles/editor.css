@@ -32,7 +32,7 @@
   }
 }
 .editor-group:not(.is-focused) .tab.is-active {
-  background: var(--fill-1);
+  color: var(--text-2);
 }
 .editor-drop-zone {
   position: absolute;
@@ -62,9 +62,14 @@
   border-radius: var(--radius-md);
 }
 
+/* A tab strip shaded halfway toward the frame, so inactive tabs sit back. The bottom rule is an
+   inset shadow so the active tab, painted over it in the document's color, joins the note below. */
 .editor-bar {
+  --tab-strip: color-mix(in srgb, var(--bg-content) 50%, var(--bg-sidebar));
   gap: var(--space-2);
-  border-bottom: 1px solid var(--line);
+  padding-left: 0;
+  background: var(--tab-strip);
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 .history-buttons,
 .note-controls {
@@ -90,11 +95,9 @@
 }
 .tabs {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  align-items: stretch;
   min-width: 0;
   height: 100%;
-  padding: 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -109,8 +112,7 @@
   align-items: center;
   min-width: 120px;
   max-width: 220px;
-  height: var(--control);
-  border-radius: var(--radius-md);
+  border-right: 1px solid var(--line);
   color: var(--text-2);
 }
 .tab.is-pinned {
@@ -122,7 +124,7 @@
   color: var(--text);
 }
 .tab.is-active {
-  background: var(--fill-2);
+  background: var(--bg-content);
   color: var(--text);
 }
 .tab-main {
@@ -132,8 +134,7 @@
   gap: var(--space-3);
   min-width: 0;
   height: 100%;
-  padding: 0 2px 0 var(--space-4);
-  border-radius: inherit;
+  padding: 0 2px 0 var(--space-5);
   font-size: var(--text-sm);
 }
 .tab-main .ui-icon {
@@ -162,7 +163,7 @@
   place-items: center;
   width: 16px;
   height: 16px;
-  margin-right: var(--space-2);
+  margin-right: var(--space-3);
   border-radius: var(--radius-xs);
   color: var(--text-2);
   opacity: 0;
@@ -181,6 +182,35 @@
 }
 .tab.is-pinned .tab-close {
   color: var(--text-3);
+}
+/* Cards layout: tabs sit flush in the card's top edge and share its corner radius, so the card's
+   own outline is the active tab's top (and left, for the first tab). The active tab draws only its
+   remaining sides and opens into the note; inactive tabs, on the shaded strip, are split by short
+   dividers. */
+.layout-cards .tab {
+  border-right: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.layout-cards .tab:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 14px;
+  border-left: 1px solid var(--line);
+  transform: translateY(-50%);
+}
+.layout-cards .tab:is(.is-active, :hover)::before,
+.layout-cards .tab:is(.is-active, :hover) + .tab::before {
+  display: none;
+}
+.layout-cards .tab.is-active {
+  box-shadow: inset -1px 0 0 var(--line);
+}
+.layout-cards .tab.is-active:not(:first-child) {
+  box-shadow:
+    inset 1px 0 0 var(--line),
+    inset -1px 0 0 var(--line);
 }
 .tabs.is-reordering .tab {
   transition: transform var(--motion-reorder, var(--fast)) var(--ease);

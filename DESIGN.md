@@ -12,11 +12,17 @@ lists what changes for touch. Shared components must keep working on both.
 ## Principles
 
 1. **Native first, by default.** The Native theme uses macOS conventions: system font, traffic
-   lights, translucent sidebar, native context menus, 42px unified toolbar rows. Color comes
-   from the shared tones, not from flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
+   lights, translucent sidebar, native context menus, a 34px app bar over 36px pane bars. Color comes
+   from the shared tones and the user's Surface color setting (see [Themes](#themes)), never
+   from area styles flooding surfaces with the accent. Other themes (see [Themes](#themes)) drop the macOS materials instead of
    mixing them with their own look.
 2. **Compact by default.** 28px rows and controls, 2/4/6/8/12/16px spacing. Don't add padding
-   to make something look important.
+   to make something look important. Settings › Appearance › Density (desktop only,
+   `theme-density.css`, `<html data-density>`) swaps these for Compact (24px rows, 22px menu
+   items, 5px note-row padding) or Comfortable (32px rows, 30px menu items, 13px note-row
+   padding). It never changes type sizes or the app and pane bars. Size rows with `--row`,
+   `--control`, `--control-sm`, `--menu-row`, `--settings-row` and `--note-row-pad-y` rather
+   than fixed pixels, so they follow the setting.
 3. **One way to do each thing.** Tokens and shared classes own geometry and color. Area
    stylesheets own layout only.
 4. **Quiet until needed.** Hover reveals secondary actions. Notices appear only for problems,
@@ -24,23 +30,23 @@ lists what changes for touch. Shared components must keep working on both.
 
 ## Where things live
 
-| Area                     | Code                                                     | Styles                                              |
-| ------------------------ | -------------------------------------------------------- | --------------------------------------------------- |
-| Tokens, base, controls   | –                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
-| Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`)  | `src/styles/theme-workspace.css`                    |
-| Menus, popovers, dialogs | Radix + `components/*`                                   | `src/styles/floating.css`, `dialogs.css`            |
-| Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`              | `src/styles/shell.css`                              |
-| Activity rail            | `src/app/ActivityRail.tsx`                               | `src/styles/sidebar.css`                            |
-| Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`     | `src/styles/sidebar.css`                            |
-| Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows` | `src/styles/notelist.css`                           |
-| Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`             | `src/styles/editor.css`                             |
-| Note content             | `src/editor/*`, `components/NoteEditor.tsx`              | `src/styles/document.css`                           |
-| Writing tools and menus  | `components/DesktopWritingToolbar.tsx`, editor menus     | `src/styles/writing.css`                            |
-| Command palette          | `components/CommandPalette.tsx`                          | `src/styles/palette.css`                            |
-| Settings                 | `src/app/Settings.tsx`                                   | `src/styles/settings.css`                           |
-| Android                  | `src/mobile/*`                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
-| PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
-| Projects and tasks       | `src/projects/*`                                         | `src/styles/projects.css`                           |
+| Area                     | Code                                                                     | Styles                                              |
+| ------------------------ | ------------------------------------------------------------------------ | --------------------------------------------------- |
+| Tokens, base, controls   | –                                                                        | `src/styles/tokens.css`, `base.css`, `controls.css` |
+| Themes                   | `src/appearance.ts` (`interfaceThemes`, `themeAccents`, `surfaceColors`) | `src/styles/theme-workspace.css`, `theme-color.css` |
+| Menus, popovers, dialogs | Radix + `components/*`                                                   | `src/styles/floating.css`, `dialogs.css`            |
+| Window shell             | `src/App.tsx`, `src/app/WindowControls.tsx`                              | `src/styles/shell.css`                              |
+| Activity rail            | `src/app/ActivityRail.tsx`                                               | `src/styles/sidebar.css`                            |
+| Sidebar                  | `src/app/Sidebar.tsx`, `components/NotebookTree.tsx`                     | `src/styles/sidebar.css`                            |
+| Notes list               | `src/app/NoteListPane.tsx`, `components/VirtualNoteRows`                 | `src/styles/notelist.css`                           |
+| Editor chrome            | `src/app/EditorPane.tsx`, `NoteDocument.tsx`                             | `src/styles/editor.css`                             |
+| Note content             | `src/editor/*`, `components/NoteEditor.tsx`                              | `src/styles/document.css`                           |
+| Writing tools and menus  | `components/DesktopWritingToolbar.tsx`, editor menus                     | `src/styles/writing.css`                            |
+| Command palette          | `components/CommandPalette.tsx`                                          | `src/styles/palette.css`                            |
+| Settings                 | `src/app/Settings.tsx`                                                   | `src/styles/settings.css`                           |
+| Android                  | `src/mobile/*`                                                           | `src/mobile/index.css`, `src/mobile/mobile.css`     |
+| PDF reader, drawings     | `src/pdf/*`, `src/drawing/*`                                             | `src/pdf/pdf.css`, `src/drawing/drawing.css`        |
+| Projects and tasks       | `src/projects/*`                                                         | `src/styles/projects.css`                           |
 
 All workspace state and behavior lives in `src/app/useAppController.ts`. Views read it through
 `useApp()` and render; they don't own workspace logic. Panes are wrapped in `trackApp()`
@@ -56,7 +62,7 @@ when a token exists.
 - **Type:** `--text-xs` 12 (counts, dates, section headers), `--text-sm` 13 (secondary),
   `--text-md` 14 (default UI), `--text-lg` 16, `--text-xl` 18 (palette input).
   `--font-ui` is the system font. The interface font is not configurable.
-- **Geometry:** `--bar` 42px (pane title bars), `--rail` 44px (activity rail), `--row` 28px (sidebar rows), `--control` 28px
+- **Geometry:** `--app-bar` 34px (the global app bar), `--bar` 36px (pane title bars), `--rail` 44px (activity rail), `--row` 28px (sidebar rows), `--control` 28px
   (buttons, fields, icon buttons), `--control-sm` 22px, `--icon` 17px, `--icon-sm` 15px.
 - **Spacing:** `--space-1…8` = 2, 4, 6, 8, 12, 16, 20, 24px.
 - **Radii:** `--radius-xs` 4 (menu items), `-sm` 5 (rows), `-md` 6 (controls), `-lg` 8 (groups,
@@ -103,10 +109,34 @@ Settings › Appearance › Theme. Native is the default.
 - **Color tones** (every theme, defined in `tokens.css`):
   `--tone-indigo|blue|teal|green|gold|orange|pink|purple|slate`, picked with `data-tone`. Sidebar view icons sit in tinted 19px tiles (All notes indigo, Today
   orange, To-do green, Uncategorized slate, Pinned gold, Quick Access purple). Tags get a stable
-  tone from `tagTone()` (`src/tags.ts`) in the sidebar and in note text. Notebook chips and the
-  notes-list notebook label take their notebook color through `--chip-color`. The rules live
+  tone from `tagTone()` (`src/tags.ts`) in the sidebar and in note text. Right-clicking a sidebar
+  tag picks another tone (or Automatic); picks live in `Appearance.tagColors` and apply through a
+  generated `#tag-colors` stylesheet matching `data-tag` / `data-body-tag`, so give every tag
+  chip `data-tag` next to `data-tone`. Menus with a color choice use `NoteAction.color` and
+  `checked`. Notebook chips and the notes-list notebook label take their notebook color through
+  `--chip-color`. The rules live
   in the area stylesheets (`controls.css`, `sidebar.css`, `editor.css`, `notelist.css`,
   `document.css`); themes change only the tone values.
+- **Accent** (Settings › Appearance › Accent color): Automatic (macOS or the theme accent), the
+  presets in `accents` (`src/appearance.ts`, macOS colors plus indigo and teal), or Custom, a
+  color-input swatch that stores `customAccent` as hex. `customAccentValue()` gives light picks
+  dark ink on filled controls and lifts very dark picks in dark mode.
+- **Surface color** (`theme-color.css`, `<html data-surface>`): Neutral, Tinted (the default) or
+  Vivid washes the theme's surfaces with the accent. Themes and Sepia define neutral surfaces as
+  `--base-window|sidebar|sidebar-translucent|content|elevated|elevated-solid|line|line-strong`;
+  `theme-color.css` derives the matching `--bg-*`/`--line*` tokens by mixing in
+  `--tint-frame|content|float|line`. Define new surface colors as `--base-*`, never `--bg-*`
+  directly, or the tint won't reach them. Vivid also fills the sidebar selection with the accent
+  and fills the view tiles with their tone. The writing surface stays near-white; headings and
+  text keep their own colors.
+- **Theme presets** (`src/themePresets.ts`, `ThemePresets.tsx`): preview cards at the top of
+  Settings › Appearance and `Theme:` commands in the palette. A preset carries some of
+  `presetKeys` (theme, color mode, accent, custom color, surface color, fonts) and applying it sets
+  only those. It is current while they all match, so changing any of them deselects it rather than
+  editing it. Built-in presets leave fonts alone except Paper; "Save current" stores the whole look,
+  fonts included, in `Appearance.themePresets` (per device). Right-click a saved preset to rename or
+  delete it. Card previews approximate the tokens in `presetPreview()`; update it when a theme's
+  base surfaces change.
 - **Sepia** (`theme-sepia.css`) is a color mode next to Light, Dark and Auto, not a theme: warm
   paper surfaces and brown ink in every theme. Its floating surfaces are opaque, and it turns off
   vibrancy (the Translucent sidebar setting is disabled). The accent, tones and notebook colors
@@ -159,15 +189,25 @@ Settings › Appearance › Theme. Native is the default.
 
 - Four columns: activity rail (44px, fixed), sidebar (default 232px), notes list (300px), editor.
   Widths are saved; pane resizers are invisible until focused.
-- A full-width 42px `.app-bar` (`app/AppBar.tsx`) sits above every pane and holds what is global.
+- A full-width 34px `.app-bar` (`app/AppBar.tsx`, `--app-bar`) sits above every pane and holds what
+  is global. Its search field is `--control-sm` tall; the traffic lights are centered on it
+  (`trafficLightPosition` in `src-tauri/tauri.conf.json`).
   Left: 70px traffic-light clearance in the native app (`--window-controls`), the sidebar toggle,
   and the notes-list toggle while that list is hidden. Center: Back/Forward and the search field.
   Right: the Appearance menu (Light, Sepia, Dark, Auto), whose icon shows the current mode.
   The panes and the content card start below it.
-- Each pane also has a 42px `.pane-bar`; the sidebar's shows the active area's name. App and pane bars are window drag regions
+- Each pane also has a 36px `.pane-bar`; the sidebar's shows the active area's name. App and pane bars are window drag regions
   (`data-tauri-drag-region` on the bar and on empty filler elements).
 - Notes bar: view title, count, "Sort and view options" menu, New note. Editor bar: tabs, note
   controls (Focus mode, Table of contents, Find in note, Note actions).
+- The editor bar is a tab strip shaded halfway from `--bg-content` to `--bg-sidebar` (`--tab-strip`),
+  its bottom rule an inset `--line` shadow.
+  Tabs start flush left, fill the bar's height, have square corners and a `--line` right
+  separator. The active tab is painted `--bg-content` over the rule, so it joins the note below.
+  In the Cards layout tabs sit flush in the card's top edge with its
+  `--radius-xl` top corners, so the card outline is the active tab's top (and left, when first).
+  The active tab adds 1px `--line` sides only; inactive tabs are split by short 14px dividers,
+  hidden beside the active or hovered tab.
 - Back/Forward follow one timeline across notes, PDFs, project pages and tasks (`timeline.ts`).
   Stops that no longer exist are skipped, and a stop whose tab was closed reopens in a new tab.
 - The editor can split into two groups side by side, each with its own tabs and tab bar. See
@@ -176,6 +216,13 @@ Settings › Appearance › Theme. Native is the default.
 - The app has two areas, Notes and Projects. The activity rail picks one, as do Show Notes (⌘1)
   and Show Projects (⌘2). The sidebar belongs to the active area. Switching to Projects reopens the
   project page last open there (Today by default).
+- The sidebar is customizable (`src/sidebarLayout.ts`, Settings › Appearance › Sidebar and
+  Projects sidebar). Today, To-do, Uncategorized, Pinned notes, Quick Access, the task views and
+  the task Tags section can be hidden; the Quick access, Notebooks, PDFs and Tags sections can be
+  hidden and moved up or down (`Appearance.sidebarOrder` / `sidebarHidden`, desktop only). All
+  notes, All projects, the Projects list and Completed/Trash always show. Quick access hides itself
+  once both its views are hidden. Right-clicking a section header offers Hide Section and Customize
+  Sidebar…; a new sidebar section goes in `sidebarSections` so it can be ordered and hidden too.
 - A project page replaces the notes list and editor; opening any notes view, note or PDF leaves
   it and returns to Notes. Selecting a task adds a detail panel on the right.
 - The bottom of the activity rail holds sync status, Recent reminders, Trash and Settings. There is no account menu.
@@ -228,7 +275,7 @@ Use the shared classes before writing new CSS:
 - A group closes when it loses its last tab. Divider, keyboard and drag resizing use the PDF split
   divider; groups keep 240px each when the pane allows it. The layout is saved.
 - Clicking or tabbing into a group focuses it. Note lists, the palette and shortcuts act on the
-  focused group. Its active tab is `--fill-2`, and the other group's is `--fill-1`. Find and the
+  focused group. Both active tabs join their notes; the other group's active tab text is `--text-2`. Find and the
   table of contents show only in the focused group. Both bars keep the same controls, so moving
   focus never shifts tabs under the pointer.
 - The same note can be open on both sides. Each side has its own scroll, selection and undo, and
@@ -492,7 +539,8 @@ surfaces. Don't add colors there; use the tokens.
 
 ## Review checklist
 
-- Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors.
+- Check 1280×800 and 900×650 in light and dark, in each theme, with two or more accent colors,
+  a custom accent, and each Surface color.
 - For Android changes, check `?mobile=1` at 390×844 and 844×390 in light and dark, plus a short
   viewport (about 844×260) for the keyboard-open case.
 - Check the sidebar hidden, notes list hidden, focus mode, a PDF with notes, split notes, and

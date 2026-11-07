@@ -21,10 +21,15 @@ const saved = (value: Record<string, unknown>) => value as Saved
 
 describe('normalizeAppearance', () => {
   it('loads smart task input preferences and replaces invalid values with defaults', () => {
-    expect(normalizeAppearance({ smartTaskDates: false, keepTaskDateWords: true }, defaultAppearance))
-      .toMatchObject({ smartTaskDates: false, keepTaskDateWords: true })
-    expect(normalizeAppearance(saved({ smartTaskDates: 'false', keepTaskDateWords: 1 }), defaultAppearance))
-      .toMatchObject({ smartTaskDates: true, keepTaskDateWords: false })
+    expect(
+      normalizeAppearance({ smartTaskDates: false, keepTaskDateWords: true }, defaultAppearance),
+    ).toMatchObject({ smartTaskDates: false, keepTaskDateWords: true })
+    expect(
+      normalizeAppearance(
+        saved({ smartTaskDates: 'false', keepTaskDateWords: 1 }),
+        defaultAppearance,
+      ),
+    ).toMatchObject({ smartTaskDates: true, keepTaskDateWords: false })
   })
 
   it('uses defaults when nothing was saved', () => {
@@ -89,20 +94,74 @@ describe('normalizeAppearance', () => {
     )
   })
 
-  it.each(['system', 'blue', 'purple', 'pink', 'red', 'orange', 'yellow', 'green', 'graphite'])(
-    'keeps the valid accent %s',
-    (accent) => {
-      expect(normalizeAppearance(saved({ accent }), defaultAppearance).accent).toBe(accent)
-    },
-  )
+  it.each([
+    'system',
+    'blue',
+    'indigo',
+    'purple',
+    'pink',
+    'red',
+    'orange',
+    'yellow',
+    'green',
+    'teal',
+    'graphite',
+    'custom',
+  ])('keeps the valid accent %s', (accent) => {
+    expect(normalizeAppearance(saved({ accent }), defaultAppearance).accent).toBe(accent)
+  })
 
-  it.each(['teal', '', null, 3, '#ff0000'])(
+  it.each(['mint', '', null, 3, '#ff0000'])(
     'replaces the invalid accent %s with the default',
     (accent) => {
       const defaults: Appearance = { ...defaultAppearance, accent: 'green' }
       expect(normalizeAppearance(saved({ accent }), defaults).accent).toBe('green')
     },
   )
+
+  it('keeps a hex custom accent, lowercased, and replaces anything else', () => {
+    expect(
+      normalizeAppearance(saved({ customAccent: '#FF8800' }), defaultAppearance).customAccent,
+    ).toBe('#ff8800')
+    for (const customAccent of ['red', '#fff', 'ff8800', null, 3])
+      expect(normalizeAppearance(saved({ customAccent }), defaultAppearance).customAccent).toBe(
+        defaultAppearance.customAccent,
+      )
+  })
+
+  it.each(['compact', 'default', 'comfortable'])('keeps the density %s', (density) => {
+    expect(normalizeAppearance(saved({ density }), defaultAppearance).density).toBe(density)
+  })
+
+  it('replaces an unknown density with the default', () => {
+    expect(normalizeAppearance(saved({ density: 'tiny' }), defaultAppearance).density).toBe(
+      'default',
+    )
+  })
+
+  it('keeps valid tag colors under lowercase names and drops the rest', () => {
+    expect(
+      normalizeAppearance(
+        saved({ tagColors: { Ideas: 'pink', work: 'slate', bad: 'red', '': 'blue' } }),
+        defaultAppearance,
+      ).tagColors,
+    ).toEqual({ ideas: 'pink', work: 'slate' })
+    expect(normalizeAppearance(saved({ tagColors: 'pink' }), defaultAppearance).tagColors).toEqual(
+      {},
+    )
+  })
+
+  it.each(['neutral', 'tinted', 'vivid'])('keeps the surface color %s', (surfaceColor) => {
+    expect(normalizeAppearance(saved({ surfaceColor }), defaultAppearance).surfaceColor).toBe(
+      surfaceColor,
+    )
+  })
+
+  it.each(['loud', '', null])('replaces the invalid surface color %s', (surfaceColor) => {
+    expect(normalizeAppearance(saved({ surfaceColor }), defaultAppearance).surfaceColor).toBe(
+      defaultAppearance.surfaceColor,
+    )
+  })
 
   it('keeps boolean sidebar switches and defaults non-boolean ones', () => {
     expect(
@@ -162,6 +221,16 @@ describe('accentValue', () => {
   it('returns dark ink for yellow so filled controls stay legible', () => {
     expect(accentValue('yellow', false, null)).toEqual({ color: '#f5b323', ink: '#1d1d1f' })
     expect(accentValue('yellow', true, null)).toEqual({ color: '#ffc600', ink: '#1d1d1f' })
+  })
+
+  it('uses the custom color, with dark ink on light picks and a lift for dark picks in dark mode', () => {
+    expect(accentValue('custom', false, null, 'native', '#7c5cff')).toEqual({
+      color: '#7c5cff',
+      ink: undefined,
+    })
+    expect(accentValue('custom', false, null, 'native', '#a8f0c6').ink).toBe('#1d1d1f')
+    expect(accentValue('custom', false, null, 'native', '#1a237e').color).toBe('#1a237e')
+    expect(accentValue('custom', true, null, 'native', '#1a237e').color).not.toBe('#1a237e')
   })
 })
 

@@ -1,0 +1,77 @@
+/*
+ * Surface color (<html data-surface>): washes the theme's surfaces with the accent. Themes and
+ * Sepia define the neutral surfaces as --base-*; this file derives the --bg-* and --line tokens
+ * from them, so it works with every theme and color mode. Loaded after the themes.
+ *
+ *   neutral  the theme's own surfaces
+ *   tinted   a light accent wash on the frame, floating surfaces and dividers
+ *   vivid    a stronger wash, accent-filled sidebar selection and filled view tiles
+ */
+
+:root {
+  --tint-frame: 0%;
+  --tint-content: 0%;
+  --tint-float: 0%;
+  --tint-line: 0%;
+
+  --bg-window: color-mix(in oklab, var(--accent) var(--tint-frame), var(--base-window));
+  --bg-sidebar: color-mix(in oklab, var(--accent) var(--tint-frame), var(--base-sidebar));
+  --bg-sidebar-translucent: color-mix(
+    in oklab,
+    var(--accent) var(--tint-frame),
+    var(--base-sidebar-translucent)
+  );
+  --bg-content: color-mix(in oklab, var(--accent) var(--tint-content), var(--base-content));
+  --bg-elevated: color-mix(in oklab, var(--accent) var(--tint-float), var(--base-elevated));
+  --bg-elevated-solid: color-mix(
+    in oklab,
+    var(--accent) var(--tint-float),
+    var(--base-elevated-solid)
+  );
+  --line: color-mix(in oklab, var(--accent) var(--tint-line), var(--base-line));
+  --line-strong: color-mix(in oklab, var(--accent) var(--tint-line), var(--base-line-strong));
+}
+
+:root[data-surface='tinted'] {
+  --tint-frame: 7%;
+  --tint-content: 1.5%;
+  --tint-float: 3%;
+  --tint-line: 10%;
+}
+:root[data-surface='tinted'][data-theme='dark'] {
+  --tint-frame: 9%;
+  --tint-content: 3%;
+  --tint-float: 5%;
+  --tint-line: 14%;
+}
+
+:root[data-surface='vivid'] {
+  --tint-frame: 16%;
+  --tint-content: 3%;
+  --tint-float: 6%;
+  --tint-line: 20%;
+}
+:root[data-surface='vivid'][data-theme='dark'] {
+  --tint-frame: 17%;
+  --tint-content: 6%;
+  --tint-float: 9%;
+  --tint-line: 24%;
+}
+
+/* ───────── Vivid: the accent marks the current place ───────── */
+
+:root[data-surface='vivid'] .side-row.is-selected,
+:root[data-surface='vivid'] .side-row.is-selected:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent-text);
+}
+:root[data-surface='vivid'] .window.is-inactive .side-row.is-selected {
+  background: var(--fill-3);
+  color: var(--text);
+}
+:root[data-surface='vivid'] .side-row[data-tone] > .ui-icon,
+:root[data-surface='vivid'] .side-row[data-tone].is-selected > .ui-icon:not(.is-muted),
+:root[data-surface='vivid'] .window.is-inactive .side-row[data-tone].is-selected > .ui-icon {
+  background: var(--tone);
+  color: #ffffff;
+}

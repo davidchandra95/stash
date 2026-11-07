@@ -1,0 +1,30 @@
+/*
+ * Density (<html data-density>, desktop only): Compact, Default or Comfortable. It changes row
+ * and control heights and the padding around rows, never type sizes or the app and pane bars.
+ * Android keeps its touch sizes. Area stylesheets read these tokens; Default keeps the values
+ * the rest of DESIGN.md describes.
+ */
+
+:root {
+  --note-row-pad-y: 9px;
+  --menu-row: 26px;
+  --settings-row: 44px;
+}
+
+:root[data-density='compact']:not([data-platform='mobile']) {
+  --row: 24px;
+  --control: 24px;
+  --control-sm: 20px;
+  --note-row-pad-y: 5px;
+  --menu-row: 22px;
+  --settings-row: 36px;
+}
+
+:root[data-density='comfortable']:not([data-platform='mobile']) {
+  --row: 32px;
+  --control: 30px;
+  --control-sm: 24px;
+  --note-row-pad-y: 13px;
+  --menu-row: 30px;
+  --settings-row: 52px;
+}

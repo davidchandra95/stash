@@ -5,8 +5,9 @@ import { generateText } from '@tiptap/core'
 import { normalizeContent } from './editor/clipboard'
 import { writingExtensions } from './editor/extensions'
 import type { CursorSettings } from './editor/cursor'
-import { tagFooterContent, tagsFromContent } from './tags'
+import { tagFooterContent, tagsFromContent, type TagColor } from './tags'
 import type { HeadingStyles } from './headingStyles'
+import type { SidebarItem, SidebarSection } from './sidebarLayout'
 
 export type {
   CursorBlinking,
@@ -92,7 +93,22 @@ export type ColorMode = 'light' | 'sepia' | 'dark' | 'system'
 /** `native` follows macOS; `workspace` is an opaque, bordered indigo theme. */
 export type InterfaceTheme = 'native' | 'workspace'
 export type AccentColor =
-  'system' | 'blue' | 'purple' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'graphite'
+  | 'system'
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'pink'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'teal'
+  | 'graphite'
+  | 'custom'
+/** How strongly the accent washes the window surfaces. */
+export type SurfaceColor = 'neutral' | 'tinted' | 'vivid'
+/** Desktop row and control heights; Android keeps its touch sizes. */
+export type Density = 'compact' | 'default' | 'comfortable'
 
 export interface Appearance extends CursorSettings {
   shortcuts?: ShortcutOverrides
@@ -100,6 +116,19 @@ export interface Appearance extends CursorSettings {
   colorMode: ColorMode
   interfaceTheme: InterfaceTheme
   accent: AccentColor
+  /** Hex color used when `accent` is `custom`. */
+  customAccent: string
+  surfaceColor: SurfaceColor
+  /** Tag colors picked by hand, keyed by lowercase tag name; other tags use tagTone(). */
+  tagColors: Record<string, TagColor>
+  /** Presets the user saved; built-in ones live in themePresets.ts. */
+  themePresets: ThemePreset[]
+  /** Desktop only. */
+  density: Density
+  /** Desktop only. Order of the notes sidebar sections. */
+  sidebarOrder: SidebarSection[]
+  /** Desktop only. Sidebar views and sections that are hidden. */
+  sidebarHidden: SidebarItem[]
   /** Desktop macOS only. Lets the desktop show through the sidebar. */
   translucentSidebar: boolean
   /** Desktop only. Cards puts the sidebar and notes list on one rounded panel, the editor on another. */
@@ -129,6 +158,24 @@ export interface Appearance extends CursorSettings {
   autoSyncMinutes: number
 }
 export type NewNoteTitle = 'field' | 'firstLine'
+/** A named look: the appearance settings it carries are applied together. */
+export type ThemePreset = {
+  id: string
+  name: string
+  settings: Partial<
+    Pick<
+      Appearance,
+      | 'interfaceTheme'
+      | 'colorMode'
+      | 'accent'
+      | 'customAccent'
+      | 'surfaceColor'
+      | 'titleFont'
+      | 'noteFont'
+      | 'codeFont'
+    >
+  >
+}
 const now = Date.now()
 export const initialNotebooks: Notebook[] = [
   { id: 'personal', name: 'Personal', color: '#688b60', icon: 'notebook' },

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { legacyTagName, tagMatches, tagsFromText, tagTone, tagTones, taskTagName } from './tags'
+import {
+  legacyTagName,
+  tagColorRules,
+  tagMatches,
+  tagsFromText,
+  tagTone,
+  tagTones,
+  taskTagName,
+} from './tags'
 
 describe('body hashtags', () => {
   it('finds body tags, trims closing sentence punctuation, and preserves non-space names', () => {
@@ -37,4 +45,20 @@ it('normalizes a typed task tag', () => {
   expect(taskTagName('##')).toBeUndefined()
   expect(taskTagName('   ')).toBeUndefined()
   expect([...taskTagName('x'.repeat(60))!]).toHaveLength(50)
+})
+
+describe('tag color rules', () => {
+  it('recolors chips and note-text tags for each picked tag, ignoring case', () => {
+    const rules = tagColorRules({ ideas: 'pink', 'to"do': 'slate' })
+    expect(rules).toContain(
+      ':is([data-tag="ideas" i], [data-body-tag="ideas" i])[data-tone] { --tone: var(--tone-pink); }',
+    )
+    expect(rules).toContain('[data-tag="to\\"do" i]')
+    expect(rules).toContain('var(--tone-slate)')
+  })
+
+  it('skips unknown tones and is empty without picks', () => {
+    expect(tagColorRules({})).toBe('')
+    expect(tagColorRules({ ideas: 'red; } body { display: none' as never })).toBe('')
+  })
 })

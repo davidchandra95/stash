@@ -14,7 +14,7 @@ export function TaskTagChips({ task }: { task: Pick<Task, 'tags'> }) {
   return (
     <span className="task-tags" title={tags.map((tag) => `#${tag}`).join(' ')}>
       {tags.slice(0, 2).map((tag) => (
-        <span className="chip" data-tone={tagTone(tag)} key={tag}>
+        <span className="chip" data-tone={tagTone(tag)} data-tag={tag} key={tag}>
           #{tag}
         </span>
       ))}
@@ -52,7 +52,7 @@ export default function TaskTagsEditor({
   return (
     <div className="task-tags-editor">
       {tags.map((tag) => (
-        <span className="chip" data-tone={tagTone(tag)} key={tag}>
+        <span className="chip" data-tone={tagTone(tag)} data-tag={tag} key={tag}>
           #{tag}
           <button
             type="button"
@@ -105,6 +105,7 @@ export default function TaskTagsEditor({
               type="button"
               className="chip"
               data-tone={tagTone(tag)}
+              data-tag={tag}
               key={tag}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
