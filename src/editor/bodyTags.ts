@@ -1,11 +1,12 @@
 import { platform } from '../platform'
-import { Extension, type Editor } from '@tiptap/core'
+import { Extension, getChangedRanges, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { tagMatches, tagTone } from '../tags'
 import { confirmedTag } from './tagMark'
 import { closeHistory, isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import type { Transaction } from '@tiptap/pm/state'
 
 export interface BodyTagContext {
   open: (tag: string) => void
@@ -19,9 +20,12 @@ export function setBodyTagContext(editor: Editor, context: BodyTagContext) {
   contexts.set(editor, context)
 }
 
-function ranges(doc: PMNode) {
-  const result: { from: number; to: number; tag: string; text: string }[] = []
-  doc.descendants((node, pos) => {
+type TagRange = { from: number; to: number; tag: string; text: string }
+type Region = { from: number; to: number }
+/** Tag runs in the document, or only within the given regions. */
+function ranges(doc: PMNode, regions?: Region[]) {
+  const result: TagRange[] = []
+  const visit = (node: PMNode, pos: number) => {
     const tag = node.isText && node.marks.find((mark) => mark.type.name === 'bodyTag')?.attrs.tag
     if (!tag) return
     const previous = result.at(-1)
@@ -29,26 +33,71 @@ function ranges(doc: PMNode) {
       previous.to += node.nodeSize
       previous.text += node.text
     } else result.push({ from: pos, to: pos + node.nodeSize, tag, text: node.text! })
-  })
+  }
+  if (!regions) doc.descendants(visit)
+  else regions.forEach(({ from, to }) => doc.nodesBetween(from, to, visit))
   return result
 }
-function decorations(doc: PMNode) {
-  return DecorationSet.create(
-    doc,
-    ranges(doc)
-      .filter((range) => confirmedTag(range.text, range.tag))
-      .map(({ from, to, tag }) =>
-        Decoration.inline(from, to, {
-          class: 'body-tag',
-          'data-body-tag': tag,
-          'data-tone': tagTone(tag),
-          role: 'link',
-          tabindex: '0',
-          'aria-label': `Open tag #${tag}`,
-          title: platform.mobile ? `Open #${tag}` : `Open #${tag} with Command-click`,
-        }),
+/** Widens a position range to whole textblocks, since a tag run never crosses one. */
+function textblockRegion(doc: PMNode, from: number, to: number): Region {
+  const size = doc.content.size
+  const $from = doc.resolve(Math.max(0, Math.min(from, size)))
+  const $to = doc.resolve(Math.max(0, Math.min(to, size)))
+  return {
+    from: $from.parent.isTextblock ? $from.start() : $from.pos,
+    to: $to.parent.isTextblock ? $to.end() : $to.pos,
+  }
+}
+function mergeRegions(regions: Region[]) {
+  const merged: Region[] = []
+  for (const region of [...regions].sort((a, b) => a.from - b.from)) {
+    const last = merged.at(-1)
+    if (last && region.from <= last.to) last.to = Math.max(last.to, region.to)
+    else merged.push({ ...region })
+  }
+  return merged
+}
+/**
+ * The textblocks a transaction changed, in the document before and after it. Tag runs can
+ * only change there, so typing rechecks a paragraph rather than the whole note.
+ */
+function changedRegions(transaction: Transaction) {
+  const changes = getChangedRanges(transaction)
+  return {
+    before: mergeRegions(
+      changes.map(({ oldRange }) =>
+        textblockRegion(transaction.before, oldRange.from, oldRange.to),
       ),
-  )
+    ),
+    after: mergeRegions(
+      changes.map(({ newRange }) => textblockRegion(transaction.doc, newRange.from, newRange.to)),
+    ),
+  }
+}
+function tagDecorations(ranges: TagRange[]) {
+  return ranges
+    .filter((range) => confirmedTag(range.text, range.tag))
+    .map(({ from, to, tag }) =>
+      Decoration.inline(from, to, {
+        class: 'body-tag',
+        'data-body-tag': tag,
+        'data-tone': tagTone(tag),
+        role: 'link',
+        tabindex: '0',
+        'aria-label': `Open tag #${tag}`,
+        title: platform.mobile ? `Open #${tag}` : `Open #${tag} with Command-click`,
+      }),
+    )
+}
+function decorations(doc: PMNode) {
+  return DecorationSet.create(doc, tagDecorations(ranges(doc)))
+}
+/** Maps the previous decorations and redraws only the changed textblocks. */
+function updateDecorations(previous: DecorationSet, transaction: Transaction) {
+  const regions = changedRegions(transaction).after
+  let set = previous.map(transaction.mapping, transaction.doc)
+  for (const { from, to } of regions) set = set.remove(set.find(from, to))
+  return set.add(transaction.doc, tagDecorations(ranges(transaction.doc, regions)))
 }
 
 export const BodyTags = Extension.create({
@@ -61,6 +110,7 @@ export const BodyTags = Extension.create({
     let selected = 0
     let menu: HTMLDivElement | null = null
     let compositionFrame = 0
+    let checkedWholeDocument = false
     const menuId = `body-tags-${crypto.randomUUID()}`
     const atCursor = (doc: PMNode, pos: number): Candidate | null => {
       const $pos = doc.resolve(pos)
@@ -176,13 +226,45 @@ export const BodyTags = Extension.create({
             )
               candidate = null
             return transaction.docChanged
-              ? decorations(transaction.doc)
+              ? updateDecorations(previous, transaction)
               : previous.map(transaction.mapping, transaction.doc)
           },
         },
         appendTransaction(transactions, _old, state) {
           if (!transactions.some((tr) => tr.docChanged)) return null
-          const invalid = ranges(state.doc).filter((range) => !confirmedTag(range.text, range.tag))
+          // Content loaded with unconfirmed tags is cleaned up by the first edit. After that,
+          // only the textblocks each edit changed can hold a newly invalid tag.
+          const changed = checkedWholeDocument
+            ? transactions
+                .filter((transaction) => transaction.docChanged)
+                .map((transaction) => {
+                  const regions = changedRegions(transaction)
+                  // Later transactions in this batch move the changed textblocks again.
+                  const after = transactions.slice(transactions.indexOf(transaction) + 1)
+                  return { transaction, before: regions.before, after: regions.after, later: after }
+                })
+            : null
+          checkedWholeDocument = true
+          const regions = changed
+            ? mergeRegions(
+                changed.flatMap(({ after, later }) =>
+                  after.map((region) => {
+                    let { from, to } = region
+                    for (const next of later) {
+                      from = next.mapping.map(from, -1)
+                      to = next.mapping.map(to, 1)
+                    }
+                    return textblockRegion(state.doc, from, to)
+                  }),
+                ),
+              )
+            : undefined
+          const invalid = ranges(state.doc, regions).filter(
+            (range) => !confirmedTag(range.text, range.tag),
+          )
+          const beforeRegions = new Map(
+            changed?.map(({ transaction, before }) => [transaction, before]),
+          )
           transactions.forEach((transaction, index) => {
             if (
               !transaction.docChanged ||
@@ -191,7 +273,7 @@ export const BodyTags = Extension.create({
               transaction.getMeta('bodyTagNormalize')
             )
               return
-            for (const range of ranges(transaction.before)) {
+            for (const range of ranges(transaction.before, beforeRegions.get(transaction))) {
               let from = transaction.mapping.map(range.from, 1)
               let to = transaction.mapping.map(range.to, -1)
               if (from >= to || transaction.doc.textBetween(from, to) === range.text) continue

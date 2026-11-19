@@ -799,6 +799,22 @@ fn sepia_color_mode_is_saved() {
 }
 
 #[test]
+fn every_frontend_accent_is_saved() {
+    // Keep in sync with `accentValues` in src/appearance.ts.
+    for accent in [
+        "system", "blue", "indigo", "purple", "pink", "red", "orange", "yellow", "green", "teal",
+        "graphite", "custom",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(dir.path()).unwrap();
+        let mut prefs = preferences();
+        prefs.appearance["accent"] = json!(accent);
+        store.save_preferences(&prefs).unwrap();
+        assert_eq!(store.library().unwrap().appearance.unwrap()["accent"], accent);
+    }
+}
+
+#[test]
 fn invalid_appearance_settings_do_not_replace_saved_preferences() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path()).unwrap();
@@ -815,7 +831,7 @@ fn invalid_appearance_settings_do_not_replace_saved_preferences() {
         ),
         (
             "accent",
-            vec![json!("teal"), json!(1), Value::Null],
+            vec![json!("cyan"), json!(1), Value::Null],
         ),
         (
             "translucentSidebar",

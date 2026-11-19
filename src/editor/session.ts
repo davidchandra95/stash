@@ -10,6 +10,7 @@ import { findKey, revealKey } from './noteTools'
 import { registerEditorLifetime, retainEditorOperation } from './lifecycle'
 import { pendingFragments } from './fileNavigation'
 import { HeadingFolds } from './headingFolds'
+import { rememberContentTags, tagsFromDocument } from '../tags'
 
 // Views are bounded; edited documents and their session undo stay authoritative.
 // History-free editors can be reconstructed from the caller's note model.
@@ -263,6 +264,10 @@ export function getSplitEditor(
   scheduleTrim()
   return editor
 }
+// Content the editors serialized themselves, as opposed to loaded, synced, or replaced content.
+const editorContent = new WeakSet<JSONContent>()
+/** True when this content came from an editor's own change, so that editor already shows it. */
+export const isEditorContent = (content: JSONContent) => editorContent.has(content)
 export function getEditor(id: string, content: JSONContent, onChange?: Change, markdown = false) {
   let session = sessions.get(id)
   if (
@@ -288,7 +293,11 @@ export function getEditor(id: string, content: JSONContent, onChange?: Change, m
   if (!session.editor) {
     const editor = createEditor(id, content, markdown, ({ editor: current }) => {
       currentSession.changed = true
-      currentSession.onChange?.(current.getJSON(), current.getText())
+      if (!currentSession.onChange) return
+      const json = current.getJSON()
+      editorContent.add(json)
+      rememberContentTags(json, tagsFromDocument(current.state.doc))
+      currentSession.onChange(json, current.getText())
     })
     session.editor = editor
     session.changed = false

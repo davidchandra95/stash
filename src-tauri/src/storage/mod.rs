@@ -1178,13 +1178,16 @@ fn validate_appearance(value: &Value) -> Result<()> {
                     s,
                     "system"
                         | "blue"
+                        | "indigo"
                         | "purple"
                         | "pink"
                         | "red"
                         | "orange"
                         | "yellow"
                         | "green"
+                        | "teal"
                         | "graphite"
+                        | "custom"
                 )
             })
         })

@@ -105,6 +105,11 @@ class CursorLayerView {
   private discontinuous = true
   private composition = false
   private restartRequested = true
+  /** The style `position` last drew, so an unchanged caret skips the DOM writes. */
+  private positionedStyle: CursorStyle | null = null
+  /** The caret's vertical offset for its source element and height, reused while typing. */
+  private offsetCache: { source: Element; height: number; offset: number } | null = null
+  private reducedMotion: MediaQueryList | null | undefined
   private readonly layer: HTMLDivElement
   private readonly motion: HTMLDivElement
   private readonly cursor: HTMLDivElement
@@ -187,6 +192,7 @@ class CursorLayerView {
 
   setSettings(settings: CursorSettings) {
     this.settings = { ...defaultCursorSettings, ...settings }
+    this.offsetCache = null
     this.discontinuous = true
     this.restartRequested = true
     this.schedule()
@@ -214,11 +220,14 @@ class CursorLayerView {
     this.schedule()
   }
   private onResize = () => {
+    // Font and size changes reflow the host, so cached metrics may be stale.
+    this.offsetCache = null
     this.discontinuous = true
     this.schedule()
   }
   private onFontsLoaded = () => {
     this.metrics.clear()
+    this.offsetCache = null
     this.schedule()
   }
   private schedule = () => {
@@ -269,7 +278,13 @@ class CursorLayerView {
     this.motion.dataset.smooth = smooth ? 'true' : 'false'
     this.cursor.dataset.style = this.settings.cursorStyle
     this.cursor.dataset.blinking = this.settings.cursorBlinking
-    this.position(geometry)
+    const blockChanged =
+      this.settings.cursorStyle === 'block' &&
+      (geometry.character !== previous?.character || geometry.source !== previous?.source)
+    if (changed || blockChanged || this.positionedStyle !== this.settings.cursorStyle) {
+      this.position(geometry)
+      this.positionedStyle = this.settings.cursorStyle
+    }
     this.motion.dataset.visible = 'true'
     this.view.dom.dataset.cursorLayerActive = 'true'
     this.last = geometry
@@ -285,16 +300,18 @@ class CursorLayerView {
       const caret = this.view.coordsAtPos(pos)
       const host = this.host.getBoundingClientRect()
       const height = Math.max(1, caret.bottom - caret.top)
-      const next = characterAt(this.view, pos)
+      const line = this.settings.cursorStyle === 'line' || this.settings.cursorStyle === 'line-thin'
+      // A line caret has a fixed width, so it does not measure the next character.
+      const next = line ? null : characterAt(this.view, pos)
       let offset = 0
-      if (this.settings.cursorStyle === 'line' || this.settings.cursorStyle === 'line-thin') {
+      if (line) {
         const { node, offset: domOffset } = this.view.domAtPos(pos)
         const adjacent =
           node.nodeType === 1
             ? (node.childNodes[domOffset] ?? node.childNodes[Math.max(0, domOffset - 1)] ?? node)
             : node
         const source = adjacent.nodeType === 1 ? (adjacent as Element) : adjacent.parentElement
-        if (source) offset = this.metrics.offset(source, height)
+        if (source) offset = this.lineOffset(source, height)
       }
       return {
         left: caret.left - host.left,
@@ -307,6 +324,15 @@ class CursorLayerView {
     } catch {
       return null
     }
+  }
+
+  /** Reading computed styles on every keystroke is costly; the result only depends on these. */
+  private lineOffset(source: Element, height: number) {
+    const cached = this.offsetCache
+    if (cached?.source === source && cached.height === height) return cached.offset
+    const offset = this.metrics.offset(source, height)
+    this.offsetCache = { source, height, offset }
+    return offset
   }
 
   private position(geometry: CursorGeometry) {
@@ -346,17 +372,27 @@ class CursorLayerView {
 
   private restartBlink() {
     if (this.settings.cursorBlinking === 'solid') return
+    // Rewinding the running animation avoids the forced layout of re-adding it.
+    const animations = this.cursor.getAnimations?.()
+    if (animations?.length) {
+      animations.forEach((animation) => (animation.currentTime = 0))
+      return
+    }
     this.cursor.style.animation = 'none'
     void this.cursor.offsetWidth
     this.cursor.style.animation = ''
   }
 
   private prefersReducedMotion() {
-    return this.view.dom.ownerDocument.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)')
-      .matches
+    if (this.reducedMotion === undefined)
+      this.reducedMotion =
+        this.view.dom.ownerDocument.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)') ??
+        null
+    return this.reducedMotion?.matches ?? false
   }
 
   private hide() {
+    this.positionedStyle = null
     this.motion.dataset.visible = 'false'
     this.motion.dataset.smooth = 'false'
     delete this.view.dom.dataset.cursorLayerActive

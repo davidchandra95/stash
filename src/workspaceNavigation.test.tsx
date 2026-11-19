@@ -9,6 +9,7 @@ import { clearSessions, getEditor } from './editor/session'
 import type { Note, Notebook } from './model'
 import type { WorkspacePreferences } from './workspace'
 import { searchDocument } from './search'
+import { outlineDelayMs } from './components/NoteTools'
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 Element.prototype.scrollIntoView = vi.fn()
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList
@@ -804,6 +805,9 @@ it('finds title and body, wraps matches, updates outlines, and keeps find open a
   expect(host.querySelectorAll('.note-find-match')).toHaveLength(0)
   const editor = getEditor('beta', notes[1].content)
   await act(async () => editor.commands.insertContent('<h3>New child</h3>'))
+  // The outline follows edits once typing pauses.
+  expect(host.querySelector('.note-outline')?.textContent).not.toContain('New child')
+  await act(() => new Promise((resolve) => setTimeout(resolve, outlineDelayMs + 50)))
   expect(host.querySelector('.note-outline')?.textContent).toContain('New child')
 })
 it('creates new tabs from the labeled notes-panel button and handles keyboard switching/closing', async () => {

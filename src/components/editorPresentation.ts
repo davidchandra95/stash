@@ -1,4 +1,6 @@
+import { useLayoutEffect, useState } from 'react'
 import { CommandManager, type Editor } from '@tiptap/core'
+import type { Transaction } from '@tiptap/pm/state'
 import { commands } from '../editor/commands'
 import { toolActive, toolbarTools } from './writingToolbar'
 
@@ -53,6 +55,45 @@ export function toolbarPresentation(editor: Editor, capabilities = true): Editor
     if (capabilities && !tool.picker)
       value[`enabled:${tool.id}`] = canRunWritingCommand(editor, tool.id)
   }
+  return value
+}
+
+/** How long typing must pause before command availability is checked again. */
+export const capabilityDelayMs = 150
+
+/**
+ * The toolbar's presentation, kept current on every transaction. Checking which commands can
+ * run dry-runs each one, which dominated typing cost, so edits defer that part until typing
+ * pauses. Selection and other non-editing transactions still update it at once.
+ */
+export function useToolbarPresentation(editor: Editor) {
+  const [value, setValue] = useState(() => toolbarPresentation(editor))
+  useLayoutEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let capabilities: EditorPresentation = {}
+    const publish = (checkCommands: boolean) => {
+      clearTimeout(timer)
+      timer = undefined
+      const next = toolbarPresentation(editor, checkCommands)
+      if (checkCommands)
+        capabilities = Object.fromEntries(
+          Object.entries(next).filter(([key]) => key.startsWith('enabled:')),
+        )
+      else Object.assign(next, capabilities)
+      setValue((previous) => (samePresentation(next, previous) ? previous : next))
+    }
+    const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+      if (!transaction.docChanged) return publish(true)
+      publish(false)
+      timer = setTimeout(() => publish(true), capabilityDelayMs)
+    }
+    publish(true)
+    editor.on('transaction', onTransaction)
+    return () => {
+      clearTimeout(timer)
+      editor.off('transaction', onTransaction)
+    }
+  }, [editor])
   return value
 }
 

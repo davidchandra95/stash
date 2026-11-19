@@ -1,10 +1,21 @@
 import AppTooltip from './AppTooltip'
 import { useShortcutActions } from '../useShortcuts'
 import { MotionPresence, motion } from '../motion'
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { HTMLAttributes, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditorState, type Editor } from '@tiptap/react'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import type { Transaction } from '@tiptap/pm/state'
+import { Mapping } from '@tiptap/pm/transform'
 import { replaceBodyText } from '../editor/replace'
 import { ChevronDown, ChevronRight, ChevronUp, Search, X } from '../icons'
 import type { Note } from '../model'
@@ -28,6 +39,66 @@ import {
 const titleHighlights = (editor: Editor) =>
   editor.view.dom.closest('.note-article')?.querySelector<HTMLElement>('.note-title-highlights') ??
   document.querySelector<HTMLElement>('.note-title-highlights')
+
+/** How long typing must pause before the table of contents follows the document. */
+export const outlineDelayMs = 150
+
+type OutlineSnapshot = { editor: Editor; doc: ProseMirrorNode; folds: number[] }
+const snapshotOf = (editor: Editor): OutlineSnapshot => ({
+  editor,
+  doc: editor.state.doc,
+  folds: foldedHeadings(editor.state),
+})
+/**
+ * The document and folds the table of contents shows. Rebuilding the outline on every
+ * keystroke was a large share of typing cost, so edits update it once typing pauses; other
+ * transactions, such as folding, update it at once. `onMap` receives the positions mapping
+ * from the previous snapshot so outline-local state stays aligned with it.
+ */
+function useOutlineSnapshot(editor: Editor, onMap: (mapping: Mapping) => void) {
+  const [snapshot, setSnapshot] = useState(() => snapshotOf(editor))
+  const flush = useRef(() => {})
+  const map = useRef(onMap)
+  map.current = onMap
+  useLayoutEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let pending = new Mapping()
+    const publish = () => {
+      clearTimeout(timer)
+      timer = undefined
+      if (editor.isDestroyed) return
+      if (pending.maps.length) map.current(pending)
+      pending = new Mapping()
+      const next = snapshotOf(editor)
+      setSnapshot((previous) =>
+        previous.editor === next.editor &&
+        previous.doc === next.doc &&
+        previous.folds.join() === next.folds.join()
+          ? previous
+          : next,
+      )
+    }
+    const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+      if (!transaction.docChanged) return publish()
+      pending.appendMapping(transaction.mapping)
+      clearTimeout(timer)
+      timer = setTimeout(publish, outlineDelayMs)
+    }
+    flush.current = () => {
+      if (timer !== undefined) publish()
+    }
+    publish()
+    editor.on('transaction', onTransaction)
+    return () => {
+      clearTimeout(timer)
+      flush.current = () => {}
+      editor.off('transaction', onTransaction)
+    }
+  }, [editor])
+  const flushNow = useCallback(() => flush.current(), [])
+  // The subscription can still hold the previous editor's snapshot during a tab switch.
+  return [snapshot.editor === editor ? snapshot : snapshotOf(editor), flushNow] as const
+}
 
 export default function NoteTools({
   note,
@@ -63,22 +134,38 @@ export default function NoteTools({
   const split = useContext(SplitEditorContext)
   const editor = sessionEditor(split)(note.id, note.content, undefined, !!note.source)
   useLayoutEffect(() => retainEditorView(editor), [editor])
+  const [query, setQuery] = useState('')
+  // Only Find reads the live document; the outline follows its own snapshot. Re-rendering on
+  // every keystroke otherwise is wasted work.
+  const followDocument = findOpen && !!query
   useEditorState({
     editor,
-    selector: ({ editor }) => editor.state.doc,
+    selector: ({ editor }) => (followDocument ? editor.state.doc : null),
     equalityFn: Object.is,
   })
   // The subscription can still hold the previous editor's snapshot during a tab switch.
   // Always calculate positions against the currently mounted editor.
   const doc = editor.state.doc
-  const headings = useMemo(() => outline(doc), [doc])
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const [outlineState, flushOutline] = useOutlineSnapshot(editor, (mapping) =>
+    setCollapsed(
+      (old) =>
+        new Set(
+          [...old].flatMap((pos) => {
+            const mapped = mapping.mapResult(pos)
+            return mapped.deleted ? [] : [mapped.pos]
+          }),
+        ),
+    ),
+  )
+  const outlineDoc = outlineState.doc
+  // The outline is only read while the contents are shown.
+  const headings = useMemo(
+    () => (contentsOpen ? outline(outlineDoc) : []),
+    [outlineDoc, contentsOpen],
+  )
   // Sections folded in the note also collapse here.
-  const foldKey = useEditorState({
-    editor,
-    selector: ({ editor }) => foldedHeadings(editor.state).join(','),
-  })
-  const folded = useMemo(() => new Set(foldKey ? foldKey.split(',').map(Number) : []), [foldKey])
-  const [query, setQuery] = useState('')
+  const folded = useMemo(() => new Set(outlineState.folds), [outlineState.folds])
   const [replaceOpen, setReplaceOpen] = useState(false)
   const [replacement, setReplacement] = useState('')
   const replacementInput = useRef<HTMLInputElement>(null)
@@ -86,7 +173,6 @@ export default function NoteTools({
   const [navigationError, setNavigationError] = useState('')
   const pendingReveal = useRef<import('../editor/searchText').DocumentMatch | null>(null)
   const handledNavigation = useRef<MatchNavigation | null>(null)
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [visibleSections, setVisibleSections] = useState<Set<number>>(new Set())
   const input = useRef<HTMLInputElement>(null)
   const [slot, setSlot] = useState<Element | null>(null)
@@ -217,10 +303,10 @@ export default function NoteTools({
       const visible = new Set<number>()
       for (const [index, heading] of flat.entries()) {
         // A heading owns only the content before the next heading, not its descendants.
-        const end = flat[index + 1]?.pos ?? doc.content.size
+        const end = flat[index + 1]?.pos ?? outlineDoc.content.size
         const element = editor.view.nodeDOM(heading.pos)
         if (!(element instanceof HTMLElement) || !element.getClientRects().length) continue
-        const next = end < doc.content.size ? editor.view.nodeDOM(end) : null
+        const next = end < outlineDoc.content.size ? editor.view.nodeDOM(end) : null
         const bottom =
           next instanceof HTMLElement && next.getClientRects().length
             ? next.getBoundingClientRect().top
@@ -245,7 +331,7 @@ export default function NoteTools({
       window.removeEventListener('resize', update)
       resize?.disconnect()
     }
-  }, [editor, doc, headings, contentsOpen])
+  }, [editor, outlineDoc, headings, contentsOpen])
   const revealMatch = (value: number) => {
     if (!total) return
     const next = (value + total) % total
@@ -389,6 +475,28 @@ export default function NoteTools({
       })}
     </ul>
   )
+  // Rendering is skipped on renders that change nothing here, such as plain typing.
+  const outlineTree = useMemo(
+    () =>
+      headings.length ? (
+        <nav aria-label="Note headings" className="outline-tree">
+          {tree(headings)}
+        </nav>
+      ) : (
+        <p className="outline-empty">Headings in this note appear here.</p>
+      ),
+    // `tree` reads these values and the props that closing the contents uses.
+    [
+      headings,
+      collapsed,
+      folded,
+      visibleSections,
+      editor,
+      contentsMode,
+      onContentsOpenChange,
+      contentsLauncher,
+    ],
+  )
   useLayoutEffect(() => {
     setSlot(document.getElementById('note-find-slot'))
     setTitleSlot(titleHighlights(editor))
@@ -396,24 +504,6 @@ export default function NoteTools({
   useEffect(() => {
     if (findOpen) input.current?.focus()
   }, [slot, findOpen])
-  useEffect(() => {
-    const map = ({ transaction }: { transaction: import('@tiptap/pm/state').Transaction }) => {
-      if (!transaction.docChanged) return
-      setCollapsed(
-        (old) =>
-          new Set(
-            [...old].flatMap((pos) => {
-              const mapped = transaction.mapping.mapResult(pos)
-              return mapped.deleted ? [] : [mapped.pos]
-            }),
-          ),
-      )
-    }
-    editor.on('transaction', map)
-    return () => {
-      editor.off('transaction', map)
-    }
-  }, [editor])
   const markedTitle = () => {
     const pieces = []
     let last = 0
@@ -556,6 +646,9 @@ export default function NoteTools({
           className="note-outline"
           aria-label="Table of contents"
           data-mode={contentsMode}
+          // Positions from a pending edit must be current before an outline control acts.
+          onPointerDownCapture={flushOutline}
+          onFocusCapture={flushOutline}
         >
           <header className="outline-header">
             <h2>Contents</h2>
@@ -571,13 +664,7 @@ export default function NoteTools({
               </AppTooltip>
             )}
           </header>
-          {headings.length ? (
-            <nav aria-label="Note headings" className="outline-tree">
-              {tree(headings)}
-            </nav>
-          ) : (
-            <p className="outline-empty">Headings in this note appear here.</p>
-          )}
+          {outlineTree}
         </aside>
       </MotionPresence>
     </>

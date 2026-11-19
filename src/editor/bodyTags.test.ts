@@ -4,10 +4,11 @@ import StarterKit from '@tiptap/starter-kit'
 import { afterEach, expect, it, vi } from 'vitest'
 import { insertLiteral } from './plainPaste'
 import { BodyTagMark } from './tagMark'
-import { tagsFromContent } from '../tags'
+import { rememberContentTags, tagsFromContent, tagsFromDocument } from '../tags'
 import { markdownExtensions, parseMarkdown, serializeMarkdown } from './markdown'
 import { writingExtensions } from './extensions'
-import { BodyTags, setBodyTagContext } from './bodyTags'
+import { BodyTags, bodyTagsKey, setBodyTagContext } from './bodyTags'
+import { EditorState } from '@tiptap/pm/state'
 
 let editor: Editor | undefined
 let host: HTMLDivElement | undefined
@@ -351,3 +352,82 @@ it.each(['bold', 'italic', 'strike', 'code', 'link'])(
     ])
   },
 )
+
+it('keeps incrementally updated tag links and marks identical to a full rescan', () => {
+  host = document.createElement('div')
+  document.body.append(host)
+  const tag = (name: string) => `<span data-confirmed-tag="${name}">#${name}</span>`
+  editor = new Editor({
+    element: host,
+    extensions: [StarterKit, BodyTagMark, BodyTags],
+    content: `<p>One ${tag('alpha')} and ${tag('beta')}</p><p>Two ${tag('gamma')}</p><ul><li><p>Item ${tag('delta')}</p></li></ul><p>Three ${tag('epsilon')} end</p>`,
+  })
+  const e = editor
+  const shown = (state = e.state) =>
+    bodyTagsKey
+      .getState(state)
+      .find()
+      .map((decoration: { from: number; to: number; spec: unknown }) => [
+        decoration.from,
+        decoration.to,
+      ])
+  const marked = () => {
+    const runs: string[] = []
+    e.state.doc.descendants((node, pos) => {
+      const mark = node.marks.find((candidate) => candidate.type.name === 'bodyTag')
+      if (mark) runs.push(`${pos}:${node.text}:${mark.attrs.tag}`)
+    })
+    return runs
+  }
+  const fresh = () => shown(EditorState.create({ doc: e.state.doc, plugins: e.state.plugins }))
+  const find = (text: string) => {
+    let found = -1
+    e.state.doc.descendants((node, pos) => {
+      if (found < 0 && node.isText && node.text!.includes(text))
+        found = pos + node.text!.indexOf(text)
+    })
+    return found
+  }
+  const edits: (() => void)[] = [
+    () => e.commands.insertContentAt(find('One'), 'Intro '),
+    // Editing inside a tag invalidates it; the mark and link both go.
+    () => e.commands.insertContentAt(find('#beta') + 2, 'x'),
+    () => e.commands.insertContentAt(find('Two'), '<p>Split</p>'),
+    () => e.commands.deleteRange({ from: find('alpha') + 3, to: find('Two') + 1 }),
+    () => e.commands.joinBackward(),
+    () => e.commands.insertContentAt(find('Item'), `${tag('zeta')} `),
+    () => e.commands.deleteRange({ from: find('#delta'), to: find('#delta') + 2 }),
+    () => e.commands.setContent(`<p>Fresh ${tag('eta')}</p><p>${tag('theta')}</p>`),
+    () => e.commands.insertContentAt(e.state.doc.content.size, `<p>Late ${tag('iota')}</p>`),
+  ]
+  for (const edit of edits) {
+    edit()
+    expect(shown()).toEqual(fresh())
+  }
+  expect(marked().some((run) => run.includes(':beta'))).toBe(false)
+  expect(marked().some((run) => run.includes(':iota'))).toBe(true)
+})
+
+it('reads the same tags from the editor document as from its saved content', () => {
+  const tag = (name: string, text = `#${name}`) =>
+    `<span data-confirmed-tag="${name}">${text}</span>`
+  editor = new Editor({
+    extensions: [StarterKit, BodyTagMark],
+    content: `<p>${tag('alpha')} ${tag('beta', '#wrong')} ${tag('alpha')}</p><ul><li><p>${tag('gamma')}.</p></li></ul><blockquote><p>${tag('delta')}</p></blockquote>`,
+  })
+  const e = editor
+  const check = () => {
+    const fromDocument = tagsFromDocument(e.state.doc)
+    expect(fromDocument).toEqual(tagsFromContent(JSON.parse(JSON.stringify(e.getJSON()))))
+    return fromDocument
+  }
+  expect(check()).toEqual(['alpha', 'gamma', 'delta'])
+  // Unchanged blocks come from the cache; edited ones are read again.
+  e.commands.insertContentAt(e.state.doc.content.size, `<p>${tag('epsilon')}</p>`)
+  expect(check()).toEqual(['alpha', 'gamma', 'delta', 'epsilon'])
+  e.commands.deleteRange({ from: 1, to: 8 })
+  expect(check()).toEqual(['alpha', 'gamma', 'delta', 'epsilon'])
+  const json = e.getJSON()
+  rememberContentTags(json, ['remembered'])
+  expect(tagsFromContent(json)).toEqual(['remembered'])
+})

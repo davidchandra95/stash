@@ -28,18 +28,26 @@ import { library as libraryStore, useLibrarySelector } from '../storage/useLibra
 import { trackApp, useApp, useBlocked } from './context'
 import type { Domain } from './useAppController'
 
-const domains: { id: Domain; label: string; icon: ReactNode; shortcut: string }[] = [
+const domains: {
+  id: Domain
+  label: string
+  icon: ReactNode
+  shortcut: string
+  tone: string
+}[] = [
   {
     id: 'notes',
     label: 'Notes',
     icon: <NotebookPen aria-hidden="true" />,
     shortcut: 'show-notes',
+    tone: 'orange',
   },
   {
     id: 'projects',
     label: 'Projects',
     icon: <SquareCheckBig aria-hidden="true" />,
     shortcut: 'show-projects',
+    tone: 'blue',
   },
 ]
 
@@ -67,6 +75,7 @@ function DomainButtons() {
         >
           <button
             className="rail-btn is-area"
+            data-area-tone={d.tone}
             aria-label={d.label}
             aria-pressed={d.id === app.domain}
             disabled={blocked || (d.id === 'projects' && !app.projects.ready)}

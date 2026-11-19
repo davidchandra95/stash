@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import NoteTools from './NoteTools'
+import NoteTools, { outlineDelayMs } from './NoteTools'
 import { getEditor, clearSessions } from '../editor/session'
 import type { Note } from '../model'
 import { foldedHeadings, toggleHeadingFold } from '../editor/headingFolds'
@@ -206,4 +206,38 @@ it('collapses sections folded in the note and unfolds them from the contents', a
   await act(async () => disclosure().click())
   expect(foldedHeadings(e.state)).toEqual([])
   expect(disclosure().getAttribute('aria-expanded')).toBe('true')
+})
+it('follows edits after a pause and catches up before an outline control acts', async () => {
+  const outlined: Note = {
+    ...note,
+    id: 'deferred-outline',
+    content: {
+      type: 'doc',
+      content: [{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'One' }] }],
+    },
+  }
+  await mount()
+  await act(async () =>
+    root.render(
+      <NoteTools
+        note={outlined}
+        contentsOpen
+        findOpen={false}
+        onFindOpenChange={vi.fn()}
+        disabled={false}
+      />,
+    ),
+  )
+  const headings = () =>
+    [...host.querySelectorAll('.outline-heading')].map((element) => element.textContent)
+  const e = getEditor(outlined.id, outlined.content)
+  await act(async () => e.commands.insertContentAt(0, '<h2>Zero</h2>'))
+  expect(headings()).toEqual(['One'])
+  await act(async () =>
+    host.querySelector('.note-outline')!.dispatchEvent(new Event('pointerdown', { bubbles: true })),
+  )
+  expect(headings()).toEqual(['Zero', 'One'])
+  await act(async () => e.commands.insertContentAt(e.state.doc.content.size, '<h2>Two</h2>'))
+  await act(() => new Promise((resolve) => setTimeout(resolve, outlineDelayMs + 50)))
+  expect(headings()).toEqual(['Zero', 'One', 'Two'])
 })

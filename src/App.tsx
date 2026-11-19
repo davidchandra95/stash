@@ -6,6 +6,7 @@ import { MotionPresence, motion } from './motion'
 import { platform } from './platform'
 import { ShortcutContext, useShortcutActions } from './useShortcuts'
 import { useLibrarySelector, library as libraryStore } from './storage/useLibrary'
+import { sameEditorNotes, useSettledLibrary } from './storage/settled'
 import type { Note } from './model'
 import { AppContext, AppStore, AppVersionContext } from './app/context'
 import { useAppController } from './app/useAppController'
@@ -52,7 +53,11 @@ export default function App() {
     scope: 'titles',
   })
   const openSearch = useCallback(() => setPalette({ open: true, scope: 'titles' }), [])
-  const paletteNotes = useLibrarySelector((state) => (palette.open ? state.notes : noNotes))
+  const paletteNotes = useSettledLibrary(
+    (state) => (palette.open ? state.notes : noNotes),
+    sameEditorNotes,
+    palette.open ? 'open' : '',
+  )
   const paneFocus = usePaneFocus()
   useLayoutMotion(app.appRef)
 

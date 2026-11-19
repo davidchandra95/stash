@@ -5,6 +5,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import App from './App'
 import { library } from './storage/useLibrary'
 import * as readers from './storage/libraryReaders'
+import { settleDelayMs, useSettledNote } from './storage/settled'
+import { useBacklinks } from './storage/backlinks'
 import * as ordering from './noteOrder'
 import { clearSessions, getEditor, resetSession } from './editor/session'
 import type { Note } from './model'
@@ -87,9 +89,18 @@ it('keeps the shell quiet for save feedback, caret moves, and ordinary body edit
   expect(shell).not.toHaveBeenCalled()
   expect(sorts).not.toHaveBeenCalled()
   expect(editor.view).toBe(view)
-  expect(host.querySelector('[data-note-id="active"] .note-row-preview')?.textContent).toContain(
-    'fresh',
+  // The note row and word count follow once typing pauses.
+  const rowPreview = () =>
+    host.querySelector('[data-note-id="active"] .note-row-preview')?.textContent
+  expect(rowPreview()).not.toContain('fresh')
+  expect(host.querySelector('.note-meta')?.textContent).toContain(`${before} words`)
+  await act(
+    () =>
+      new Promise((resolve) =>
+        setTimeout(resolve, Math.max(readers.statisticsDelayMs, settleDelayMs) + 50),
+      ),
   )
+  expect(rowPreview()).toContain('fresh')
   expect(host.querySelector('.note-meta')?.textContent).toContain(`${before + 1} words`)
   await act(async () => editor.commands.undo())
   expect(library.getSnapshot().notes[0].text).not.toContain('fresh')
@@ -122,4 +133,51 @@ it('keeps failed-save recovery and quit actions visible without rendering the sh
   expect(shell).not.toHaveBeenCalled()
   await act(async () => publish({ error: '', quitFailed: false, syncError: 'Sync failed' }))
   expect(notice()).toContain('Couldn’t sync')
+})
+it('re-renders editor surfaces for outside changes but not for the editor’s own typing', async () => {
+  const editor = await mount()
+  const before = library.getSnapshot().notes[0]
+  await act(async () => editor.commands.insertContent(' typed'))
+  const typed = library.getSnapshot().notes[0]
+  expect(typed.content).not.toBe(before.content)
+  expect(readers.sameEditorNote(before, typed)).toBe(true)
+  expect(readers.sameEditorNote(typed, { ...typed, title: 'Renamed' })).toBe(false)
+  expect(readers.sameEditorNote(typed, { ...typed, trashed: true })).toBe(false)
+  // Loaded, synced, or replaced content is not the editor's own and must be shown.
+  const external = makeNote('active', Date.now(), 'From disk')
+  expect(readers.sameEditorNote(typed, { ...typed, content: external.content })).toBe(false)
+})
+it('lets panels follow typing after a pause, and other changes at once', async () => {
+  const editor = await mount()
+  const backlinks = vi.spyOn(library, 'backlinks').mockResolvedValue({ ids: [], unreadable: 0 })
+  let renders = 0
+  function Panel() {
+    renders++
+    const note = useSettledNote('active')
+    useBacklinks('active')
+    return <output className="panel">{`${note?.title}|${note?.text}`}</output>
+  }
+  const panelHost = document.createElement('div')
+  const panelRoot = createRoot(panelHost)
+  try {
+    await act(async () => panelRoot.render(<Panel />))
+    const searches = backlinks.mock.calls.length
+    renders = 0
+    for (const key of ['a', 'b', 'c']) await act(async () => editor.commands.insertContent(key))
+    expect(renders).toBe(0)
+    expect(panelHost.textContent).not.toContain('abc')
+    await act(() => new Promise((resolve) => setTimeout(resolve, settleDelayMs + 50)))
+    expect(panelHost.textContent).toContain('abc')
+    // One render for the settled values, and one when the new backlinks search answers.
+    expect(renders).toBe(2)
+    // One search for the settled notes, not one per keystroke.
+    expect(backlinks.mock.calls.length).toBe(searches + 1)
+    const note = library.getSnapshot().notes[0]
+    await act(async () =>
+      publish({ notes: [{ ...note, title: 'Renamed' }, ...library.getSnapshot().notes.slice(1)] }),
+    )
+    expect(panelHost.textContent).toContain('Renamed|')
+  } finally {
+    await act(async () => panelRoot.unmount())
+  }
 })

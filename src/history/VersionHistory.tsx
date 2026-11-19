@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { generateHTML } from '@tiptap/core'
 import DOMPurify from 'dompurify'
 import { writingExtensions } from '../editor/extensions'
-import { useNote } from '../storage/libraryReaders'
+import { useSettledNote } from '../storage/settled'
 import { listVersions, readVersion, restoreVersion, type NoteVersion, type VersionSummary } from './versions'
 
 const when = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -15,7 +15,7 @@ function sizeLabel(bytes: number) {
 
 /** Earlier versions of one note: pick one to read it, then restore it if wanted. */
 export default function VersionHistory({ noteId, onClose }: { noteId: string; onClose: () => void }) {
-  const note = useNote(noteId)
+  const note = useSettledNote(noteId)
   const [versions, setVersions] = useState<VersionSummary[] | null>(null)
   const [selected, setSelected] = useState<number | 'current'>('current')
   const [version, setVersion] = useState<NoteVersion | null>(null)

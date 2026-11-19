@@ -7,6 +7,7 @@ import { writingExtensions } from '../editor/extensions'
 import { runCommand } from '../editor/commands'
 import { defaultAppearance } from '../storage/library'
 import DesktopWritingToolbar from './DesktopWritingToolbar'
+import { capabilityDelayMs } from './editorPresentation'
 import { fitToolbar, toolbarTools } from './writingToolbar'
 import { readImage } from '../editor/images'
 
@@ -519,6 +520,34 @@ it('stays collapsed until text is selected, a picker opens, or the toolbar is pi
     root.render(<DesktopWritingToolbar editor={editor} readOnly />)
   })
   expect(collapsed()).toBe(true)
+})
+
+it('defers command availability while typing and measures the caret only when shown', async () => {
+  await mount()
+  const undo = () => button('Undo', toolbar())
+  const collapsed = () => toolbar().hasAttribute('data-collapsed')
+  expect(undo().disabled).toBe(true)
+  const coords = vi.spyOn(editor.view, 'coordsAtPos')
+  await act(async () => {
+    editor.commands.setTextSelection(12)
+    editor.commands.insertContent(' typed')
+  })
+  // Typing into a hidden toolbar neither checks commands nor measures the caret.
+  expect(collapsed()).toBe(true)
+  expect(undo().disabled).toBe(true)
+  expect(coords).not.toHaveBeenCalled()
+  await act(() => new Promise((resolve) => setTimeout(resolve, capabilityDelayMs + 50)))
+  expect(undo().disabled).toBe(false)
+  coords.mockReturnValue({ left: 100, right: 100, top: 200, bottom: 220 })
+  toolbar().style.removeProperty('--bubble-y')
+  await act(async () => {
+    editor.view.focus()
+    editor.commands.setTextSelection({ from: 1, to: 6 })
+  })
+  // Expanding places the toolbar against the selection.
+  expect(collapsed()).toBe(false)
+  expect(coords).toHaveBeenCalled()
+  expect(toolbar().style.getPropertyValue('--bubble-y')).not.toBe('')
 })
 
 it('stays revealed while keyboard focus is inside it', async () => {

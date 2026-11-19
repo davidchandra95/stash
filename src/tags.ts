@@ -60,22 +60,66 @@ export function tagFooter(tags: Iterable<string>): string {
   return unique.length ? `Tags: ${unique.map((tag) => `#${tag}`).join(' ')}` : ''
 }
 
+/** A run of text marked as one tag counts only when it is exactly that hashtag. */
+function confirmedRun(tag: string | undefined, text: string): tag is string {
+  if (!tag) return false
+  const matches = tagMatches(text)
+  return (
+    matches.length === 1 &&
+    matches[0].from === 0 &&
+    matches[0].to === text.length &&
+    matches[0].tag === tag
+  )
+}
+
+// Editor documents share unchanged nodes between versions, so each block's tags are reused.
+const nodeTags = new WeakMap<import('@tiptap/pm/model').Node, string[]>()
+function blockTags(node: import('@tiptap/pm/model').Node): string[] {
+  const cached = nodeTags.get(node)
+  if (cached) return cached
+  const tags: string[] = []
+  let tag: string | undefined,
+    text = ''
+  const flush = () => {
+    if (confirmedRun(tag, text)) tags.push(tag)
+    tag = undefined
+    text = ''
+  }
+  node.forEach((child) => {
+    const next = child.isText
+      ? (child.marks.find((mark) => mark.type.name === 'bodyTag')?.attrs.tag as string | undefined)
+      : undefined
+    if (!next || next !== tag) flush()
+    if (next) {
+      tag = next
+      text += child.text ?? ''
+    } else if (!child.isText) tags.push(...blockTags(child))
+  })
+  flush()
+  nodeTags.set(node, tags)
+  return tags
+}
+/** The same tags as `tagsFromContent`, read from an editor document. */
+export function tagsFromDocument(doc: import('@tiptap/pm/model').Node): string[] {
+  return [...new Set(blockTags(doc))]
+}
+
+const knownContentTags = new WeakMap<import('@tiptap/core').JSONContent, string[]>()
+/** Records tags already read from the editor document this content was serialized from. */
+export function rememberContentTags(doc: import('@tiptap/core').JSONContent, tags: string[]) {
+  knownContentTags.set(doc, tags)
+}
+
 /** Only explicit marks carry tag identity. Plain hashtags never enter the index. */
 export function tagsFromContent(doc: import('@tiptap/core').JSONContent): string[] {
+  const known = knownContentTags.get(doc)
+  if (known) return [...known]
   const tags = new Set<string>()
   const visit = (node: import('@tiptap/core').JSONContent) => {
     let tag: string | undefined,
       text = ''
     const flush = () => {
-      const matches = tagMatches(text)
-      if (
-        tag &&
-        matches.length === 1 &&
-        matches[0].from === 0 &&
-        matches[0].to === text.length &&
-        matches[0].tag === tag
-      )
-        tags.add(tag)
+      if (confirmedRun(tag, text)) tags.add(tag)
       tag = undefined
       text = ''
     }

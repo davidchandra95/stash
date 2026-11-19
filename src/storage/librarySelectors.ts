@@ -156,7 +156,10 @@ export class LibraryProjection {
   list(view: View, query: string, preferences?: NoteListPreferences) {
     const compare = noteComparator(preferences)
     const term = query.toLowerCase()
-    const matchesQuery = (note: Note) => `${note.title} ${note.text}`.toLowerCase().includes(term)
+    // Without a query every note matches; skip lowercasing each changed note's whole text.
+    const matchesQuery = term
+      ? (note: Note) => `${note.title} ${note.text}`.toLowerCase().includes(term)
+      : () => true
     let version = -1
     let day = NaN
     let ordered: Note[] = []

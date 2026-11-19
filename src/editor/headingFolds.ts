@@ -145,6 +145,8 @@ export const HeadingFolds = Extension.create<{ noteId: string | null }>({
       const wanted = new Set(keys)
       return headings(doc).filter((heading) => wanted.has(heading.key))
     }
+    let cached: { doc: ProseMirrorNode; folds: FoldState | undefined; set: DecorationSet } | null =
+      null
     return [
       new Plugin<FoldState>({
         key: headingFoldKey,
@@ -157,6 +159,8 @@ export const HeadingFolds = Extension.create<{ noteId: string | null }>({
           apply(tr, previous) {
             const action = tr.getMeta(headingFoldKey) as FoldAction | undefined
             if (!tr.docChanged && !action) return previous
+            // With nothing folded, an edit has no folds to carry over.
+            if (!action && !previous.folds.length) return previous
             const current = headings(tr.doc)
             const byPos = new Map(current.map((heading) => [heading.pos, heading]))
             const next = new Map<number, string>()
@@ -230,13 +234,21 @@ export const HeadingFolds = Extension.create<{ noteId: string | null }>({
         },
         props: {
           decorations(state) {
+            // Selection-only updates keep the document and folds, so reuse the last set.
+            const foldState = headingFoldKey.getState(state)
+            if (cached?.doc === state.doc && cached.folds === foldState) return cached.set
             const folds = new Set(foldedHeadings(state))
             const decorations: Decoration[] = []
-            for (const heading of headings(state.doc)) {
-              const folded = folds.has(heading.pos)
+            const positions: number[] = []
+            // Only positions are needed here, not the text keys `headings` builds.
+            state.doc.forEach((node, pos) => {
+              if (node.type.name === 'heading') positions.push(pos)
+            })
+            for (const pos of positions) {
+              const folded = folds.has(pos)
               decorations.push(
                 Decoration.widget(
-                  heading.pos + 1,
+                  pos + 1,
                   (_view, getPos) =>
                     arrow(folded, () => {
                       // The widget can outlive edits above it, so find its heading on click.
@@ -253,13 +265,9 @@ export const HeadingFolds = Extension.create<{ noteId: string | null }>({
               )
               if (folded)
                 decorations.push(
-                  Decoration.node(
-                    heading.pos,
-                    heading.pos + state.doc.nodeAt(heading.pos)!.nodeSize,
-                    {
-                      class: 'heading-folded',
-                    },
-                  ),
+                  Decoration.node(pos, pos + state.doc.nodeAt(pos)!.nodeSize, {
+                    class: 'heading-folded',
+                  }),
                 )
             }
             for (const range of hiddenRanges(state.doc, folds))
@@ -269,7 +277,9 @@ export const HeadingFolds = Extension.create<{ noteId: string | null }>({
                 )
                 return false
               })
-            return DecorationSet.create(state.doc, decorations)
+            const set = DecorationSet.create(state.doc, decorations)
+            cached = { doc: state.doc, folds: foldState, set }
+            return set
           },
         },
       }),

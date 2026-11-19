@@ -116,6 +116,37 @@ describe('writing cursor layer', () => {
     },
   )
 
+  it('keeps typing cheap for a line caret: no character probe, cached offset, rewound blink', async () => {
+    const offset = vi.spyOn(CursorMetrics.prototype, 'offset').mockReturnValue(-3)
+    const ranges = vi.spyOn(document, 'createRange')
+    const animation = { currentTime: 400 as number | null }
+    const getAnimations = vi.fn(() => [animation])
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+      configurable: true,
+      value: getAnimations,
+    })
+    try {
+      const { editor, wrapper } = make()
+      await settle()
+      const cursor = wrapper.querySelector<HTMLElement>('.writing-cursor')!
+      const reflow = vi.spyOn(cursor, 'offsetWidth', 'get')
+      offset.mockClear()
+      ranges.mockClear()
+      editor.commands.insertContent('b')
+      await settle()
+      expect(wrapper.querySelector<HTMLElement>('.writing-cursor-motion')?.style.transform).toBe(
+        'translate3d(20px, -3px, 0)',
+      )
+      expect(ranges).not.toHaveBeenCalled()
+      expect(offset).not.toHaveBeenCalled()
+      expect(getAnimations).toHaveBeenCalled()
+      expect(animation.currentTime).toBe(0)
+      expect(reflow).not.toHaveBeenCalled()
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).getAnimations
+    }
+  })
+
   it('redraws a block cursor with the exact typography of the underlying character', async () => {
     const { editor, wrapper } = make()
     const paragraph = editor.view.dom.querySelector('p')!

@@ -285,11 +285,16 @@ Use the shared classes before writing new CSS:
 
 ## Activity rail
 
-- It is app-level navigation on the window frame, never on a card: 32px `.rail-btn` icon buttons
-  (Lucide outline icons, 19px for areas and 17px below) in `--text-2`, areas at the top; sync status,
-  Recent reminders, Trash and Settings at the bottom. It has a 1px `--line` divider only in the flat Native layout.
-- The current area is `--fill-2` with an `--accent` icon. Hover is `--fill-frame` on themes that
-  define it, else `--fill-1`.
+- It is app-level navigation on the window frame, never on a card. All buttons are 32px `.rail-btn`s.
+  Areas sit at the top as toned tiles with 19px Lucide icons at stroke 2.5; sync status, Recent
+  reminders, Trash and Settings sit at the bottom as plain icon buttons (17px icons) in `--text-2`. It has a 1px `--line` divider only in the flat Native layout.
+- Each area has a tone (`data-area-tone`: Notes orange, Projects blue). Every tile has a 2px border and a
+  soft drop shadow: near-black in light themes (the tone mixed 85% toward black), pale in dark themes
+  (the tone mixed 70% toward white), since black disappears on the dark frame. An idle tile is a 14% tint of its
+  tone with a tone icon; hover deepens it to 22%. The current area is the solid tone with a white
+  icon and a top highlight; in an inactive window it mutes toward `--fill-2`.
+  Bottom buttons hover with `--fill-frame` on themes that define it, else `--fill-1`; pressed is
+  `--fill-2` with an `--accent` icon.
 - Area buttons are `aria-pressed`; their tooltip shows the area's shortcut. Clicking the current
   area toggles the sidebar; clicking another area switches to it and shows the sidebar. A red count
   badge shows overdue tasks on Projects.

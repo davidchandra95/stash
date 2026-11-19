@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { library, useLibrarySelector } from './useLibrary'
+import { library } from './useLibrary'
+import { useSettledNotes } from './settled'
 
 export interface Backlinks {
   /** Null until the first search finishes. */
@@ -11,7 +12,8 @@ export interface Backlinks {
 export const noteLinkLabel = (title: string) => title || 'Untitled note'
 
 export function useBacklinks(noteId: string): Backlinks {
-  const notes = useLibrarySelector((state) => state.notes)
+  // Each search asks the backend, so typing waits for a pause before searching again.
+  const notes = useSettledNotes()
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<{
     ids: string[] | null

@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } fro
 import { library, libraryActions, useLibrarySelector, shallowEqual } from './useLibrary'
 import { libraryProjection, localDay } from './librarySelectors'
 import type { LibraryState } from './library'
-import type { View } from '../model'
+import type { Note, View } from '../model'
+import {
+  sameEditorNote,
+  sameEditorNotes,
+  settleDelayMs,
+  useSettledLibrary,
+  useSettledNote,
+  useSettledNotes,
+  useSettledState,
+} from './settled'
+export { sameEditorNote } from './settled'
 import NoteEditor from '../components/NoteEditor'
 import NoteTools from '../components/NoteTools'
 import NoteInformation from '../components/NoteInformation'
@@ -94,20 +104,33 @@ export function useNoteIds(
 export function useNote(id: string) {
   return useLibrarySelector((state) => libraryProjection.note(state, id))
 }
+/**
+ * The note for an editor surface. Typing publishes the note on every keystroke, and each
+ * re-render while the editor has focus makes React walk the editor DOM to save the selection.
+ * So these surfaces re-render only for other changes, and then read the latest note.
+ */
+function useEditorNote(id: string) {
+  const selected = useLibrarySelector((state) => libraryProjection.note(state, id), sameEditorNote)
+  return selected && (libraryProjection.note(library.getSnapshot(), id) ?? selected)
+}
 export function LiveNoteEditor({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof NoteEditor>, 'note'> & { noteId: string }) {
-  const note = useNote(noteId)
+  const note = useEditorNote(noteId)
   return note ? <NoteEditor {...props} note={note} /> : null
 }
 export function LiveNoteTools({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof NoteTools>, 'note' | 'searchNotes'> & { noteId: string }) {
-  const note = useNote(noteId)
-  const searchNotes = useLibrarySelector((state) =>
-    props.searchNavigation ? state.notes : undefined,
+  const note = useEditorNote(noteId)
+  // Search navigation only resolves its match once, so typing need not update these.
+  const navigating = !!props.searchNavigation
+  const searchNotes = useSettledLibrary(
+    (state) => (navigating ? state.notes : undefined),
+    (a, b) => !!a && !!b && sameEditorNotes(a, b),
+    navigating ? 'navigating' : '',
   )
   return note ? <NoteTools {...props} note={note} searchNotes={searchNotes} /> : null
 }
@@ -118,7 +141,7 @@ export function LiveNoteInformation({
   noteId: string
   open: ComponentProps<typeof NoteInformation>['open']
 }) {
-  const note = useNote(noteId)
+  const note = useSettledNote(noteId)
   const notebooks = useLibrarySelector((state) => state.notebooks)
   const backlinks = useBacklinks(noteId)
   return note ? (
@@ -134,24 +157,42 @@ export function LiveNoteRow({
   preview: boolean
   children: (row: { title: string; preview?: string; date: string }) => ReactNode
 }) {
-  const row = useLibrarySelector((state) => {
-    const note = libraryProjection.note(state, noteId)
-    return {
-      title: note?.title ?? '',
-      preview: preview && note ? notePreview(note.text) : undefined,
-      date: note ? noteListDate(note.updated) : '',
-    }
-  }, shallowEqual)
-  return children(row)
+  // The row follows typing once it pauses; renames and other changes show at once. Changes
+  // the row does not show, such as milliseconds within the displayed minute, skip rendering.
+  const rowOf = (note: Note | undefined) => ({
+    title: note?.title ?? '',
+    preview: preview && note ? notePreview(note.text) : undefined,
+    date: note ? noteListDate(note.updated) : '',
+  })
+  const note = useSettledLibrary(
+    (state) => libraryProjection.note(state, noteId),
+    sameEditorNote,
+    noteId,
+    (a, b) => shallowEqual(rowOf(a), rowOf(b)),
+  )
+  return children(rowOf(note))
 }
+/** How long typing must pause before the word count is updated. */
+export const statisticsDelayMs = settleDelayMs
+const countFormat = new Intl.NumberFormat('en-US')
 export function NoteStatistics({ noteId }: { noteId: string }) {
-  const text = useLibrarySelector((state) => libraryProjection.note(state, noteId)?.text ?? '')
-  const trimmed = text.trim()
-  const words = trimmed ? trimmed.split(/\s+/).length : 0
+  // Counting words in a long note on every keystroke is wasted work; the count follows typing
+  // once it pauses, together with other panels. Another note shows its own count at once.
+  const note = useSettledLibrary(
+    (state) => libraryProjection.note(state, noteId),
+    sameEditorNote,
+    noteId,
+    (a, b) => a?.text === b?.text,
+  )
+  const text = note?.text ?? ''
+  const words = useMemo(() => {
+    const trimmed = text.trim()
+    return trimmed ? trimmed.split(/\s+/).length : 0
+  }, [text])
   return (
-    <AppTooltip label={`${text.length.toLocaleString('en-US')} characters`}>
+    <AppTooltip label={`${countFormat.format(text.length)} characters`}>
       <span>
-        {words.toLocaleString('en-US')} {words === 1 ? 'word' : 'words'}
+        {countFormat.format(words)} {words === 1 ? 'word' : 'words'}
       </span>
     </AppTooltip>
   )
@@ -244,36 +285,36 @@ export function SaveFeedback({ syncNow }: { syncNow: () => void }) {
   )
 }
 export function LiveSyncConnection() {
-  const state = useLibrarySelector(library.getSnapshot)
+  const state = useSettledState()
   return <SyncConnection state={state} />
 }
 export function LiveAddToNotebooks({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof AddToNotebooksPopover>, 'note' | 'notes'> & { noteId: string }) {
-  const note = useNote(noteId)
-  const notes = useLibrarySelector((state) => state.notes)
+  const note = useSettledNote(noteId)
+  const notes = useSettledNotes()
   return note ? <AddToNotebooksPopover {...props} note={note} notes={notes} /> : null
 }
 export function LiveMoveNoteDialog({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof MoveNoteDialog>, 'note'> & { noteId: string }) {
-  const note = useNote(noteId)
+  const note = useSettledNote(noteId)
   return note ? <MoveNoteDialog {...props} note={note} /> : null
 }
 export function LiveNoteOrganization({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof NoteOrganization>, 'note' | 'notes'> & { noteId: string }) {
-  const note = useNote(noteId)
-  const notes = useLibrarySelector((state) => state.notes)
+  const note = useSettledNote(noteId)
+  const notes = useSettledNotes()
   return note ? <NoteOrganization {...props} note={note} notes={notes} /> : null
 }
 export function LiveNotebookDeleteDialog(
   props: Omit<ComponentProps<typeof NotebookDeleteDialog>, 'notes'>,
 ) {
-  const notes = useLibrarySelector((state) => state.notes)
+  const notes = useSettledNotes()
   return <NotebookDeleteDialog {...props} notes={notes} />
 }
 
@@ -281,6 +322,6 @@ export function LiveFileConflictDialog({
   noteId,
   ...props
 }: Omit<ComponentProps<typeof FileConflictDialog>, 'note'> & { noteId: string | null }) {
-  const note = useNote(noteId ?? '')
+  const note = useSettledNote(noteId ?? '')
   return <FileConflictDialog {...props} note={note ?? null} />
 }

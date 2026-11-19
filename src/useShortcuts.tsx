@@ -39,7 +39,9 @@ function blockPdfHistory(event: InputEvent) {
   }
 }
 function dispatch(event: KeyboardEvent) {
-  if (event.defaultPrevented || event.isComposing || dialogOpen()) return
+  if (event.defaultPrevented || event.isComposing) return
+  // Searching the page for an open dialog is costly on every typed key, so it waits until a
+  // shortcut matches. An open dialog still blocks every shortcut.
   if (
     focusedDocument === 'pdf' &&
     (['Mod+z', 'Mod+Shift+z', 'Mod+y'].some((binding) =>
@@ -51,7 +53,8 @@ function dispatch(event: KeyboardEvent) {
             command.scope === 'editor' &&
             matchesBinding(event, bindingFor(command.id, registration.overrides), isTauri()),
         ),
-      ))
+      )) &&
+    !dialogOpen()
   ) {
     event.preventDefault()
     event.stopImmediatePropagation()
@@ -65,6 +68,7 @@ function dispatch(event: KeyboardEvent) {
         matchesBinding(event, bindingFor(c.id, registration.overrides), isTauri()),
     )
     if (!command || !Object.hasOwn(registration.handlers, command.id)) continue
+    if (dialogOpen()) return
     event.preventDefault()
     event.stopImmediatePropagation()
     if (!event.repeat && !registration.disabled) registration.handlers[command.id]?.()

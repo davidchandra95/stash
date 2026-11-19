@@ -30,7 +30,7 @@ import {
 } from './writingToolbar'
 import WritingPickerContent from './WritingPickerContent'
 import { writingMenuActions } from './writingMenuActions'
-import { canRunWritingCommand, samePresentation, toolbarPresentation } from './editorPresentation'
+import { canRunWritingCommand, useToolbarPresentation } from './editorPresentation'
 const maxToolbarWidth = 460
 const pickerLabels: Record<WritingPicker, string> = {
   color: 'Text color',
@@ -54,11 +54,7 @@ export default function DesktopWritingToolbar({
   appearance?: Appearance
 }) {
   // Render reads command availability from here; computing it per button is costly.
-  const presentation = useEditorState({
-    editor,
-    selector: ({ editor: current }) => toolbarPresentation(current),
-    equalityFn: samePresentation,
-  })
+  const presentation = useToolbarPresentation(editor)
   const hasSelection = useEditorState({
     editor,
     selector: ({ editor: current }) => !current.state.selection.empty,
@@ -414,6 +410,7 @@ export default function DesktopWritingToolbar({
 
   // Unpinned, the toolbar floats beside the selection (or caret, for slash pickers).
   const pinned = appearance.showFormattingToolbar
+  const placeToolbar = useRef<(() => void) | null>(null)
   useLayoutEffect(() => {
     const bar = toolbar.current
     const dock = bar?.parentElement
@@ -423,7 +420,9 @@ export default function DesktopWritingToolbar({
       return
     }
     const place = () => {
-      if (editor.isDestroyed || !bar.isConnected) return
+      // A collapsed toolbar is not shown, so typing skips measuring the caret. The toolbar
+      // is placed again as it expands.
+      if (editor.isDestroyed || !bar.isConnected || bar.dataset.collapsed) return
       const { from, to } = editor.state.selection
       let start: { left: number; right: number; top: number; bottom: number }
       let end: typeof start
@@ -451,6 +450,7 @@ export default function DesktopWritingToolbar({
       bar.dataset.placement = placement
     }
     place()
+    placeToolbar.current = place
     const scroller = editor.view.dom.closest('.note-scroll')
     editor.on('selectionUpdate', place)
     editor.on('transaction', place)
@@ -460,6 +460,7 @@ export default function DesktopWritingToolbar({
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
     observer?.observe(dock)
     return () => {
+      placeToolbar.current = null
       observer?.disconnect()
       editor.off('selectionUpdate', place)
       editor.off('transaction', place)
@@ -580,6 +581,10 @@ export default function DesktopWritingToolbar({
     !picker &&
     !overflow &&
     !nativeOpen
+  // Runs after React applies data-collapsed, so the expanding toolbar is measured.
+  useLayoutEffect(() => {
+    if (!collapsed) placeToolbar.current?.()
+  }, [collapsed])
   return (
     <>
       <div
